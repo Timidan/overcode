@@ -1,0 +1,178 @@
+/* Motion utilities — keyframes, reusable classes, focus rings, reduced-motion guard.
+   Loaded once in main.tsx after variables.css. */
+
+@keyframes overcode-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes overcode-pulse-fast {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes overcode-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes overcode-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes overcode-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes overcode-arrow-up {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes overcode-arrow-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Terminal-style caret blink — sharp, square, no fade. Brutalist. */
+@keyframes overcode-caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.motion-caret {
+  animation: overcode-caret-blink 1s steps(1, end) infinite;
+}
+
+.motion-breathe {
+  animation: overcode-breathe var(--duration-breath) var(--ease-pulse) infinite;
+  transform-origin: center;
+}
+
+.motion-pulse-fast {
+  animation: overcode-pulse-fast 700ms var(--ease-pulse) infinite;
+}
+
+.motion-spin {
+  animation: overcode-spin 900ms linear infinite;
+  transform-origin: center;
+}
+
+.motion-rise {
+  animation: overcode-rise var(--duration-enter) var(--ease-standard) both;
+}
+
+.motion-arrow-up {
+  animation: overcode-arrow-up 420ms var(--ease-standard) both;
+}
+
+.motion-arrow-down {
+  animation: overcode-arrow-down 420ms var(--ease-standard) both;
+}
+
+.motion-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-surface) 0%,
+    var(--color-bg-elevated) 50%,
+    var(--color-bg-surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: overcode-shimmer 1.4s ease-in-out infinite;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hover-lift {
+    transition:
+      transform var(--duration-hover) var(--ease-standard),
+      border-color var(--duration-hover) var(--ease-standard),
+      box-shadow var(--duration-hover) var(--ease-standard);
+    will-change: transform;
+  }
+  .hover-lift:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-elev-1);
+  }
+}
+
+button,
+[role="button"],
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-accent-blue);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+button:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

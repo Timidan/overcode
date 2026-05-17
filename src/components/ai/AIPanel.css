@@ -1,0 +1,392 @@
+/* ============================================================
+   AIPanel — brutalist centered modal.
+   Backdrop dims the rest of the app. Esc closes. Clicking the
+   backdrop closes. The modal scales in (0.92 → 1) + fades.
+   Constrained size: 620px × 80vh.
+   ============================================================ */
+
+.ai-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-ink) 50%, transparent);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 899;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.ai-panel-backdrop.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ai-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: min(620px, 92vw);
+  max-height: min(80vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-ink);
+  z-index: 900;
+
+  /* Scale-in entrance per the ui-animation skill: start at 0.92 (not 0),
+     fade up over 180ms. Translate keeps the centering math in transform. */
+  transform: translate(-50%, -50%) scale(0.92);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+  will-change: transform, opacity;
+}
+
+.ai-panel.is-open {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (max-width: 480px) {
+  .ai-panel {
+    width: 96vw;
+    max-height: 90vh;
+  }
+}
+
+/* ----- Header (48px, hard 1px bottom border) ----- */
+.ai-panel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 48px;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--color-ink);
+  flex-shrink: 0;
+}
+
+.ai-panel-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-black);
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-widest);
+  border: 1px solid var(--color-ink);
+  background: transparent;
+}
+
+.ai-panel-feature {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-black);
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-wider);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-panel-spacer {
+  flex: 1;
+}
+
+.ai-panel-iconbtn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.ai-panel-iconbtn:hover:not(:disabled),
+.ai-panel-iconbtn:focus-visible {
+  background: var(--color-text-primary);
+  color: var(--color-text-inverted);
+}
+
+.ai-panel-iconbtn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ----- Body (scrollable) ----- */
+.ai-panel-body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-4);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.ai-empty {
+  padding: var(--space-6) var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-align: center;
+  color: var(--color-text-muted);
+  border: 1px dashed var(--color-border-strong);
+}
+
+/* ============================================================
+   Home view
+   ============================================================ */
+.ai-home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ai-home-status {
+  padding: var(--space-3);
+  border: 1px solid var(--color-ink);
+  background: transparent;
+}
+
+.ai-home-status-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.ai-home-model {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-wider);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-health-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-text-muted);
+  flex: 0 0 auto;
+}
+
+.ai-health-dot.is-available {
+  background: var(--color-accent-green);
+}
+.ai-health-dot.is-unavailable {
+  background: var(--color-accent-red);
+}
+.ai-health-dot.is-not-configured,
+.ai-health-dot.is-unknown {
+  background: var(--color-accent-amber);
+}
+
+.ai-status-pill {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  border: 1px solid currentColor;
+  background: transparent;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.ai-status-pill.is-available {
+  color: var(--color-accent-green);
+}
+.ai-status-pill.is-unavailable {
+  color: var(--color-accent-red);
+}
+.ai-status-pill.is-not-configured,
+.ai-status-pill.is-unknown {
+  color: var(--color-accent-amber);
+}
+
+/* Probe round-trip badge next to the health pill. Hard-bordered chip in
+   currentColor, transparent bg; color is foreground-only and bucketed by
+   measured latency (fast < 200ms, medium < 800ms, slow >= 800ms). */
+.ai-status-latency {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  border: 1px solid currentColor;
+  background: transparent;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.ai-status-latency.is-fast {
+  color: var(--color-accent-green);
+}
+.ai-status-latency.is-medium {
+  color: var(--color-accent-amber);
+}
+.ai-status-latency.is-slow {
+  color: var(--color-accent-red);
+}
+
+.ai-home-refresh {
+  flex: 0 0 auto;
+}
+
+/* Amber-bordered hint when watsonx is not configured. */
+.ai-home-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3);
+  background: transparent;
+  border: 1px solid var(--color-accent-amber);
+  border-radius: 0;
+  color: var(--color-accent-amber);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.ai-home-banner:hover,
+.ai-home-banner:focus-visible {
+  background: var(--color-accent-amber);
+  color: var(--color-text-inverted);
+}
+
+/* Feature shortcut stack — hard-bordered, full-width ink buttons. */
+.ai-home-shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--color-ink);
+}
+
+.ai-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-border-subtle);
+  border-radius: 0;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-wider);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.ai-shortcut:last-child {
+  border-bottom: none;
+}
+
+.ai-shortcut:hover,
+.ai-shortcut:focus-visible {
+  background: var(--color-text-primary);
+  color: var(--color-text-inverted);
+}
+
+.ai-shortcut-arrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-black);
+  color: var(--color-accent-amber);
+  flex: 0 0 auto;
+}
+
+.ai-shortcut:hover .ai-shortcut-arrow,
+.ai-shortcut:focus-visible .ai-shortcut-arrow {
+  color: var(--color-text-inverted);
+}
+
+/* ============================================================
+   Reduced motion — modal centers instantly with a tiny fade.
+   No scale animation, no backdrop blur change.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .ai-panel-backdrop {
+    transition: opacity 60ms linear;
+  }
+  .ai-panel {
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 80ms linear;
+  }
+  .ai-panel.is-open {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
+}
+
+/* AI Feature Error State */
+.ai-feature-error {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-accent-red);
+}
+
+.ai-feature-error p {
+  margin: 0 0 8px 0;
+}
+
+.ai-feature-error-detail {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.ai-feature-error button {
+  margin-top: 16px;
+  padding: 8px 16px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.ai-feature-error button:hover {
+  background: var(--color-text-primary);
+  color: var(--color-text-inverted);
+}

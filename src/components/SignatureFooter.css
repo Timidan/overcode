@@ -1,0 +1,25 @@
+.signature-footer {
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.footer-headline {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-black);
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-tight);
+}
+
+.footer-sub {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-secondary);
+  letter-spacing: var(--tracking-widest);
+}

@@ -1,0 +1,240 @@
+/* ============================================================
+   OVERCODE · BRUTALIST DESIGN TOKENS
+   Two themes — both share the same brutalist moves:
+   - Hard 1-2px borders, no radius on data containers
+   - JetBrains Mono everywhere
+   - Single amber accent (#fb923c) reserved for critical state
+   - Other status colors are foreground-only (no fills, no dims)
+   - Oversized numerals for stat figures
+   ============================================================ */
+
+:root {
+  color-scheme: dark;
+
+  /* ----- COLOR · BACKGROUNDS (dark = warm graphite, paired with the cream
+     paper of the light theme; lifted off pure-black so it doesn't stare back) ----- */
+  --color-bg-void: #161410;
+  --color-bg-app: #1a1814;
+  --color-bg-surface: #1a1814;
+  --color-bg-elevated: #221f19;
+  --color-bg-input: #1a1814;
+
+  /* ----- COLOR · BORDERS (hairlines in the softer text tone, much dimmer) ----- */
+  --color-border-subtle: rgba(214, 203, 178, 0.06);
+  --color-border-default: rgba(214, 203, 178, 0.12);
+  --color-border-strong: rgba(214, 203, 178, 0.28);
+  --color-ink: #d6cbb2;
+
+  /* ----- COLOR · TEXT (soft cream, not neon white — about 80% lightness) ----- */
+  --color-text-primary: #d6cbb2;
+  --color-text-secondary: #908778;
+  --color-text-muted: #5a523f;
+  --color-text-inverted: #1a1814;
+
+  /* ----- COLOR · ACCENTS ----- */
+  /* Single dominant accent — slightly muted from neon orange */
+  --color-accent-amber: #e89149;
+  --color-accent-amber-dim: transparent;
+  --color-accent-amber-border: #e89149;
+
+  /* Status signals — foreground only, slightly desaturated for the subtler dark */
+  --color-accent-blue: #7b96e6;
+  --color-accent-blue-dim: transparent;
+  --color-accent-blue-border: #7b96e6;
+
+  --color-accent-cyan: #6dc8b5;
+  --color-accent-cyan-dim: transparent;
+  --color-accent-cyan-border: #6dc8b5;
+
+  --color-accent-green: #5ec081;
+  --color-accent-green-dim: transparent;
+  --color-accent-green-border: #5ec081;
+
+  --color-accent-purple: #9e85e6;
+  --color-accent-purple-dim: transparent;
+  --color-accent-purple-border: #9e85e6;
+
+  --color-accent-red: #d97373;
+  --color-accent-red-dim: transparent;
+  --color-accent-red-border: #d97373;
+
+  /* ----- COLOR · GRADIENTS (kept for legacy consumers; brutalist uses flat) ----- */
+  --gradient-sidebar-active: var(--color-bg-elevated);
+
+  /* ----- TYPOGRAPHY ----- */
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  --font-sans: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 24px;
+  --text-2xl: 36px;
+  --text-3xl: 64px;
+  --text-4xl: 96px;
+  --text-5xl: 120px;
+
+  /* Weights deliberately dropped from heavy to medium — the brutalist look
+     was reading too bold once labels were sentence-cased. Bold labels are
+     now 500 (medium); "black" display headers are 600 (semibold). */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 500;
+  --weight-black: 600;
+
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.08em;
+  --tracking-wider: 0.16em;
+  --tracking-widest: 0.22em;
+
+  /* ----- LAYOUT ----- */
+  --app-max-width: 1600px;
+
+  /* ----- SPACING (4px base) ----- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ----- BORDER RADIUS · BRUTALIST = 0 ----- */
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-full: 9999px;  /* kept for genuine dots only */
+
+  /* ----- MOTION ----- */
+  --transition-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 180ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 260ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-panel: 260ms cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-move: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-pulse: cubic-bezier(0.4, 0, 0.6, 1);
+  --duration-instant: 80ms;
+  --duration-hover: 160ms;
+  --duration-state: 200ms;
+  --duration-enter: 280ms;
+  --duration-breath: 1800ms;
+
+  /* ----- ELEVATION · brutalist = no shadows ----- */
+  --shadow-elev-1: none;
+  --shadow-elev-2: none;
+
+  /* ----- BRAND ----- */
+  --brand-github: #f4ecd8;
+  --brand-github-soft: transparent;
+  --brand-github-border: #f4ecd8;
+  --brand-gitlab: #fc6d26;
+  --brand-gitlab-soft: transparent;
+  --brand-gitlab-border: #fc6d26;
+
+  /* ----- ATMOSPHERE · disabled for brutalist (flat surfaces) ----- */
+  --bloom-color: transparent;
+}
+
+/* ============================================================
+   LIGHT THEME = cream paper + ink
+   ============================================================ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-bg-void: #ede5cf;
+  --color-bg-app: #f4ecd8;
+  --color-bg-surface: #f4ecd8;
+  --color-bg-elevated: #ece3c8;
+  --color-bg-input: #f4ecd8;
+
+  --color-border-subtle: rgba(10, 10, 12, 0.14);
+  --color-border-default: rgba(10, 10, 12, 0.28);
+  --color-border-strong: #0a0a0c;
+  --color-ink: #0a0a0c;
+
+  --color-text-primary: #0a0a0c;
+  --color-text-secondary: #5b5340;
+  --color-text-muted: #8a7f64;
+  --color-text-inverted: #f4ecd8;
+
+  /* Amber stays the same hue in light mode — high contrast on cream */
+  --color-accent-amber: #d4670d;
+  --color-accent-amber-dim: transparent;
+  --color-accent-amber-border: #d4670d;
+
+  --color-accent-blue: #2c5cff;
+  --color-accent-blue-dim: transparent;
+  --color-accent-blue-border: #2c5cff;
+
+  --color-accent-cyan: #0891b2;
+  --color-accent-cyan-dim: transparent;
+  --color-accent-cyan-border: #0891b2;
+
+  --color-accent-green: #1f9d55;
+  --color-accent-green-dim: transparent;
+  --color-accent-green-border: #1f9d55;
+
+  --color-accent-purple: #6d3ad9;
+  --color-accent-purple-dim: transparent;
+  --color-accent-purple-border: #6d3ad9;
+
+  --color-accent-red: #c93535;
+  --color-accent-red-dim: transparent;
+  --color-accent-red-border: #c93535;
+
+  --gradient-sidebar-active: var(--color-bg-elevated);
+
+  --brand-github: #0a0a0c;
+  --brand-github-soft: transparent;
+  --brand-github-border: #0a0a0c;
+  --brand-gitlab: #d4670d;
+  --brand-gitlab-soft: transparent;
+  --brand-gitlab-border: #d4670d;
+
+  --bloom-color: transparent;
+}
+
+/* Disable transitions while swapping themes to avoid flicker. */
+.theme-transitioning,
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition: none !important;
+  animation-duration: 0.01ms !important;
+}
+
+/* ============================================================
+   BRUTALIST BASE HELPERS — opt-in classes used by components
+   ============================================================ */
+.b-num {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-black);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-tight);
+  line-height: 0.9;
+}
+
+.b-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.b-frame {
+  border: 1px solid var(--color-ink);
+  background: var(--color-bg-app);
+}
+
+.b-frame-strong {
+  border: 2px solid var(--color-ink);
+  background: var(--color-bg-app);
+}

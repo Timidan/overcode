@@ -1,0 +1,159 @@
+/* Brutalist custom select — replaces the OS native `<select>` so the
+   open dropdown matches the rest of the app. */
+
+.bsel {
+  position: relative;
+  display: inline-block;
+  min-width: 160px;
+}
+
+.bsel-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.bsel-trigger:hover:not(:disabled) {
+  background: var(--color-bg-elevated);
+}
+
+.bsel-trigger:focus-visible {
+  outline: 2px solid var(--color-accent-amber);
+  outline-offset: -2px;
+}
+
+.bsel-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bsel-trigger.is-open {
+  border-color: var(--color-accent-amber);
+}
+
+.bsel-value {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bsel-caret {
+  flex: 0 0 auto;
+  color: var(--color-text-secondary);
+  transition: transform var(--transition-fast);
+}
+
+.bsel-trigger.is-open .bsel-caret {
+  transform: rotate(180deg);
+  color: var(--color-accent-amber);
+}
+
+/* ----- Popover ----- */
+.bsel-list {
+  position: absolute;
+  top: calc(100% - 1px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  /* Subtle entrance — scale-in per the brutalist rule (no soft springs). */
+  transform-origin: top left;
+  animation: bsel-pop-in 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes bsel-pop-in {
+  from {
+    transform: scaleY(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.bsel-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  user-select: none;
+}
+
+.bsel-option:last-child { border-bottom: none; }
+
+/* Hover or keyboard-highlight: inverted block per the brutalist convention. */
+.bsel-option.is-active {
+  background: var(--color-text-primary);
+  color: var(--color-text-inverted);
+}
+
+/* Currently-selected option gets an amber bar before the label so the eye
+   can re-find it after scrolling, even when it isn't highlighted. */
+.bsel-option.is-selected {
+  box-shadow: inset 3px 0 0 var(--color-accent-amber);
+}
+
+.bsel-option.is-selected.is-active {
+  box-shadow: inset 3px 0 0 var(--color-text-inverted);
+}
+
+.bsel-option-label {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bsel-option-hint {
+  flex: 0 0 auto;
+  font-weight: var(--weight-regular);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wider);
+}
+
+.bsel-option.is-active .bsel-option-hint {
+  color: var(--color-bg-app);
+  opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bsel-list { animation: none; }
+  .bsel-caret { transition: none; }
+}

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 260" role="img" aria-label="Overcode logo, light theme">
+  <defs>
+    <pattern id="dot-ink" width="14" height="14" patternUnits="userSpaceOnUse">
+      <circle cx="4.5" cy="4.5" r="3.4" fill="#0a0a0c"/>
+    </pattern>
+    <pattern id="dot-amber" width="14" height="14" patternUnits="userSpaceOnUse">
+      <circle cx="4.5" cy="4.5" r="3.4" fill="#d4670d"/>
+    </pattern>
+    <pattern id="dot-violet" width="14" height="14" patternUnits="userSpaceOnUse">
+      <circle cx="4.5" cy="4.5" r="3.4" fill="#6d3ad9"/>
+    </pattern>
+    <pattern id="dot-blue" width="14" height="14" patternUnits="userSpaceOnUse">
+      <circle cx="4.5" cy="4.5" r="3.4" fill="#2c5cff"/>
+    </pattern>
+    <mask id="word-mask">
+      <rect width="760" height="260" fill="#000"/>
+      <text x="36" y="134" fill="#fff" font-family="JetBrains Mono, Fira Code, Cascadia Code, monospace" font-size="90" font-weight="600" letter-spacing="4">OVERCODE</text>
+    </mask>
+  </defs>
+  <g mask="url(#word-mask)">
+    <rect x="30" y="54" width="380" height="104" fill="url(#dot-ink)"/>
+    <rect x="410" y="54" width="84" height="104" fill="url(#dot-amber)"/>
+    <rect x="494" y="54" width="112" height="104" fill="url(#dot-violet)"/>
+    <rect x="606" y="54" width="118" height="104" fill="url(#dot-blue)"/>
+  </g>
+  <g font-family="JetBrains Mono, Fira Code, Cascadia Code, monospace" font-weight="400" letter-spacing="3">
+    <text x="39" y="192" fill="#0a0a0c" font-size="21">all your workspace updates.</text>
+    <text x="39" y="229" fill="#6d3ad9" font-size="22">one calm signal.</text>
+  </g>
+</svg>

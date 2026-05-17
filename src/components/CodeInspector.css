@@ -1,0 +1,387 @@
+/* ============================================================
+   CodeInspector — brutalist data poster, read-only code viewer
+   ============================================================ */
+
+.code-inspector {
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-ink);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- INLINE VARIANT ---------- */
+.code-inspector--inline {
+  width: 100%;
+  max-height: 480px;
+  overflow: hidden; /* body handles scrolling */
+}
+
+/* ---------- PANEL VARIANT ---------- */
+.code-inspector--panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 480px;
+  max-width: 100vw;
+  z-index: 60;
+  border: none;
+  border-left: 2px solid var(--color-ink);
+  background: var(--color-bg-app);
+  transform: translateX(100%);
+  opacity: 0;
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.code-inspector--panel.is-open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Reduced-motion fallback: skip the slide, just fade in. */
+@media (prefers-reduced-motion: reduce) {
+  .code-inspector--panel {
+    transform: none;
+  }
+  .code-inspector--panel:not(.is-open) {
+    visibility: hidden;
+  }
+  .code-inspector--panel.is-open {
+    visibility: visible;
+  }
+}
+
+/* ---------- HEADER ---------- */
+.code-inspector__header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 40px;
+  padding: 0 var(--space-3);
+  background: var(--color-bg-app);
+  border-bottom: 1px solid var(--color-ink);
+}
+
+.code-inspector__path {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* show end of long paths (filename) */
+  text-align: left;
+}
+
+.code-inspector__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.code-inspector__chip {
+  padding: 2px 6px;
+  border: 1px solid var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-text-primary);
+  background: transparent;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ref chip turns amber when pointing at a non-default branch / tag / SHA so
+   the reader notices they're not on the trunk before editing. */
+.code-inspector__chip--amber {
+  color: var(--color-accent-amber);
+  border-color: var(--color-accent-amber);
+}
+
+.code-inspector__bytes {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Size chip escalates amber → red as the file approaches / hits the byte cap. */
+.code-inspector__bytes--amber { color: var(--color-accent-amber); }
+.code-inspector__bytes--red   { color: var(--color-accent-red); }
+
+.code-inspector__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 24px;
+  padding: 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-hover) var(--ease-standard),
+    color var(--duration-hover) var(--ease-standard),
+    opacity var(--duration-hover) var(--ease-standard);
+}
+
+.code-inspector__icon-btn:hover:not(:disabled) {
+  background: var(--color-ink);
+  color: var(--color-text-inverted);
+}
+
+.code-inspector__icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.code-inspector__btn-label {
+  font-family: var(--font-mono);
+}
+
+.code-inspector__close {
+  padding: 0 var(--space-1);
+}
+
+.code-inspector__copy-error {
+  padding: 4px var(--space-3);
+  border-bottom: 1px solid var(--color-accent-red);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-accent-red);
+  background: transparent;
+}
+
+/* ---------- BODY ---------- */
+.code-inspector__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--color-bg-app);
+}
+
+/* ---------- SKELETON ---------- */
+.code-inspector__skeletons {
+  padding: var(--space-4) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.code-inspector__skel-row {
+  height: 14px;
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* ---------- ERROR ---------- */
+.code-inspector__error {
+  margin: var(--space-4) var(--space-3);
+  padding: var(--space-3);
+  border: 2px solid var(--color-accent-red);
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.code-inspector__error-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  color: var(--color-accent-red);
+}
+
+.code-inspector__error-msg {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.code-inspector__retry {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 26px;
+  padding: 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-hover) var(--ease-standard),
+    color var(--duration-hover) var(--ease-standard);
+}
+
+.code-inspector__retry:hover {
+  background: var(--color-ink);
+  color: var(--color-text-inverted);
+}
+
+/* ---------- EMPTY ---------- */
+.code-inspector__empty {
+  padding: var(--space-8) var(--space-3);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  color: var(--color-text-muted);
+}
+
+/* ---------- BINARY ---------- */
+.code-inspector__binary {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.code-inspector__binary-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-text-primary);
+  align-self: flex-start;
+}
+
+.code-inspector__binary-tag {
+  color: var(--color-accent-amber);
+  font-weight: var(--weight-black);
+}
+
+.code-inspector__binary-sep {
+  color: var(--color-text-muted);
+}
+
+.code-inspector__hex {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* ---------- TRUNCATED CHIP ---------- */
+.code-inspector__warning-chip {
+  margin: var(--space-3);
+  padding: 4px var(--space-2);
+  display: inline-block;
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-accent-amber);
+  border: 1px solid var(--color-accent-amber);
+  background: transparent;
+}
+
+/* ---------- CODE ---------- */
+.code-inspector__code {
+  margin: 0;
+  padding: var(--space-2) 0 var(--space-3) 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--color-text-primary);
+  white-space: normal; /* the line-text span handles wrapping */
+}
+
+.code-inspector__line {
+  display: grid;
+  grid-template-columns: 6ch 1fr;
+  align-items: start;
+  padding: 0 var(--space-3);
+  border-left: 2px solid transparent;
+}
+
+.code-inspector__lineno {
+  display: inline-block;
+  padding-right: var(--space-3);
+  margin-right: var(--space-3);
+  text-align: right;
+  color: var(--color-text-muted);
+  border-right: 1px solid var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  -webkit-user-select: none;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.code-inspector__line-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+  -moz-tab-size: 2;
+}
+
+/* Patch overlay — foreground colour only, no fills. */
+.code-inspector__line--add .code-inspector__line-text {
+  color: var(--color-accent-green);
+}
+
+.code-inspector__line--del .code-inspector__line-text {
+  color: var(--color-accent-red);
+}
+
+.code-inspector__line--hunk .code-inspector__line-text {
+  color: var(--color-accent-amber);
+  font-weight: var(--weight-bold);
+}
+
+/* Highlighted range — single amber rule on the left. */
+.code-inspector__line--marked {
+  border-left-color: var(--color-accent-amber);
+}

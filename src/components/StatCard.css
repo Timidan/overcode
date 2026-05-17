@@ -1,0 +1,137 @@
+/* Brutalist stat card — oversized JetBrains Mono numeral, hard border, no radius.
+   Default cards are ink-on-paper. Amber cards invert to amber bg + ink text
+   (single accent reserved for the one figure that needs to dominate). */
+
+.stat-card {
+  position: relative;
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  min-width: 160px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--color-text-primary);
+  text-align: left;
+  font: inherit;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+/* When the card is interactive (clickable), promote it to a real button with
+   a subtle hover hint — the whole tile becomes pressable but stays brutalist. */
+button.stat-card {
+  cursor: pointer;
+}
+
+button.stat-card.is-interactive:hover {
+  background: var(--color-bg-elevated);
+}
+
+button.stat-card.is-interactive.stat-card-amber:hover {
+  filter: brightness(1.05);
+}
+
+button.stat-card.is-interactive:focus-visible {
+  outline: 2px solid var(--color-accent-amber);
+  outline-offset: -2px;
+}
+
+.stat-card + .stat-card {
+  border-left: none;
+}
+
+.stat-card-stripe {
+  display: none;
+}
+
+.stat-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stat-card-icon-backplate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 0;
+  background: transparent;
+  color: currentColor;
+}
+
+.stat-number {
+  font-family: var(--font-mono);
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-black);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-tight);
+  line-height: 0.9;
+  margin-top: var(--space-2);
+}
+
+.stat-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  color: var(--color-text-secondary);
+  margin-top: auto;
+}
+
+/* All non-amber variants render plain ink-on-paper.
+   The accent color only lights up the icon. */
+.stat-card-blue,
+.stat-card-green,
+.stat-card-purple,
+.stat-card-cyan,
+.stat-card-red {
+  color: var(--color-text-primary);
+}
+
+.stat-card-blue .stat-card-icon-backplate { color: var(--color-accent-blue); }
+.stat-card-green .stat-card-icon-backplate { color: var(--color-accent-green); }
+.stat-card-purple .stat-card-icon-backplate { color: var(--color-accent-purple); }
+.stat-card-cyan .stat-card-icon-backplate { color: var(--color-accent-cyan); }
+.stat-card-red .stat-card-icon-backplate { color: var(--color-accent-red); }
+
+/* Amber card = the one filled block. */
+.stat-card-amber {
+  background: var(--color-accent-amber);
+  color: var(--color-text-inverted);
+  border-color: var(--color-accent-amber);
+}
+
+.stat-card-amber .stat-number,
+.stat-card-amber .stat-label,
+.stat-card-amber .stat-card-icon-backplate {
+  color: var(--color-text-inverted);
+}
+
+/* Inline trend line — sits in the bottom-right of the card without disturbing
+   the oversized numeral. Stroke uses currentColor so the amber (filled) card
+   draws the line in paper, and every other card draws it in muted ink. */
+.stat-card-spark {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: block;
+  pointer-events: none;
+  color: var(--color-text-muted);
+}
+
+.stat-card-amber .stat-card-spark {
+  color: var(--color-text-inverted);
+}
+
+@media (max-width: 900px) {
+  .stat-number {
+    font-size: var(--text-3xl);
+  }
+}

@@ -1,0 +1,67 @@
+.repo-brief {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.brief-loading {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: var(--space-4);
+}
+
+.brief-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-cyan);
+  animation: ai-dot-pulse 1.4s ease-in-out infinite;
+}
+
+.brief-output {
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-border-default);
+  border-left: 3px solid var(--color-accent-cyan);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+}
+
+.brief-heading {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.brief-heading:first-child {
+  margin-top: 0;
+}
+
+.brief-paragraph {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+}
+
+.brief-error {
+  padding: var(--space-3);
+  background: var(--color-accent-red-dim);
+  border: 1px solid var(--color-accent-red-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--color-accent-red);
+  white-space: pre-wrap;
+}

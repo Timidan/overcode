@@ -1,0 +1,61 @@
+// @see - https://www.electron.build/configuration/configuration
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "ai.overcode.desktop",
+  "asar": true,
+  "productName": "Overcode",
+  "directories": {
+    "output": "release/${version}",
+    "buildResources": "public"
+  },
+  "files": [
+    "dist",
+    "dist-electron",
+    "!**/*.map",
+    "!**/{LICENSE,README,CHANGELOG,HISTORY,CONTRIBUTING}*",
+    "!**/{.eslintrc,.eslintignore,.prettierrc,tsconfig*.json,jest.config.*}",
+    "!**/{test,tests,__tests__,spec,docs,examples}/**"
+  ],
+  "mac": {
+    "target": [
+      "dmg"
+    ],
+    "icon": "build/icon.png",
+    "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "icon": "build/icon.ico",
+    "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false
+  },
+  "linux": {
+    "target": [
+      "AppImage"
+    ],
+    "icon": "build/icon.png",
+    "category": "Development",
+    "synopsis": "Developer workspace hub for repositories, pull requests, and AI-assisted Git workflows.",
+    "description": "Overcode is a desktop developer workspace hub for Git, pull requests, and watsonx.ai Granite-assisted workflows. Local-first, native, with GitHub and GitLab integrations.",
+    "maintainer": "Timidan <akinnusotutemitayodaniel@gmail.com>",
+    "desktop": {
+      "Name": "Overcode",
+      "Comment": "Developer workspace hub",
+      "StartupWMClass": "Overcode",
+      "Categories": "Development;"
+    },
+    "artifactName": "${productName}-Linux-${version}.${ext}"
+  }
+}

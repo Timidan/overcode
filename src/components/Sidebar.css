@@ -1,0 +1,187 @@
+/* Brutalist sidebar — hard right border, no gradients, no radius, no fills.
+   Active icon = inverted block (ink bg, paper text). */
+.sidebar {
+  width: 48px;
+  background: var(--color-bg-app);
+  border-right: 1px solid var(--color-ink);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.sidebar-icon {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-radius: 0;
+  cursor: pointer;
+  margin: 0;
+  transition:
+    background-color var(--duration-hover) var(--ease-standard),
+    color var(--duration-hover) var(--ease-standard);
+}
+
+.sidebar-icon::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--color-text-primary);
+  transform: scaleY(0);
+  transform-origin: center;
+  opacity: 0;
+  transition:
+    transform 180ms var(--ease-standard),
+    opacity 180ms var(--ease-standard);
+}
+
+.sidebar-icon.active::before {
+  transform: scaleY(1);
+  opacity: 1;
+}
+
+.sidebar-icon:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.sidebar-icon.active {
+  background: var(--color-text-primary);
+  color: var(--color-text-inverted);
+  border-bottom-color: var(--color-ink);
+}
+
+.sidebar-icon-ai {
+  color: var(--color-accent-amber);
+}
+
+.sidebar-icon-ai:not(.active) {
+  opacity: 0.9;
+}
+
+.sidebar-icon-ai.active {
+  background: var(--color-accent-amber);
+  color: var(--color-text-inverted);
+  border-bottom-color: var(--color-ink);
+}
+
+.sidebar-icon-ai.active::before {
+  background: var(--color-text-inverted);
+}
+
+.sidebar-repos {
+  margin: 0;
+  padding-top: 0;
+  border-top: 1px solid var(--color-ink);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.sidebar-repos::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar-repo {
+  position: relative;
+  width: 48px;
+  min-height: 38px;
+  border: none;
+  border-bottom: 1px solid var(--color-border-subtle);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition:
+    background-color var(--duration-hover) var(--ease-standard),
+    color var(--duration-hover) var(--ease-standard);
+}
+
+.sidebar-repo svg {
+  position: absolute;
+  inset: auto 5px 3px auto;
+  opacity: 0.35;
+}
+
+.sidebar-repo::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--color-accent-amber);
+  transform: scaleY(0);
+  transform-origin: center;
+  opacity: 0;
+  transition:
+    transform 180ms var(--ease-standard),
+    opacity 180ms var(--ease-standard);
+}
+
+.sidebar-repo:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.sidebar-repo.active {
+  background: var(--color-text-primary);
+  color: var(--color-text-inverted);
+  border-bottom-color: var(--color-ink);
+}
+
+.sidebar-repo.active::before {
+  transform: scaleY(1);
+  opacity: 1;
+}
+
+.sidebar-repo-initials {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-wide);
+}
+
+.sidebar-repo-status {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-text-muted);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.sidebar-repo-status-clean { background: var(--color-accent-green); }
+.sidebar-repo-status-dirty { background: var(--color-accent-amber); }
+.sidebar-repo-status-conflict { background: var(--color-accent-red); }
+.sidebar-repo-status-unknown { background: var(--color-text-muted); }
+
+.sidebar-repo.active .sidebar-repo-status-unknown {
+  background: var(--color-text-inverted);
+  opacity: 0.4;
+}
+
+.theme-toggle {
+  margin-top: auto;
+}

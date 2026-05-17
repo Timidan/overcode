@@ -1,0 +1,148 @@
+/* Brutalist provider chip — square frame, no halo, no animation rings.
+   Color encodes provider identity; state is conveyed by border + label. */
+
+.provider-pill-mini {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition:
+    color var(--duration-hover) var(--ease-standard),
+    border-color var(--duration-hover) var(--ease-standard),
+    background-color var(--duration-hover) var(--ease-standard);
+}
+
+.provider-pill-mini:disabled { cursor: progress; }
+
+.provider-pill-mini[data-state="connected"] {
+  color: var(--color-accent-green);
+  border-color: var(--color-accent-green);
+}
+
+.provider-pill-mini[data-state="disconnected"] {
+  color: var(--color-accent-red);
+  border-color: var(--color-accent-red);
+}
+
+.provider-pill-mini[data-state="connecting"] {
+  color: var(--color-accent-amber);
+  border-color: var(--color-accent-amber);
+}
+
+.provider-pill-mini:hover:not(:disabled) {
+  background: currentColor;
+  color: var(--color-text-inverted);
+}
+
+.provider-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 5px 12px 5px 8px;
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  isolation: isolate;
+  transition:
+    background-color var(--duration-hover) var(--ease-standard),
+    border-color var(--duration-hover) var(--ease-standard),
+    color var(--duration-hover) var(--ease-standard);
+}
+
+.provider-pill:disabled { cursor: progress; }
+
+.provider-pill:hover:not(:disabled) {
+  border-color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+}
+
+.provider-pill-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 0;
+  color: currentColor;
+  background: transparent;
+}
+
+.provider-pill-check {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+  background: var(--color-accent-green);
+  color: var(--color-text-inverted);
+  border: 1px solid var(--color-ink);
+}
+
+.provider-pill-action-icon { color: var(--color-text-muted); }
+.provider-pill-label { white-space: nowrap; }
+
+/* No halo/ring in brutalist — they're decorative. Hide them. */
+.provider-pill-halo,
+.provider-pill-ring { display: none; }
+
+.provider-pill-github[data-state="connected"] {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-primary);
+}
+.provider-pill-github[data-state="disconnected"] .provider-pill-icon { color: var(--color-text-muted); }
+
+.provider-pill-gitlab[data-state="connected"] {
+  color: var(--brand-gitlab);
+  border-color: var(--brand-gitlab);
+}
+.provider-pill-gitlab[data-state="connected"] .provider-pill-icon { color: var(--brand-gitlab); }
+.provider-pill-gitlab[data-state="disconnected"] .provider-pill-icon { color: var(--color-text-muted); }
+
+.provider-pill[data-state="connected"]:hover:not(:disabled) {
+  color: var(--color-accent-red);
+  border-color: var(--color-accent-red);
+  background: transparent;
+}
+
+.provider-pill-row {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 10px 14px;
+  border-radius: 0;
+  letter-spacing: var(--tracking-wide);
+  font-size: var(--text-sm);
+  gap: var(--space-3);
+}
+
+.provider-pill-row .provider-pill-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.provider-pill[data-state="disconnected"] {
+  border-style: dashed;
+}
+.provider-pill[data-state="disconnected"]:hover:not(:disabled) {
+  border-style: solid;
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+}

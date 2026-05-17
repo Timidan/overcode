@@ -1,0 +1,373 @@
+.repo-detail-container {
+  display: flex;
+  height: 100%;
+  background: var(--color-bg-app);
+}
+
+.repo-detail-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--space-6) var(--space-8);
+  gap: var(--space-5);
+}
+
+.repo-detail-header {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+  border-bottom: 2px solid var(--color-ink);
+}
+
+.back-button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.back-button:hover {
+  background: var(--color-text-primary);
+  color: var(--color-text-inverted);
+}
+
+.repo-detail-title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text-primary);
+  line-height: 0.9;
+}
+
+.repo-detail-platform {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  color: var(--color-text-secondary);
+  margin-left: auto;
+}
+
+.repo-ai-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  padding: var(--space-4);
+}
+
+.repo-ai-hint {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.repo-ai-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0;
+  border: 1px solid var(--color-ink);
+}
+
+.repo-ai-button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: none;
+  border-right: 1px solid var(--color-ink);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.repo-ai-button:last-child { border-right: none; }
+
+.repo-ai-button:hover:not(:disabled) {
+  background: var(--color-accent-amber);
+  color: var(--color-text-inverted);
+}
+
+.repo-ai-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.repo-ai-error {
+  grid-column: 1 / -1;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-accent-red);
+  border: 1px solid var(--color-accent-red);
+  padding: var(--space-2) var(--space-3);
+}
+
+.repo-detail-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns:
+    minmax(260px, var(--repo-col-graph, 41fr))
+    7px
+    minmax(260px, var(--repo-col-tree, 29fr))
+    7px
+    minmax(280px, var(--repo-col-sidecars, 30fr));
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-ink);
+  min-height: 0;
+}
+
+.repo-detail-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.repo-detail-column-graph {
+  grid-column: 1;
+}
+
+.repo-detail-column-tree {
+  grid-column: 3;
+}
+
+.repo-detail-column-sidecars {
+  grid-column: 5;
+}
+
+.repo-detail-column-head {
+  flex: 0 0 auto;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-ink);
+  background: var(--color-bg-app);
+}
+
+.repo-detail-column-body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+}
+
+/* Working tree column lets its single pane fill the available height */
+.repo-detail-column-tree .repo-pane-grow {
+  flex: 1 1 0;
+  min-height: 0;
+  border-bottom: none;
+}
+
+/* Sidecar panes — stack vertically, share remaining height, each scrolls on its own */
+.repo-detail-column-sidecars {
+  display: flex;
+  flex-direction: column;
+}
+
+.repo-sidecar-stack {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  overflow: hidden;
+}
+
+.repo-pane {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-bottom: 1px solid var(--color-ink);
+}
+
+.repo-sidecar-stack > .repo-pane {
+  border-bottom: none;
+}
+
+.repo-pane-body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+}
+
+.repo-resize-handle {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  background: var(--color-bg-app);
+  outline: none;
+  touch-action: none;
+}
+
+.repo-resize-handle::before {
+  content: "";
+  position: absolute;
+  background: var(--color-ink);
+  opacity: 0.72;
+}
+
+.repo-resize-handle:hover,
+.repo-resize-handle:focus-visible {
+  background: var(--color-bg-elevated);
+}
+
+.repo-resize-handle:focus-visible::before,
+.repo-resize-handle:hover::before {
+  opacity: 1;
+}
+
+.repo-resize-handle-x {
+  cursor: col-resize;
+}
+
+.repo-resize-handle-x::before {
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+}
+
+.repo-resize-handle-y {
+  min-height: 7px;
+  cursor: row-resize;
+}
+
+.repo-resize-handle-y::before {
+  top: 3px;
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.repo-detail-resizing-x,
+.repo-detail-resizing-x * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+.repo-detail-resizing-y,
+.repo-detail-resizing-y * {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
+
+/* Medium screens — collapse to 2 columns. Commit history fills the left, the
+   working tree stacks above sidecars in a single right column. Each surface still
+   owns its scroll. */
+@media (max-width: 1280px) {
+  .repo-detail-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 0.4fr) minmax(0, 0.6fr);
+  }
+
+  .repo-resize-handle {
+    display: none;
+  }
+
+  .repo-detail-column-graph {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .repo-detail-column-tree {
+    grid-column: 2;
+    grid-row: 1;
+    border-left: 1px solid var(--color-ink);
+  }
+
+  .repo-detail-column-sidecars {
+    grid-column: 2;
+    grid-row: 2;
+    border-left: 1px solid var(--color-ink);
+    border-top: 1px solid var(--color-ink);
+  }
+}
+
+/* Narrow — single column, every pane bounded to 40vh so the user can scroll the
+   outer page while each surface keeps its own internal scroll. */
+@media (max-width: 900px) {
+  .repo-detail-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-auto-rows: auto;
+    overflow-y: auto;
+  }
+
+  .repo-resize-handle {
+    display: none;
+  }
+
+  .repo-detail-column-graph,
+  .repo-detail-column-tree,
+  .repo-detail-column-sidecars {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .repo-detail-column {
+    overflow: visible;
+    border-left: none !important;
+  }
+
+  .repo-detail-column-tree,
+  .repo-detail-column-sidecars {
+    border-top: 1px solid var(--color-ink);
+    border-left: none;
+  }
+
+  .repo-sidecar-stack {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .repo-detail-column-body,
+  .repo-pane {
+    max-height: 40vh;
+  }
+
+  .repo-pane {
+    flex: 0 0 auto;
+  }
+}
+
+.repo-detail-loading {
+  padding: var(--space-8);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  color: var(--color-text-secondary);
+}

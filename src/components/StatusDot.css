@@ -1,0 +1,19 @@
+/* Brutalist status dot — foreground color only, no glow.
+   The dot is the only round element on the page. */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.status-dot-live { background: var(--color-accent-green); animation: status-pulse 2s ease-in-out infinite; }
+.status-dot-remote { background: var(--color-accent-blue); }
+.status-dot-warn { background: var(--color-accent-amber); }
+.status-dot-error { background: var(--color-accent-red); }
+.status-dot-muted { background: var(--color-text-muted); }
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}

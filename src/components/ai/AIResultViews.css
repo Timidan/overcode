@@ -1,0 +1,576 @@
+.ai-result-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ai-summary-card,
+.ai-insight,
+.ai-module-map,
+.ai-risk-matrix,
+.ai-check-list,
+.ai-list-block,
+.ai-suggested-comment,
+.ai-hunk-review,
+.ai-standup-greeting {
+  border: 1px solid var(--color-ink);
+  background: transparent;
+  border-radius: 0;
+}
+
+.ai-summary-card {
+  padding: var(--space-4);
+  border-left: 3px solid var(--color-accent-amber);
+}
+
+.ai-summary-topline,
+.ai-module-heading,
+.ai-risk-head,
+.ai-check-row,
+.ai-readiness-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ai-summary-topline {
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.ai-summary-card p,
+.ai-insight p,
+.ai-risk p,
+.ai-suggested-comment p {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--color-text-primary);
+}
+
+.ai-confidence,
+.ai-readiness,
+.ai-schema,
+.ai-warning-chip {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+}
+
+.ai-confidence,
+.ai-readiness {
+  padding: 2px 6px;
+  border-radius: 0;
+  border: 1px solid currentColor;
+  background: transparent;
+}
+
+.ai-confidence-high,
+.ai-readiness-ready             { color: var(--color-accent-green); }
+.ai-confidence-medium,
+.ai-readiness-needs_review,
+.ai-readiness-reviewable        { color: var(--color-accent-amber); }
+.ai-confidence-low,
+.ai-readiness-blocked,
+.ai-readiness-not_ready         { color: var(--color-accent-red); }
+
+.ai-hunk-overall-low_risk       { color: var(--color-accent-green); }
+.ai-hunk-overall-needs_attention { color: var(--color-accent-amber); }
+.ai-hunk-overall-blocked        { color: var(--color-accent-red); }
+
+.ai-schema { color: var(--color-text-muted); }
+
+.ai-warning-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.ai-warning-chip {
+  max-width: 100%;
+  padding: 2px 6px;
+  color: var(--color-accent-amber);
+  background: transparent;
+  border: 1px solid var(--color-accent-amber);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-insight {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.ai-insight-icon {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--color-accent-amber);
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+}
+
+.ai-section-label {
+  margin-bottom: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-secondary);
+  letter-spacing: var(--tracking-widest);
+}
+
+.ai-module-map,
+.ai-risk-matrix,
+.ai-check-list,
+.ai-list-block,
+.ai-suggested-comment,
+.ai-hunk-review,
+.ai-standup-greeting {
+  padding: var(--space-3);
+}
+
+.ai-module-row,
+.ai-risk,
+.ai-check-row,
+.ai-hunk-row {
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.ai-module-row:first-of-type,
+.ai-risk:first-of-type,
+.ai-check-row:first-of-type,
+.ai-hunk-row:first-of-type {
+  border-top: none;
+}
+
+.ai-module-row {
+  border-left: 3px solid transparent;
+  padding-left: var(--space-2);
+}
+
+.ai-module-low    { border-left-color: var(--color-accent-green); }
+.ai-module-medium { border-left-color: var(--color-accent-amber); }
+.ai-module-high   { border-left-color: var(--color-accent-red); }
+
+.ai-module-heading {
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.ai-module-heading span,
+.ai-risk-head strong {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-module-heading code,
+.ai-check-row code {
+  max-width: 44%;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.ai-file-list span {
+  max-width: 100%;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-risk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ai-risk-head { min-width: 0; }
+.ai-risk-head svg { flex: 0 0 auto; }
+
+.ai-risk-head span {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+}
+
+.ai-risk-low .ai-risk-head    { color: var(--color-accent-green); }
+.ai-risk-medium .ai-risk-head { color: var(--color-accent-amber); }
+.ai-risk-high .ai-risk-head   { color: var(--color-accent-red); }
+
+.ai-check-row {
+  justify-content: space-between;
+  min-width: 0;
+  color: var(--color-text-secondary);
+}
+
+.ai-check-row svg {
+  color: var(--color-accent-green);
+  flex: 0 0 auto;
+}
+
+.ai-check-row span {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.ai-hunk-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-left: 4px solid transparent;
+  padding: var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.ai-hunk-row:first-of-type { margin-top: 0; }
+
+/* Verdict colour bands. The left rail carries the load; a faint
+   currentColor tint on the row reinforces the verdict without
+   shouting. Tint uses color-mix so it derives from the accent
+   token automatically and reads in both themes. */
+.ai-hunk-safe {
+  border-left-color: var(--color-accent-green);
+  background: color-mix(in srgb, var(--color-accent-green) 6%, transparent);
+}
+
+.ai-hunk-question,
+.ai-hunk-needs_test {
+  border-left-color: var(--color-accent-amber);
+  background: color-mix(in srgb, var(--color-accent-amber) 6%, transparent);
+}
+
+.ai-hunk-risk {
+  border-left-color: var(--color-accent-red);
+  background: color-mix(in srgb, var(--color-accent-red) 8%, transparent);
+}
+
+.ai-hunk-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.ai-hunk-head span {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+}
+
+.ai-hunk-safe .ai-hunk-head span { color: var(--color-accent-green); }
+.ai-hunk-question .ai-hunk-head span,
+.ai-hunk-needs_test .ai-hunk-head span { color: var(--color-accent-amber); }
+.ai-hunk-risk .ai-hunk-head span { color: var(--color-accent-red); }
+
+.ai-hunk-head strong,
+.ai-hunk-head code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.ai-hunk-head strong {
+  color: var(--color-text-primary);
+}
+
+.ai-hunk-head code,
+.ai-hunk-row > code {
+  color: var(--color-text-secondary);
+}
+
+.ai-hunk-row p,
+.ai-standup-greeting p {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-primary);
+}
+
+.ai-standup-greeting {
+  border-left: 4px solid var(--color-accent-green);
+  padding: var(--space-4);
+}
+
+.ai-standup-greeting span {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.15;
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+.ai-standup-greeting p {
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+/* ============================================================
+   Standup digest — Yesterday | Today | Blockers laid out as
+   three equal columns at desktop, stacked at narrow widths.
+   Each cell is a hard-bordered .ai-list-block so the grid feels
+   like a printed weather forecast.
+   ============================================================ */
+.standup-digest {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.standup-digest > .ai-list-block {
+  margin: 0;
+  min-width: 0;
+}
+
+.ai-list-empty {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 900px) {
+  .standup-digest {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Slack-ready draft sits at the end of the standup — green left
+   accent telegraphs "ready to send", matching the greeting. */
+.ai-slack-draft {
+  border-left: 4px solid var(--color-accent-green);
+}
+
+.ai-list-block ul,
+.ai-list-block ol {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ai-list-block li {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-primary);
+}
+
+.ai-readiness-row {
+  padding: var(--space-3);
+  border: 1px solid var(--color-ink);
+  background: transparent;
+  border-radius: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  align-items: flex-start;
+}
+
+.ai-readiness-text {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-normal);
+}
+
+.ai-readiness-clauses {
+  flex: 1;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-readiness-clauses li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  letter-spacing: var(--tracking-normal);
+}
+
+.ai-readiness-glyph {
+  flex: 0 0 auto;
+  display: inline-block;
+  width: 8px;
+  text-align: center;
+  font-size: 9px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.ai-readiness-glyph-red    { color: var(--color-accent-red); }
+.ai-readiness-glyph-amber  { color: var(--color-accent-amber); }
+.ai-readiness-glyph-green  { color: var(--color-accent-green); }
+
+.ai-compare-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--color-ink);
+  border-left: 1px solid var(--color-ink);
+}
+
+.ai-metric {
+  min-width: 0;
+  padding: var(--space-2);
+  border: none;
+  border-right: 1px solid var(--color-ink);
+  border-bottom: 1px solid var(--color-ink);
+  background: transparent;
+  border-radius: 0;
+}
+
+.ai-metric span,
+.ai-metric strong {
+  display: block;
+  min-width: 0;
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-metric span {
+  margin-bottom: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-secondary);
+  letter-spacing: var(--tracking-widest);
+}
+
+.ai-metric strong {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-black);
+  color: var(--color-text-primary);
+}
+
+.ai-suggested-comment strong {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+}
+
+/* ============================================================
+   Streaming polish — pulsing dots while AI is working, blinking
+   caret at the end of streaming output. opacity-only animation.
+   ============================================================ */
+@keyframes ai-dot-pulse {
+  0%, 80%, 100% { opacity: 0.25; }
+  40%           { opacity: 1; }
+}
+
+@keyframes ai-caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.ai-stream-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: var(--space-2);
+}
+
+.ai-stream-dots span {
+  width: 3px;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-amber);
+  animation: ai-dot-pulse 1.2s var(--ease-pulse) infinite;
+}
+
+.ai-stream-dots span:nth-child(2) { animation-delay: 0.15s; }
+.ai-stream-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+.ai-stream-caret {
+  display: inline-block;
+  vertical-align: -2px;
+  width: 1ch;
+  height: 1em;
+  margin-left: 2px;
+  background: var(--color-accent-amber);
+  animation: ai-caret-blink 1s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-stream-dots span,
+  .ai-stream-caret {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* Each streamed paragraph rises on entry. Reused via .motion-rise globally;
+   this rule scopes the timing so siblings don't restack. */
+.ai-result-stack > .motion-rise {
+  animation-duration: 220ms;
+}

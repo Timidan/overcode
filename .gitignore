@@ -1,0 +1,65 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-electron
+dist-ssr
+*.tsbuildinfo
+*.local
+
+# Release artifacts: distributed via GitHub Releases (not committed) because
+# AppImage / dmg / exe installers exceed GitHub's 100 MB per-file limit
+# without LFS. README points downloads at the Releases tab. `release/` is
+# regenerated locally via `npm run build` whenever a new installer is needed.
+release/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.env
+
+# Generated brand/source assets. Keep only app-critical current SVGs trackable.
+public/brand/*
+!public/brand/current/
+public/brand/current/*
+!public/brand/current/overcode-icon.svg
+!public/brand/current/overcode-logo-dark.svg
+!public/brand/current/overcode-logo-light.svg
+!public/brand/current/overcode-hero.png
+!public/brand/current/overcode-banner-dark-nobg.svg
+
+# Local scratch, research, and handoff artifacts
+tmp/
+sync-status-samples.html
+overcode_asset_pack (1)/
+overcode_identity_assets/
+design.md
+UI_INCONSISTENCIES_FOR_CLAUDE.md
+LOCAL_WORKTREE_AI_RESEARCH.md
+PR_WORKSPACE_ENHANCEMENT_PLAN.md
+ARCHITECTURE_DIAGRAMS.md
+DESIGN_SYSTEM.md
+OvercodePRD.md
+AGENTS.md
+bob_prompts.md
+bob_batch_*.md
+# bob_sessions/ is shipped as IBM Bob attribution evidence for the hackathon.
+Lablab-IBM-Bob-hackathon-guide-May-2026.pdf
+
+# Agent / IDE state
+.claude/
+.codex/

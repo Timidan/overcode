@@ -1,0 +1,187 @@
+.activity-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  color: var(--color-text-secondary);
+}
+
+.generate-commit-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  padding: 6px 12px;
+  background: var(--color-text-primary);
+  border: 1px solid var(--color-text-primary);
+  border-radius: 0;
+  color: var(--color-text-inverted);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.generate-commit-button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.generate-commit-button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.dashboard-container {
+  display: flex;
+  height: 100%;
+  background: var(--color-bg-app);
+}
+
+.dashboard-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: var(--space-8);
+  gap: var(--space-8);
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  padding-bottom: var(--space-5);
+  border-bottom: 2px solid var(--color-ink);
+}
+
+.dashboard-title {
+  margin: 0 auto 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.brand-logo {
+  display: block;
+  height: 140px;
+  width: auto;
+}
+
+.stat-cards {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--color-ink);
+}
+
+.activity-section {
+  flex: 1;
+  min-height: 300px;
+}
+
+.activity-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-secondary);
+  letter-spacing: var(--tracking-widest);
+}
+
+.dashboard-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-10) var(--space-8);
+  background: transparent;
+  border: 1px dashed var(--color-ink);
+  border-radius: 0;
+  text-align: center;
+}
+
+.dashboard-empty-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text-primary);
+}
+
+.dashboard-empty-hint {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+  max-width: 440px;
+}
+
+/* Cold-start panel: shown during the very first scan after launch so judges
+   don't see 0/0/0/0 stat cards followed by an empty feed for a beat. Replaced
+   by the full dashboard once `refresh()` resolves. */
+.dashboard-cold-start {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-5);
+  border: 1px solid var(--color-ink);
+  background: transparent;
+}
+
+.dashboard-cold-start-pulse {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dashboard-cold-start-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-amber);
+  animation: dashboard-cold-pulse 1.2s ease-in-out infinite;
+}
+
+.dashboard-cold-start-dot:nth-child(2) { animation-delay: 0.18s; }
+.dashboard-cold-start-dot:nth-child(3) { animation-delay: 0.36s; }
+
+@keyframes dashboard-cold-pulse {
+  0%, 100% { opacity: 0.25; transform: translateY(0); }
+  40%      { opacity: 1;    transform: translateY(-2px); }
+}
+
+.dashboard-cold-start-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text-primary);
+}
+
+.dashboard-cold-start-hint {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  max-width: 560px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-cold-start-dot { animation: none; opacity: 1; }
+}

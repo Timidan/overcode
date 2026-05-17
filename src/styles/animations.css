@@ -1,0 +1,226 @@
+/* ============================================================
+   OVERCODE · ANIMATIONS (shared, no per-component edits)
+   Loaded once in main.tsx after motion.css.
+   Brutalist motion = sharp + short. Animate only transform + opacity.
+   ============================================================ */
+
+/* ---------- KEYFRAMES ---------- */
+
+@keyframes overcode-route-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes overcode-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes overcode-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes overcode-ai-dot-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* ---------- ROUTE / PAGE ENTER ---------- */
+.route-frame[data-enter="true"] {
+  animation: overcode-route-enter 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ---------- BUTTON :active SNAP FEEDBACK ----------
+   Mechanical sharp press: instant down, eased release.
+   Excludes form inputs intentionally. */
+button,
+[role="button"] {
+  transition: transform 80ms ease;
+}
+
+button:active:not(:disabled),
+[role="button"]:active:not([aria-disabled="true"]) {
+  transform: scale(0.97);
+  transition: none;
+}
+
+/* Async busy state — auto-spin the first SVG inside any button.is-busy */
+button.is-busy svg:first-of-type {
+  animation: overcode-spin 900ms linear infinite;
+  transform-origin: center;
+}
+
+/* ---------- STAGGER ENTRANCES (target existing class names) ---------- */
+
+/* Dashboard stat cards */
+.stat-cards > * {
+  animation: overcode-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stat-cards > *:nth-child(1) { animation-delay: 0ms; }
+.stat-cards > *:nth-child(2) { animation-delay: 40ms; }
+.stat-cards > *:nth-child(3) { animation-delay: 80ms; }
+.stat-cards > *:nth-child(4) { animation-delay: 120ms; }
+.stat-cards > *:nth-child(5) { animation-delay: 160ms; }
+.stat-cards > *:nth-child(6) { animation-delay: 200ms; }
+
+/* Pull-requests grid */
+.pr-screen-list > * {
+  animation: overcode-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.pr-screen-list > *:nth-child(1) { animation-delay: 0ms; }
+.pr-screen-list > *:nth-child(2) { animation-delay: 40ms; }
+.pr-screen-list > *:nth-child(3) { animation-delay: 80ms; }
+.pr-screen-list > *:nth-child(4) { animation-delay: 120ms; }
+.pr-screen-list > *:nth-child(5) { animation-delay: 160ms; }
+.pr-screen-list > *:nth-child(6) { animation-delay: 200ms; }
+.pr-screen-list > *:nth-child(7) { animation-delay: 240ms; }
+.pr-screen-list > *:nth-child(8) { animation-delay: 280ms; }
+
+/* Repositories list rows */
+.repos-list .repo-row {
+  animation: overcode-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.repos-list .repo-row:nth-child(1) { animation-delay: 0ms; }
+.repos-list .repo-row:nth-child(2) { animation-delay: 40ms; }
+.repos-list .repo-row:nth-child(3) { animation-delay: 80ms; }
+.repos-list .repo-row:nth-child(4) { animation-delay: 120ms; }
+.repos-list .repo-row:nth-child(5) { animation-delay: 160ms; }
+.repos-list .repo-row:nth-child(6) { animation-delay: 200ms; }
+.repos-list .repo-row:nth-child(7) { animation-delay: 240ms; }
+.repos-list .repo-row:nth-child(8) { animation-delay: 280ms; }
+
+/* Activity feed — virtualized via react-window so per-row stagger isn't
+   possible without disturbing the list. Animate the container instead so
+   the whole feed rises in once when it mounts. */
+.activity-list-container {
+  animation: overcode-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 80ms;
+}
+
+/* ---------- MODAL / PALETTE / PANEL UTILITIES ---------- */
+
+/* Scale-in for centered overlays — opt-in via class.
+   .cmdk-panel already uses motion-rise; add a stronger scale-in for
+   modals like .ai-modal if it returns. */
+.anim-scale-in,
+.cmdk-panel,
+.ai-modal {
+  animation: overcode-scale-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Right-edge slide-in panels — opt-in via class. */
+.anim-slide-in-right,
+.ai-panel-slide-in,
+.code-inspector.panel,
+.repos-quicklook-panel {
+  animation: overcode-slide-in-right 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* AI thinking dots (3 children with .ai-dot) */
+.ai-dot {
+  display: inline-block;
+  animation: overcode-ai-dot-pulse 900ms cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.ai-dot:nth-child(2) { animation-delay: 150ms; }
+.ai-dot:nth-child(3) { animation-delay: 300ms; }
+
+/* ---------- SKELETON UTILITIES ---------- */
+.skel-row {
+  height: 36px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-app) 0%,
+    var(--color-bg-elevated) 50%,
+    var(--color-bg-app) 100%
+  );
+  background-size: 200% 100%;
+  animation: overcode-shimmer 1.4s ease-in-out infinite;
+  border-radius: 0;
+}
+
+.skel-line {
+  display: block;
+  height: 12px;
+  width: 60%;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-app) 0%,
+    var(--color-bg-elevated) 50%,
+    var(--color-bg-app) 100%
+  );
+  background-size: 200% 100%;
+  animation: overcode-shimmer 1.4s ease-in-out infinite;
+  border-radius: 0;
+}
+
+.skel-block {
+  display: flex;
+  flex-direction: column;
+}
+.skel-block .skel-row + .skel-row {
+  margin-top: 0;
+}
+
+/* ---------- OPTIONAL DOT-MATRIX TEXTURE ----------
+   Opt-in via body.with-pattern — NOT applied globally.
+   1px dots on an 8px grid, in muted ink. */
+body.with-pattern {
+  background-image: radial-gradient(
+    circle,
+    var(--color-text-muted) 0.5px,
+    transparent 0.5px
+  );
+  background-size: 8px 8px;
+  background-attachment: fixed;
+}
+
+/* ---------- REDUCED MOTION GUARD ----------
+   The global guard in motion.css already clamps animation-duration to
+   0.01ms; here we additionally cancel transforms so nothing snaps. */
+@media (prefers-reduced-motion: reduce) {
+  button:active:not(:disabled),
+  [role="button"]:active:not([aria-disabled="true"]) {
+    transform: none;
+  }
+  .route-frame[data-enter="true"],
+  .stat-cards > *,
+  .pr-screen-list > *,
+  .repos-list .repo-row,
+  .activity-list-container,
+  .anim-scale-in,
+  .anim-slide-in-right,
+  .cmdk-panel,
+  .ai-modal,
+  .ai-panel-slide-in,
+  .code-inspector.panel,
+  .repos-quicklook-panel {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}

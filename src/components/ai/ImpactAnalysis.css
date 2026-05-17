@@ -1,0 +1,56 @@
+.impact-analysis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.impact-loading {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: var(--space-4);
+}
+
+.impact-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-cyan);
+  animation: ai-dot-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ai-dot-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.impact-error {
+  padding: var(--space-4);
+  background: var(--color-accent-red-dim);
+  border: 1px solid var(--color-accent-red);
+  border-radius: var(--radius-md);
+  color: var(--color-accent-red);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.impact-output {
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-border-default);
+  border-left: 3px solid var(--color-accent-cyan);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+}

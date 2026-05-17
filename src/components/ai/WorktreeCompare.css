@@ -1,0 +1,277 @@
+/* WorktreeCompare — brutalist data poster for branch-vs-branch AI analysis.
+   Renders inside the AIPanel slide-in. Uses .ai-* blocks from AIResultViews for
+   the structured body; this file only styles the picker, loading, error, and
+   actions footer. */
+
+.worktree-compare-ai {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* -----------------------------------------------------------------------
+   PICKER (top of panel)
+   ----------------------------------------------------------------------- */
+.wt-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-ink);
+  background: transparent;
+}
+
+.wt-picker-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: stretch;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.wt-picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.wt-picker-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  color: var(--color-text-secondary);
+}
+
+.wt-picker-input {
+  width: 100%;
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color var(--duration-hover) var(--ease-standard);
+}
+
+.wt-picker-input:focus-visible {
+  outline: 2px solid var(--color-accent-amber);
+  outline-offset: -1px;
+  border-color: var(--color-accent-amber);
+}
+
+.wt-picker-select {
+  /* JetBrains mono caret triangle drawn via background-image; no extra deps. */
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 12px) 50%,
+    calc(100% - 7px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 22px;
+  cursor: pointer;
+}
+
+.wt-picker-divider {
+  display: grid;
+  place-items: center;
+  align-self: end;
+  height: 28px;
+  padding: 0 var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.wt-compare-button {
+  align-self: stretch;
+  padding: 10px var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-widest);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-hover) var(--ease-standard),
+    color var(--duration-hover) var(--ease-standard),
+    border-color var(--duration-hover) var(--ease-standard),
+    transform var(--duration-hover) var(--ease-standard);
+}
+
+.wt-compare-button:hover:not(:disabled) {
+  background: var(--color-accent-amber);
+  color: var(--color-text-inverted);
+  border-color: var(--color-accent-amber);
+}
+
+.wt-compare-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.wt-compare-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* -----------------------------------------------------------------------
+   EMPTY HINT (pre-run, after reset)
+   ----------------------------------------------------------------------- */
+.wt-empty {
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border-default);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+/* -----------------------------------------------------------------------
+   LOADING — 3 amber dots + caption
+   ----------------------------------------------------------------------- */
+.wt-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-ink);
+  background: transparent;
+}
+
+.wt-loading-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wt-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-amber);
+  animation: ai-dot-pulse 1.4s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.wt-loading-caption {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  color: var(--color-text-secondary);
+}
+
+/* Reuse the keyframes already declared in ImpactAnalysis.css (ai-dot-pulse). */
+
+/* -----------------------------------------------------------------------
+   ERROR
+   ----------------------------------------------------------------------- */
+.wt-error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-accent-red);
+  color: var(--color-accent-red);
+}
+
+.wt-error-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-widest);
+}
+
+.wt-error p {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-accent-red);
+  white-space: pre-wrap;
+}
+
+.wt-error-retry {
+  align-self: flex-start;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  color: var(--color-accent-red);
+  background: transparent;
+  border: 1px solid var(--color-accent-red);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-hover) var(--ease-standard),
+    color var(--duration-hover) var(--ease-standard);
+}
+
+.wt-error-retry:hover {
+  background: var(--color-accent-red);
+  color: var(--color-text-inverted);
+}
+
+/* -----------------------------------------------------------------------
+   RESULT + ACTIONS FOOTER
+   ----------------------------------------------------------------------- */
+.wt-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.wt-actions {
+  display: flex;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.wt-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-widest);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-hover) var(--ease-standard),
+    color var(--duration-hover) var(--ease-standard),
+    transform var(--duration-hover) var(--ease-standard);
+}
+
+.wt-action:hover {
+  background: var(--color-text-primary);
+  color: var(--color-text-inverted);
+}
+
+.wt-action:active {
+  transform: translateY(1px);
+}
+
+.wt-action svg {
+  flex: 0 0 auto;
+}
+
+.wt-copy-error {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-accent-red);
+  color: var(--color-accent-red);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}

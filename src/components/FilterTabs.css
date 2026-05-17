@@ -1,0 +1,66 @@
+/* Brutalist filter tabs — hard 1px frame, no pill, sliding ink indicator. */
+.filter-tabs {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  isolation: isolate;
+}
+
+.filter-tabs-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--color-ink);
+  border-radius: 0;
+  box-shadow: none;
+  z-index: 0;
+  transition:
+    transform 240ms var(--ease-standard),
+    width 240ms var(--ease-standard),
+    opacity 160ms ease;
+  pointer-events: none;
+  will-change: transform, width;
+}
+
+.filter-tab {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: color var(--duration-hover) var(--ease-standard);
+}
+
+.filter-tab + .filter-tab {
+  border-left: 1px solid var(--color-ink);
+}
+
+.filter-tab.active {
+  color: var(--color-text-inverted);
+}
+
+.filter-tab:hover:not(.active) {
+  color: var(--color-text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-tabs-indicator {
+    transition: opacity 120ms ease;
+  }
+}

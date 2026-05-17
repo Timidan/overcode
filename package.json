@@ -1,0 +1,61 @@
+{
+  "name": "overcode",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Desktop developer workspace hub for Git, pull requests, and watsonx.ai Granite-assisted repository workflows.",
+  "author": {
+    "name": "Timidan",
+    "email": "akinnusotutemitayodaniel@gmail.com"
+  },
+  "homepage": "https://github.com/Timidan/overcode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Timidan/overcode.git"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:browser": "node scripts/dev-browser.mjs",
+    "clean-start": "bash scripts/clean-start.sh",
+    "build": "tsc && vite build && electron-builder",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "smoke:electron": "node scripts/smoke-electron.mjs",
+    "smoke:watsonx": "node scripts/smoke-watsonx.mjs",
+    "smoke:github-issues": "node scripts/smoke-github-issues.mjs",
+    "smoke:workspaces": "node scripts/smoke-workspaces.mjs",
+    "smoke:backend-fixture": "node scripts/smoke-backend-fixture.mjs",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@octokit/rest": "^22.0.1",
+    "@phosphor-icons/react": "^2.1.10",
+    "chokidar": "^5.0.0",
+    "dotenv": "^17.4.2",
+    "electron-store": "^9.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
+    "react-window": "^1.8.11",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
+    "simple-git": "^3.36.0",
+    "zustand": "^5.0.13"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.64",
+    "@types/react-dom": "^18.2.21",
+    "@types/react-window": "^1.8.8",
+    "@typescript-eslint/eslint-plugin": "^7.1.1",
+    "@typescript-eslint/parser": "^7.1.1",
+    "@vitejs/plugin-react": "^4.2.1",
+    "electron": "^30.0.1",
+    "electron-builder": "^24.13.3",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "typescript": "^5.2.2",
+    "vite": "^5.1.6",
+    "vite-plugin-electron": "^0.28.6",
+    "vite-plugin-electron-renderer": "^0.14.5"
+  },
+  "main": "dist-electron/main.js"
+}

@@ -1,0 +1,10 @@
+.activity-feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.activity-list-container {
+  flex: 1;
+  height: 400px;
+}

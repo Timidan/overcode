@@ -1,0 +1,96 @@
+.commit-assistant {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.commit-loading {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: var(--space-4);
+}
+
+.commit-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-cyan);
+  animation: ai-dot-pulse 1.4s ease-in-out infinite;
+}
+
+.commit-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.commit-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.commit-section-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-text-secondary);
+}
+
+.commit-copy-button {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-fast);
+}
+
+.commit-copy-button:hover {
+  color: var(--color-text-primary);
+}
+
+.commit-textarea {
+  width: 100%;
+  min-height: 100px;
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  resize: vertical;
+}
+
+.commit-textarea:focus {
+  outline: none;
+  border-color: var(--color-border-strong);
+}
+
+.commit-error {
+  padding: var(--space-3);
+  background: var(--color-accent-red-dim);
+  border: 1px solid var(--color-accent-red-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--color-accent-red);
+  white-space: pre-wrap;
+}
+
+.commit-copy-error {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-accent-red);
+  color: var(--color-accent-red);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}

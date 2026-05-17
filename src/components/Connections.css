@@ -1,0 +1,21 @@
+.connections {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.connections-error {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--color-accent-red);
+  border-radius: 0;
+  color: var(--color-accent-red);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  cursor: help;
+}
