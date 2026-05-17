@@ -34,13 +34,13 @@ This is the IBM Bob Hackathon, May 2026 submission.
 
 ### Workspace and repository operations
 
-| Capability | What it does |
-|---|---|
-| Local workspace scan | Recursively discovers Git repositories beneath operator-configured roots (defaults: `~/projects`, `~/Desktop/persona`, `~/Desktop`). |
+| Capability           | What it does                                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Local workspace scan | Recursively discovers Git repositories beneath operator-configured roots (defaults: `~/projects`, `~/Desktop/persona`, `~/Desktop`).   |
 | Repository dashboard | Per-repository view of branches, uncommitted files, stashes, worktrees, recent commits, with `chokidar` refresh on file-system change. |
-| Activity feed | Unified chronological feed of commits, pull-request transitions, issue updates, and pipeline outcomes across all linked accounts. |
-| Pull-request console | Combined GitHub PRs + GitLab MRs with hunk-level navigation. |
-| Issue console | Cross-provider issue list with assignee and linked-PR context. |
+| Activity feed        | Unified chronological feed of commits, pull-request transitions, issue updates, and pipeline outcomes across all linked accounts.      |
+| Pull-request console | Combined GitHub PRs + GitLab MRs with hunk-level navigation.                                                                           |
+| Issue console        | Cross-provider issue list with assignee and linked-PR context.                                                                         |
 
 ### AI-assisted operations
 
@@ -48,24 +48,24 @@ The application ships eleven AI features routed through a single `callGranite` e
 
 Eight features are exposed through the AI panel:
 
-| Feature | Function |
-|---|---|
-| Impact analysis | Reads the current uncommitted diff and file tree; returns affected modules and a single recommended next action. |
-| Commit assistant | Drafts a conventional-commits message and PR description from staged changes. |
-| Repository brief | New-team-member briefing: purpose, key modules, recent activity, notable conventions. |
-| Stash annotator | Generates a plain-language label for every stash entry, cached per stash reference. |
-| Worktree compare | Compares a worktree against a base branch; classifies review-readiness. |
-| Code explain | Inspector-panel explanation of any file or selection at any reference. |
-| Issue triage | Severity classification, suggested owner, related-PR linkage. |
-| Daily standup | Cross-repository activity rollup, formatted for Slack or stand-up delivery. |
+| Feature          | Function                                                                                                         |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Impact analysis  | Reads the current uncommitted diff and file tree; returns affected modules and a single recommended next action. |
+| Commit assistant | Drafts a conventional-commits message and PR description from staged changes.                                    |
+| Repository brief | New-team-member briefing: purpose, key modules, recent activity, notable conventions.                            |
+| Stash annotator  | Generates a plain-language label for every stash entry, cached per stash reference.                              |
+| Worktree compare | Compares a worktree against a base branch; classifies review-readiness.                                          |
+| Code explain     | Inspector-panel explanation of any file or selection at any reference.                                           |
+| Issue triage     | Severity classification, suggested owner, related-PR linkage.                                                    |
+| Daily standup    | Cross-repository activity rollup, formatted for Slack or stand-up delivery.                                      |
 
 Three additional features are invoked inline on the pull-request views:
 
-| Feature | Function |
-|---|---|
-| PR review summary | Section-by-section structured review of any PR or MR. |
-| PR hunk review | Inline-comment-style feedback on a selected diff hunk. |
-| PR file change | Per-file analysis: risks, missing tests, suggested revisions. |
+| Feature           | Function                                                      |
+| ----------------- | ------------------------------------------------------------- |
+| PR review summary | Section-by-section structured review of any PR or MR.         |
+| PR hunk review    | Inline-comment-style feedback on a selected diff hunk.        |
+| PR file change    | Per-file analysis: risks, missing tests, suggested revisions. |
 
 Each call validates the Granite response against a feature-specific JSON schema. On parse failure the response is repaired and reissued once; if repair fails, the panel falls back to a local-data-only envelope rather than surfacing a parse exception.
 
@@ -87,15 +87,15 @@ Overcode reads local files and watches them continuously. That is the load-beari
 
 A short comparison:
 
-| Concern | Native desktop (Overcode) | Hosted web equivalent |
-|---|---|---|
-| Local repository access | Direct, gated by OS permissions | File System Access API; per-session consent; Firefox/Safari gaps |
-| File-system change events | Continuous via `chokidar` in utility process | Throttled and discarded when backgrounded |
-| OAuth callback | `127.0.0.1`, started on-demand, torn down after use | Publicly-routable host; certificate management |
-| Credential storage | `electron-store` on the operator's endpoint, encrypted via OS keystore when `safeStorage` is available; otherwise plaintext on disk with renderer-side IPC blocking | Browser `localStorage` or session backend |
-| Connectivity | Local views work offline; AI and provider sync require network | Entirely unavailable offline |
-| Procurement surface | Single binary artifact | SaaS subscription and data-processing agreement |
-| Data transit to vendor | None except explicit Granite calls | All operator data |
+| Concern                   | Native desktop (Overcode)                                                                                                                                           | Hosted web equivalent                                            |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Local repository access   | Direct, gated by OS permissions                                                                                                                                     | File System Access API; per-session consent; Firefox/Safari gaps |
+| File-system change events | Continuous via `chokidar` in utility process                                                                                                                        | Throttled and discarded when backgrounded                        |
+| OAuth callback            | `127.0.0.1`, started on-demand, torn down after use                                                                                                                 | Publicly-routable host; certificate management                   |
+| Credential storage        | `electron-store` on the operator's endpoint, encrypted via OS keystore when `safeStorage` is available; otherwise plaintext on disk with renderer-side IPC blocking | Browser `localStorage` or session backend                        |
+| Connectivity              | Local views work offline; AI and provider sync require network                                                                                                      | Entirely unavailable offline                                     |
+| Procurement surface       | Single binary artifact                                                                                                                                              | SaaS subscription and data-processing agreement                  |
+| Data transit to vendor    | None except explicit Granite calls                                                                                                                                  | All operator data                                                |
 
 ---
 
@@ -115,13 +115,13 @@ Architecture diagrams are in [`ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.
 
 ## System requirements
 
-| Component | Minimum |
-|---|---|
-| Operating system | macOS 11, Windows 10 22H2, or glibc 2.31+ Linux |
-| Memory | 4 GB available |
-| Disk | 500 MB for the application, plus repository-metadata cache |
-| Network | Outbound HTTPS to `*.cloud.ibm.com`, `github.com`, `gitlab.com`, and any enterprise instances configured |
-| Accounts | IBM Cloud account with watsonx.ai enabled. Optional: GitHub and GitLab OAuth applications. |
+| Component        | Minimum                                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------------------- |
+| Operating system | macOS 11, Windows 10 22H2, or glibc 2.31+ Linux                                                          |
+| Memory           | 4 GB available                                                                                           |
+| Disk             | 500 MB for the application, plus repository-metadata cache                                               |
+| Network          | Outbound HTTPS to `*.cloud.ibm.com`, `github.com`, `gitlab.com`, and any enterprise instances configured |
+| Accounts         | IBM Cloud account with watsonx.ai enabled. Optional: GitHub and GitLab OAuth applications.               |
 
 ---
 
@@ -238,11 +238,11 @@ To remove stored credentials, click **Clear stored** under the same panel. If a 
 
 Copy [`.env.example`](.env.example) to `.env` and populate the three values. Required keys:
 
-| Key | Example |
-|---|---|
-| `WATSONX_API_KEY` | the IBM Cloud IAM API key from step 3 above |
+| Key                  | Example                                     |
+| -------------------- | ------------------------------------------- |
+| `WATSONX_API_KEY`    | the IBM Cloud IAM API key from step 3 above |
 | `WATSONX_PROJECT_ID` | the watsonx.ai project ID from step 2 above |
-| `WATSONX_URL` | e.g. `https://us-south.ml.cloud.ibm.com` |
+| `WATSONX_URL`        | e.g. `https://us-south.ml.cloud.ibm.com`    |
 
 When running from source, `dotenv` loads `.env` at startup. The credential badge displays **"From environment"** for any field satisfied this way. The `.env` file is `.gitignore`-d.
 
@@ -250,10 +250,10 @@ When running from source, `dotenv` loads `.env` at startup. The credential badge
 
 If you want the unified PR / issue / pipeline console, register OAuth applications and enter the client credentials under **Settings → Integrations**:
 
-| Provider | OAuth application callback URL | Where to register |
-|---|---|---|
-| GitHub | `http://127.0.0.1:3000/callback` | github.com → Settings → Developer settings → OAuth Apps → New OAuth App |
-| GitLab | `http://127.0.0.1:3001/callback` | gitlab.com → Edit profile → Applications → Add new application |
+| Provider | OAuth application callback URL   | Where to register                                                       |
+| -------- | -------------------------------- | ----------------------------------------------------------------------- |
+| GitHub   | `http://127.0.0.1:3000/callback` | github.com → Settings → Developer settings → OAuth Apps → New OAuth App |
+| GitLab   | `http://127.0.0.1:3001/callback` | gitlab.com → Edit profile → Applications → Add new application          |
 
 Both providers are entirely optional. The local Git views, dashboard, repository drill-in, stash, and worktree views work without either.
 
@@ -271,10 +271,10 @@ cp .env.example .env       # optional; only needed if using the env-var credenti
 
 `scripts/clean-start.sh` handles known development-time conditions: stale Vite caches, `ELECTRON_RUN_AS_NODE` leaked from agent shells, and a missing `dist-electron/main.js` on cold start. Recognized flags:
 
-| Flag | Effect |
-|---|---|
-| `--browser` | Run the renderer in a browser tab against IPC stubs. Layout-only; no Git, OAuth, or Granite calls execute. |
-| `--reset-user-data` | Remove `~/.overcode/` (settings, OAuth tokens, scanned-repository cache). |
+| Flag                | Effect                                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `--browser`         | Run the renderer in a browser tab against IPC stubs. Layout-only; no Git, OAuth, or Granite calls execute. |
+| `--reset-user-data` | Remove `~/.overcode/` (settings, OAuth tokens, scanned-repository cache).                                  |
 
 To build an installer locally:
 
@@ -291,14 +291,14 @@ Output: `release/0.1.0/Overcode-<platform>-0.1.0.<extension>`. The `release/` di
 
 ## Security and privacy
 
-| Boundary | Implementation |
-|---|---|
-| Secrets in version control | `.env` is `.gitignore`-d. No keys, tokens, or OAuth client secrets are committed. |
+| Boundary                   | Implementation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Secrets in version control | `.env` is `.gitignore`-d. No keys, tokens, or OAuth client secrets are committed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | Credential storage at rest | OAuth tokens and the watsonx.ai API key + project ID are written to `~/.overcode/config.json` by the main process. Values are encrypted with Electron `safeStorage` when the OS keystore is available (macOS Keychain, Windows DPAPI, GNOME Keyring / KWallet); otherwise stored as plaintext in that file. The renderer cannot read the `accounts` key, the encrypted credential blobs, or the legacy plain credential fields through any IPC channel. Credentials are written exclusively through the dedicated `settings:save-watsonx` channel, never through `store:set`. |
-| OAuth flow | A cryptographically-random `state` parameter per authorization request, validated on callback. The callback server binds to `127.0.0.1` only and is started on-demand for the duration of a single authorization round-trip. |
-| Renderer trust boundary | Token material, raw OAuth responses, and raw Granite request bodies do not cross the preload bridge. |
-| External URL handling | `shell:open` validates URLs against an allowlist of schemes (HTTPS only) and hosts (`github.com`, `gitlab.com`, configured enterprise variants) before calling `shell.openExternal`. |
-| Repository data | All repository content stays on the operator's endpoint. The only outbound transmission of repository-derived content is to the operator's configured watsonx.ai endpoint, and only at the moment an AI feature is invoked. A local audit log under `~/.overcode/config.json` (`ai_audit_log` key) records each call's metadata — feature name, model, byte counts, status, latency — and is surfaced inside Settings → AI governance. Prompt and response bodies are never written to disk. |
+| OAuth flow                 | A cryptographically-random `state` parameter per authorization request, validated on callback. The callback server binds to `127.0.0.1` only and is started on-demand for the duration of a single authorization round-trip.                                                                                                                                                                                                                                                                                                                                                  |
+| Renderer trust boundary    | Token material, raw OAuth responses, and raw Granite request bodies do not cross the preload bridge.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| External URL handling      | `shell:open` validates URLs against an allowlist of schemes (HTTPS only) and hosts (`github.com`, `gitlab.com`, configured enterprise variants) before calling `shell.openExternal`.                                                                                                                                                                                                                                                                                                                                                                                          |
+| Repository data            | All repository content stays on the operator's endpoint. The only outbound transmission of repository-derived content is to the operator's configured watsonx.ai endpoint, and only at the moment an AI feature is invoked. A local audit log under `~/.overcode/config.json` (`ai_audit_log` key) records each call's metadata — feature name, model, byte counts, status, latency — and is surfaced inside Settings → AI governance. Prompt and response bodies are never written to disk.                                                                                  |
 
 ---
 
@@ -318,18 +318,6 @@ Output: `release/0.1.0/Overcode-<platform>-0.1.0.<extension>`. The `release/` di
 - Linux AppImage built locally and launch-tested.
 - Windows NSIS installer cross-built via wine; unsigned developer preview.
 - macOS DMG packaging deferred to v0.2.0 once the GitHub Actions matrix runs on a macOS runner.
-
----
-
-## Demonstration
-
-A three-minute walkthrough will be linked here once recorded. The canonical path: cold-start workspace scan → real-data activity feed → repository drill-in with local-state panel and commit graph → Impact analysis on an uncommitted change → Commit assistant draft → Repository brief on an unfamiliar repository → unified PR console.
-
----
-
-## Support
-
-Hackathon submission. Issues filed on the project repository will be triaged on a best-effort basis for the duration of the evaluation window.
 
 ---
 
