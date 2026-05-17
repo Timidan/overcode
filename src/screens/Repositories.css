@@ -686,12 +686,19 @@
 
 .repo-row-discovered.is-selected { background: var(--color-bg-elevated); }
 
-/* ---- Per-row hover-reveal action bar ---- */
+/* ---- Per-row hover-reveal action bar ----
+   Lives inside .repo-row-actions-wrap, immediately to the LEFT of the
+   permanent Add/Ignore block. Reserves its own slot at rest (opacity 0,
+   pointer-events none) so Add/Ignore stays at a stable x-position on
+   hover and is never overlapped. Prior version was absolutely positioned
+   over the Add/Ignore block and intercepted clicks on hover. */
+.repo-row-actions-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .repo-row-hoverbar {
-  position: absolute;
-  right: var(--space-2);
-  top: 50%;
-  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -740,11 +747,6 @@
   color: var(--color-text-inverted);
   border-color: var(--color-accent-red);
 }
-
-/* When the hover bar is visible we want the dense Add/Ignore actions to
-   remain visible at all times — they live to the left of the hover bar.
-   The discovered grid sets the third column to `auto` to host both, so
-   nothing more is needed here. */
 
 /* ---- Scan skeleton rows ---- */
 .repos-list-skeleton {

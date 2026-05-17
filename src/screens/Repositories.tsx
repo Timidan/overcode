@@ -908,64 +908,66 @@ function DiscoveredRow({
           <span className="repo-detected-chip">{detectedLabel}</span>
           <span className="repo-row-path">{candidate.local_path}</span>
         </button>
-        <div className="repo-discovered-actions">
-          <button
-            type="button"
-            className="repo-action repo-action-primary"
-            disabled={busy}
-            onClick={onPin}
-            title="Pin to active workspaces"
-          >
-            <Plus size={12} />
-            <span>Add</span>
-          </button>
-          <button
-            type="button"
-            className="repo-action"
-            disabled={busy}
-            onClick={onIgnore}
-            title="Ignore this path in future scans"
-          >
-            <EyeSlash size={12} />
-            <span>Ignore</span>
-          </button>
-        </div>
-        <div className="repo-row-hoverbar" aria-hidden="false">
-          <button
-            type="button"
-            className="repo-hover-action"
-            onClick={onOpen}
-            title="Open full repo view"
-          >
-            Open
-          </button>
-          <button
-            type="button"
-            className="repo-hover-action"
-            onClick={onRevealPath}
-            title="Copy path to clipboard"
-          >
-            <Copy size={11} weight="bold" />
-            <span>Reveal</span>
-          </button>
-          <button
-            type="button"
-            className="repo-hover-action"
-            onClick={onBrief}
-            title="Open AI repo brief"
-          >
-            <Sparkle size={11} weight="bold" />
-            <span>Brief</span>
-          </button>
-          <button
-            type="button"
-            className="repo-hover-action repo-hover-action-danger"
-            onClick={onHide}
-            title="Hide this candidate forever (managed in Settings)"
-          >
-            <EyeSlash size={11} weight="bold" />
-            <span>Hide</span>
-          </button>
+        <div className="repo-row-actions-wrap">
+          <div className="repo-row-hoverbar" aria-hidden="false">
+            <button
+              type="button"
+              className="repo-hover-action"
+              onClick={onOpen}
+              title="Open full repo view"
+            >
+              Open
+            </button>
+            <button
+              type="button"
+              className="repo-hover-action"
+              onClick={onRevealPath}
+              title="Copy path to clipboard"
+            >
+              <Copy size={11} weight="bold" />
+              <span>Reveal</span>
+            </button>
+            <button
+              type="button"
+              className="repo-hover-action"
+              onClick={onBrief}
+              title="Open AI repo brief"
+            >
+              <Sparkle size={11} weight="bold" />
+              <span>Brief</span>
+            </button>
+            <button
+              type="button"
+              className="repo-hover-action repo-hover-action-danger"
+              onClick={onHide}
+              title="Hide this candidate forever (managed in Settings)"
+            >
+              <EyeSlash size={11} weight="bold" />
+              <span>Hide</span>
+            </button>
+          </div>
+          <div className="repo-discovered-actions">
+            <button
+              type="button"
+              className="repo-action repo-action-primary"
+              disabled={busy}
+              onClick={onPin}
+              title="Pin to active workspaces"
+            >
+              <Plus size={12} />
+              <span>Add</span>
+            </button>
+            <button
+              type="button"
+              className="repo-action"
+              disabled={busy}
+              onClick={onIgnore}
+              title="Ignore this path in future scans"
+            >
+              <EyeSlash size={12} />
+              <span>Ignore</span>
+            </button>
+          </div>
         </div>
       </div>
     </li>

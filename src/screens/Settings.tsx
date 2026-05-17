@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, X, ArrowsClockwise, Warning } from "@phosphor-icons/react";
+import { Plus, X, ArrowsClockwise, Warning, Eye } from "@phosphor-icons/react";
 import { Sidebar } from "../components/Sidebar";
 import {
   ProviderConnectionPill,
@@ -20,7 +20,8 @@ interface SettingsShape {
   watch_directories: string[];
   watsonx_model_id?: string;
   // IDs of discovered workspaces the user explicitly chose to hide forever.
-  // Surfaced in the Repositories curation screen; managed manually here for now.
+  // Set from the Repositories curation screen; revisited in the Hidden
+  // repositories section below.
   hidden_repo_ids?: string[];
 }
 
@@ -128,6 +129,12 @@ function CredentialBadge({
       <span className="settings-credential-badge-status">{text}</span>
     </div>
   );
+}
+
+function prettyHiddenId(id: string): { prefix: string; rest: string } {
+  const idx = id.indexOf(":");
+  if (idx === -1) return { prefix: "", rest: id };
+  return { prefix: id.slice(0, idx), rest: id.slice(idx + 1) };
 }
 
 export function SettingsScreen() {
@@ -258,6 +265,21 @@ export function SettingsScreen() {
     });
   }
 
+  async function unhideRepo(id: string) {
+    const current = Array.isArray(settings.hidden_repo_ids) ? settings.hidden_repo_ids : [];
+    await persistSettings({
+      ...settings,
+      hidden_repo_ids: current.filter((existing) => existing !== id),
+    });
+    setMessage(`Unhid ${prettyHiddenId(id)}. It will reappear on the next scan.`);
+  }
+
+  async function unhideAllRepos() {
+    if (!settings.hidden_repo_ids || settings.hidden_repo_ids.length === 0) return;
+    await persistSettings({ ...settings, hidden_repo_ids: [] });
+    setMessage("All hidden repositories restored.");
+  }
+
   async function saveModel() {
     const next: SettingsShape = {
       ...settings,
@@ -364,6 +386,50 @@ export function SettingsScreen() {
               Add
             </button>
           </div>
+        </section>
+
+        <section className="settings-section">
+          <div className="settings-section-header">
+            <div className="section-label">Hidden repositories</div>
+            {settings.hidden_repo_ids && settings.hidden_repo_ids.length > 0 && (
+              <button
+                type="button"
+                className="settings-button settings-button-quiet"
+                title="Restore every hidden repository"
+                onClick={unhideAllRepos}
+              >
+                <Eye size={12} />
+                Unhide all
+              </button>
+            )}
+          </div>
+          <div className="settings-row-hint settings-hint-block">
+            Repositories you removed from the discovered list using <em>Hide</em>. They stay out of the Repositories screen until restored here.
+          </div>
+          <ul className="settings-list">
+            {(!settings.hidden_repo_ids || settings.hidden_repo_ids.length === 0) && (
+              <li className="settings-empty">Nothing hidden.</li>
+            )}
+            {settings.hidden_repo_ids?.map((id) => {
+              const { prefix, rest } = prettyHiddenId(id);
+              return (
+                <li key={id} className="settings-list-item">
+                  <span className="settings-list-text settings-hidden-id">
+                    {prefix && <span className="settings-hidden-id-prefix">{prefix}</span>}
+                    <span className="settings-hidden-id-rest">{rest}</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="settings-icon-button"
+                    title={`Unhide ${id}`}
+                    onClick={() => unhideRepo(id)}
+                  >
+                    <Eye size={14} />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </section>
 
         <section className="settings-section">
