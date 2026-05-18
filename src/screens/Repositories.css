@@ -686,12 +686,8 @@
 
 .repo-row-discovered.is-selected { background: var(--color-bg-elevated); }
 
-/* ---- Per-row hover-reveal action bar ----
-   Lives inside .repo-row-actions-wrap, immediately to the LEFT of the
-   permanent Add/Ignore block. Reserves its own slot at rest (opacity 0,
-   pointer-events none) so Add/Ignore stays at a stable x-position on
-   hover and is never overlapped. Prior version was absolutely positioned
-   over the Add/Ignore block and intercepted clicks on hover. */
+/* Hoverbar reserves its slot at rest (opacity 0) so Add/Ignore keeps a
+   stable x-position when the row is hovered. */
 .repo-row-actions-wrap {
   display: inline-flex;
   align-items: center;

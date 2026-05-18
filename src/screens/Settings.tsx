@@ -271,7 +271,7 @@ export function SettingsScreen() {
       ...settings,
       hidden_repo_ids: current.filter((existing) => existing !== id),
     });
-    setMessage(`Unhid ${prettyHiddenId(id)}. It will reappear on the next scan.`);
+    setMessage(`Unhid ${prettyHiddenId(id).rest}. It will reappear on the next scan.`);
   }
 
   async function unhideAllRepos() {
