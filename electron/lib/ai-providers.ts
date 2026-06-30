@@ -108,45 +108,45 @@ export function normalizeOpenRouterCatalog(data: unknown): AIModelCatalogEntry[]
   const rows = Array.isArray((data as { data?: unknown[] })?.data)
     ? ((data as { data: unknown[] }).data)
     : [];
-  return rows
-    .map((row) => {
-      const item = row as {
-        id?: unknown;
-        name?: unknown;
-        pricing?: { prompt?: unknown; completion?: unknown };
-        context_length?: unknown;
-        architecture?: { modality?: unknown };
-      };
-      if (typeof item.id !== "string") return null;
-      const prompt = typeof item.pricing?.prompt === "string" ? item.pricing.prompt : undefined;
-      const completion = typeof item.pricing?.completion === "string"
-        ? item.pricing.completion
-        : undefined;
-      const free = prompt === "0" && completion === "0";
-      const modalities = parseModalities(
-        typeof item.architecture?.modality === "string"
-          ? item.architecture.modality
-          : "text->text",
-      );
-      const tags: AIModelCatalogEntry["tags"] = [
-        free ? "free" : "paid",
-        ...codingTags(item.id),
-        ...longContextTags(item.context_length),
-        ...(modalities.includes("image") ? ["vision" as const] : []),
-      ];
-      return {
-        providerId: "openrouter" as const,
-        id: item.id,
-        name: typeof item.name === "string" ? item.name : item.id,
-        free,
-        pricing: { prompt, completion },
-        contextLength: typeof item.context_length === "number" ? item.context_length : undefined,
-        modalities,
-        tags: Array.from(new Set(tags)),
-        source: "live" as const,
-      };
-    })
-    .filter((entry): entry is AIModelCatalogEntry => Boolean(entry));
+  const catalog: AIModelCatalogEntry[] = [];
+  for (const row of rows) {
+    const item = row as {
+      id?: unknown;
+      name?: unknown;
+      pricing?: { prompt?: unknown; completion?: unknown };
+      context_length?: unknown;
+      architecture?: { modality?: unknown };
+    };
+    if (typeof item.id !== "string") continue;
+    const prompt = typeof item.pricing?.prompt === "string" ? item.pricing.prompt : undefined;
+    const completion = typeof item.pricing?.completion === "string"
+      ? item.pricing.completion
+      : undefined;
+    const free = prompt === "0" && completion === "0";
+    const modalities = parseModalities(
+      typeof item.architecture?.modality === "string"
+        ? item.architecture.modality
+        : "text->text",
+    );
+    const tags: AIModelCatalogEntry["tags"] = [
+      free ? "free" : "paid",
+      ...codingTags(item.id),
+      ...longContextTags(item.context_length),
+      ...(modalities.includes("image") ? ["vision" as const] : []),
+    ];
+    catalog.push({
+      providerId: "openrouter",
+      id: item.id,
+      name: typeof item.name === "string" ? item.name : item.id,
+      free,
+      pricing: { prompt, completion },
+      contextLength: typeof item.context_length === "number" ? item.context_length : undefined,
+      modalities,
+      tags: Array.from(new Set(tags)),
+      source: "live",
+    });
+  }
+  return catalog;
 }
 
 function parseModalities(modality: string): string[] {

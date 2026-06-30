@@ -109,3 +109,23 @@ Tests  6 passed (6)
   - `normalizeOpenRouterCatalog` returns an array inferred as `(entry | null)[]`
   - the current type predicate there is not accepted by TypeScript
 - Those errors are outside the credential-store/migration scope, but they mean the branch is not globally type-clean yet.
+
+## Fix report: OpenRouter catalog normalization typing
+
+### What changed
+
+- Rewrote `normalizeOpenRouterCatalog` in `electron/lib/ai-providers.ts` to build the catalog with an explicit `AIModelCatalogEntry[]` accumulator and `push` loop.
+- Removed the `map(...).filter(...)` chain that produced a nullable array and triggered the invalid type predicate.
+- Kept the runtime behavior unchanged: invalid rows are still skipped, and valid rows still normalize to live OpenRouter catalog entries.
+
+### Test commands and results
+
+- `npm test -- --run electron/lib/ai-providers.test.ts`
+  - Passed
+  - `1` test file passed, `6` tests passed
+- `npx tsc --noEmit`
+  - Passed
+
+### Files changed
+
+- `electron/lib/ai-providers.ts`
