@@ -9,6 +9,7 @@ import { startOAuthFlow, fetchProfile } from "./oauth-server";
 import * as github from "./lib/github";
 import * as gitlab from "./lib/gitlab";
 import { getProviderRateLimitSnapshots } from "./lib/provider-http";
+import type { AIProviderCredentialUpdate } from "./lib/ai-provider-types";
 import {
   cogneeStatus,
   forgetMemory,
@@ -860,13 +861,14 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
       throw new Error("Invalid credentials payload.");
     }
     const payload = raw as Record<string, unknown>;
-    const update: storeLib.AIProviderCredentialUpdate = {};
+    const update: AIProviderCredentialUpdate = { providerId: "openrouter" };
     const CAPS = { api_key: 8192, base_url: 2048 } as const;
     for (const field of ["api_key", "base_url"] as const) {
       if (!(field in payload)) continue;
       const v = payload[field];
       if (v === null) {
-        update[field] = null;
+        if (field === "api_key") update.apiKey = null;
+        else update.baseUrl = null;
         continue;
       }
       if (typeof v !== "string") {
@@ -886,23 +888,28 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
           throw new Error("Base URL must use https://.");
         }
       }
-      update[field] = v;
+      if (field === "api_key") update.apiKey = v;
+      else update.baseUrl = v;
     }
     storeLib.saveAIProviderCredentials(update);
-    return storeLib.aiProviderCredentialStatus();
+    const stored = storeLib.aiProviderCredentialStatus("openrouter").openrouter;
+    return {
+      api_key: stored.api_key,
+      base_url: stored.base_url === "stored"
+        ? "stored"
+        : process.env.OPENROUTER_BASE_URL?.trim()
+          ? "env"
+          : "none",
+    } as const;
   });
 
   ipcMain.handle("settings:ai-provider-status", async () => {
-    const stored = storeLib.aiProviderCredentialStatus();
+    const stored = storeLib.aiProviderCredentialStatus("openrouter").openrouter;
     // Source-of-truth: tell the renderer whether each credential is satisfied
     // via the encrypted-store path, the process.env fallback, or neither.
     return {
-      api_key: stored.api_key
-        ? "stored"
-        : process.env.OPENROUTER_API_KEY?.trim() || process.env.OPENROUTER?.trim()
-          ? "env"
-          : "none",
-      base_url: stored.base_url
+      api_key: stored.api_key,
+      base_url: stored.base_url === "stored"
         ? "stored"
         : process.env.OPENROUTER_BASE_URL?.trim()
           ? "env"

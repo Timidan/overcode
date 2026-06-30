@@ -2,6 +2,11 @@ import Store from "electron-store";
 import { safeStorage } from "electron";
 import nodePath from "node:path";
 import { homedir } from "node:os";
+import type {
+  AIProviderCredentialSource,
+  AIProviderCredentialUpdate,
+  AIProviderId,
+} from "./ai-provider-types";
 
 // Type definitions matching PRD section 10 schema
 export interface Account {
@@ -55,7 +60,9 @@ export interface ActivityItem {
 
 export interface Settings {
   watch_directories: string[];
+  ai_provider_id?: AIProviderId;
   ai_model_id?: string;
+  ai_model_paid_ack?: Record<string, boolean>;
   openrouter_base_url?: string;
   // Secrets live in StoredSettings (encrypted-on-disk when safeStorage is
   // available). The plain string field below is legacy and kept only so
@@ -66,6 +73,8 @@ export interface Settings {
 
 interface StoredSettings extends Settings {
   openrouter_api_key_secret?: StoredSecret;
+  ai_provider_secrets?: Partial<Record<AIProviderId, StoredSecret>>;
+  ai_provider_base_urls?: Partial<Record<AIProviderId, string>>;
 }
 
 export interface StoreSchema {
@@ -90,7 +99,7 @@ export interface StoreSchema {
   }>;
   remote_data_cache: Record<string, unknown>;
   activity: ActivityItem[];
-  settings: Settings;
+  settings: StoredSettings;
 }
 
 // Initialize electron-store with schema
@@ -251,6 +260,13 @@ export function updateSettings(settings: Partial<Settings>): void {
 // AI PROVIDER CREDENTIALS (encrypted at rest when safeStorage works)
 // ============================================================
 
+const providerEnvKeys: Record<AIProviderId, string[]> = {
+  openrouter: ["OPENROUTER_API_KEY", "OPENROUTER"],
+  openai: ["OPENAI_API_KEY"],
+  anthropic: ["ANTHROPIC_API_KEY"],
+  gemini: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+};
+
 function readSecret(field: "openrouter_api_key"): string | undefined {
   const stored = store.get("settings") as StoredSettings | undefined;
   if (!stored) return undefined;
@@ -273,68 +289,105 @@ function readSecret(field: "openrouter_api_key"): string | undefined {
   return stored[field];
 }
 
-function writeSecret(
-  field: "openrouter_api_key",
-  value: string | null,
-): void {
-  const current = store.get("settings") as StoredSettings | undefined;
-  const next: StoredSettings = { ...(current ?? { watch_directories: [] }) };
-  const secretField = `${field}_secret` as "openrouter_api_key_secret";
+export interface AIProviderCredentialSourceStatus {
+  api_key: AIProviderCredentialSource;
+  base_url: AIProviderCredentialSource | "default";
+}
 
-  // Always clear the legacy plain field so it never lingers post-migration.
-  delete next[field];
+function readProviderSecret(providerId: AIProviderId): string | undefined {
+  const stored = store.get("settings") as StoredSettings | undefined;
+  const secret = stored?.ai_provider_secrets?.[providerId];
+  if (secret) return decryptSecret(secret);
+  if (providerId === "openrouter") return readSecret("openrouter_api_key");
+  return undefined;
+}
 
-  if (value === null || value === "") {
-    delete next[secretField];
-  } else if (safeStorage.isEncryptionAvailable()) {
-    next[secretField] = {
+function decryptSecret(secret: StoredSecret): string | undefined {
+  if (secret.value_encrypted && secret.encoding === "safeStorage:v1") {
+    try {
+      return safeStorage.decryptString(Buffer.from(secret.value_encrypted, "base64"));
+    } catch {
+      return undefined;
+    }
+  }
+  return secret.value;
+}
+
+function encryptSecret(value: string): StoredSecret {
+  if (safeStorage.isEncryptionAvailable()) {
+    return {
       value_encrypted: safeStorage.encryptString(value).toString("base64"),
       encoding: "safeStorage:v1",
     };
-  } else {
-    next[secretField] = { value };
   }
-  store.set("settings", next);
+  return { value };
+}
+
+export function getAIProviderApiKey(providerId: AIProviderId): string | undefined {
+  return readProviderSecret(providerId);
+}
+
+export function getAIProviderBaseUrl(providerId: AIProviderId): string | undefined {
+  const stored = store.get("settings") as StoredSettings | undefined;
+  return stored?.ai_provider_base_urls?.[providerId]
+    ?? (providerId === "openrouter" ? stored?.openrouter_base_url : undefined);
 }
 
 export function getOpenRouterApiKey(): string | undefined {
-  return readSecret("openrouter_api_key");
+  return getAIProviderApiKey("openrouter");
 }
 
 export function getOpenRouterBaseUrl(): string | undefined {
-  const stored = store.get("settings") as StoredSettings | undefined;
-  return stored?.openrouter_base_url?.trim() || undefined;
-}
-
-export interface AIProviderCredentialUpdate {
-  api_key?: string | null;
-  base_url?: string | null;
+  return getAIProviderBaseUrl("openrouter");
 }
 
 export function saveAIProviderCredentials(update: AIProviderCredentialUpdate): void {
-  if (update.api_key !== undefined) writeSecret("openrouter_api_key", update.api_key);
-  if (update.base_url !== undefined) {
-    const current = store.get("settings") as StoredSettings | undefined;
-    const next: StoredSettings = { ...(current ?? { watch_directories: [] }) };
-    if (update.base_url === null || update.base_url === "") {
-      delete next.openrouter_base_url;
-    } else {
-      next.openrouter_base_url = update.base_url.trim();
-    }
-    store.set("settings", next);
-  }
-}
-
-export interface AIProviderCredentialStatus {
-  api_key: boolean;
-  base_url: boolean;
-}
-
-export function aiProviderCredentialStatus(): AIProviderCredentialStatus {
-  return {
-    api_key: !!getOpenRouterApiKey(),
-    base_url: !!getOpenRouterBaseUrl(),
+  const current = store.get("settings", { watch_directories: [] }) as StoredSettings;
+  const next: StoredSettings = {
+    ...current,
+    ai_provider_secrets: { ...(current.ai_provider_secrets ?? {}) },
+    ai_provider_base_urls: { ...(current.ai_provider_base_urls ?? {}) },
   };
+
+  if (update.apiKey !== undefined) {
+    if (update.apiKey === null) delete next.ai_provider_secrets![update.providerId];
+    else next.ai_provider_secrets![update.providerId] = encryptSecret(update.apiKey);
+  }
+
+  if (update.baseUrl !== undefined) {
+    if (update.baseUrl === null) delete next.ai_provider_base_urls![update.providerId];
+    else next.ai_provider_base_urls![update.providerId] = update.baseUrl;
+  }
+
+  if (update.providerId === "openrouter") {
+    delete next.openrouter_api_key;
+    delete next.openrouter_api_key_secret;
+    delete next.openrouter_base_url;
+  }
+
+  store.set("settings", next);
+}
+
+export function aiProviderCredentialStatus(
+  providerId?: AIProviderId,
+): Record<AIProviderId, AIProviderCredentialSourceStatus> {
+  const providers: AIProviderId[] = providerId
+    ? [providerId]
+    : ["openrouter", "openai", "anthropic", "gemini"];
+  return Object.fromEntries(
+    providers.map((id) => {
+      const storedKey = Boolean(getAIProviderApiKey(id));
+      const envKey = providerEnvKeys[id].some((key) => Boolean(process.env[key]?.trim()));
+      const storedBaseUrl = Boolean(getAIProviderBaseUrl(id));
+      return [
+        id,
+        {
+          api_key: storedKey ? "stored" : envKey ? "env" : "none",
+          base_url: storedBaseUrl ? "stored" : "default",
+        },
+      ];
+    }),
+  ) as Record<AIProviderId, AIProviderCredentialSourceStatus>;
 }
 
 // ============================================================
