@@ -56,20 +56,27 @@ const healthCache = new Map<
 >();
 const healthHistory = new Map<string, AIModelHealthHistoryEntry[]>();
 
-function recordHealthHistory(health: AIModelHealth): AIModelHealthHistoryEntry[] {
-  const list = healthHistory.get(health.model) ?? [];
+function recordHealthHistory(
+  providerId: AIProviderId,
+  health: AIModelHealth,
+): AIModelHealthHistoryEntry[] {
+  const key = cacheKey(providerId, health.model);
+  const list = healthHistory.get(key) ?? [];
   list.push({
     status: health.status,
     checkedAt: health.checkedAt ?? Date.now(),
     latencyMs: health.latencyMs,
   });
   while (list.length > HEALTH_HISTORY_LIMIT) list.shift();
-  healthHistory.set(health.model, list);
+  healthHistory.set(key, list);
   return list;
 }
 
-function withHistory(health: AIModelHealth): AIModelHealth {
-  const list = healthHistory.get(health.model);
+function withHistory(
+  providerId: AIProviderId,
+  health: AIModelHealth,
+): AIModelHealth {
+  const list = healthHistory.get(cacheKey(providerId, health.model));
   return list && list.length > 0
     ? { ...health, history: list.slice() }
     : health;
@@ -77,24 +84,37 @@ function withHistory(health: AIModelHealth): AIModelHealth {
 
 export function configuredModel(): string {
   const providerId = configuredProvider();
+  const fallbackModel = providerDefaultModel(providerId);
   try {
     const settings = storeLib.getStoreValue("settings") as
       | { ai_model_id?: string }
       | undefined;
-    if (settings?.ai_model_id?.trim()) return settings.ai_model_id.trim();
+    const savedModel = settings?.ai_model_id?.trim();
+    if (savedModel) {
+      return isModelCompatibleWithProvider(savedModel, providerId)
+        ? savedModel
+        : fallbackModel;
+    }
   } catch {
     // Settings unreadable, so fall through to env/default.
   }
   if (providerId === "openrouter") {
-    return process.env.OPENROUTER_MODEL?.trim() || OPENROUTER_FREE_MODEL_ID;
+    const envModel = process.env.OPENROUTER_MODEL?.trim();
+    return envModel && isModelCompatibleWithProvider(envModel, providerId)
+      ? envModel
+      : fallbackModel;
   }
-  return providerAdapters[providerId].defaultModel;
+  return fallbackModel;
 }
 
 export function configuredProvider(): AIProviderId {
-  const settings = storeLib.getStoreValue("settings") as { ai_provider_id?: AIProviderId } | undefined;
-  if (settings?.ai_provider_id) return settings.ai_provider_id;
-  if (storeLib.getAIProviderApiKey("openrouter") || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER) {
+  try {
+    const settings = storeLib.getStoreValue("settings") as { ai_provider_id?: AIProviderId } | undefined;
+    if (settings?.ai_provider_id) return settings.ai_provider_id;
+  } catch {
+    // Settings unreadable, so fall through to credential-based detection.
+  }
+  if (providerApiKey("openrouter") || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER) {
     return "openrouter";
   }
   if (process.env.OPENAI_API_KEY) return "openai";
@@ -203,23 +223,25 @@ async function modelHealthEntries(
   }
 
   if (modelsToProbe.length === 0) {
-    return orderedHealthEntries(models, healthByModel, checkedAt);
+    return orderedHealthEntries(providerId, models, healthByModel, checkedAt);
   }
 
   const probed = await Promise.all(
     modelsToProbe.map((model) => probeAndCacheModel(providerId, model, checkedAt)),
   );
   for (const health of probed) healthByModel.set(health.model, health);
-  return orderedHealthEntries(models, healthByModel, checkedAt);
+  return orderedHealthEntries(providerId, models, healthByModel, checkedAt);
 }
 
 function orderedHealthEntries(
+  providerId: AIProviderId,
   models: string[],
   healthByModel: Map<string, AIModelHealth>,
   checkedAt: number,
 ): AIModelHealth[] {
   return models.map((model) =>
     withHistory(
+      providerId,
       healthByModel.get(model) ??
         unknownHealth(model, "Health probe failed", checkedAt),
     ),
@@ -232,7 +254,7 @@ async function probeAndCacheModel(
   checkedAt: number,
 ): Promise<AIModelHealth> {
   const value = await probeModel(providerId, model, checkedAt);
-  recordHealthHistory(value);
+  recordHealthHistory(providerId, value);
   healthCache.set(cacheKey(providerId, model), {
     value,
     expiresAt: checkedAt + HEALTH_CACHE_TTL_MS,
@@ -289,17 +311,44 @@ export async function callAIModel(
 ): Promise<string> {
   const providerId = configuredProvider();
   const adapter = providerAdapters[providerId];
-  const key = storeLib.getAIProviderApiKey(providerId) ?? providerEnvKey(providerId);
+  const key = providerApiKey(providerId);
   if (!key) throw new Error(`${adapter.displayName} API key is not configured.`);
   return adapter.completeChat({
     apiKey: key,
-    baseUrl: storeLib.getAIProviderBaseUrl(providerId),
+    baseUrl: providerBaseUrl(providerId),
     model: configuredModel(),
     systemPrompt,
     userPrompt,
     maxTokens: 800,
     temperature: 0,
   });
+}
+
+function providerDefaultModel(providerId: AIProviderId): string {
+  return providerId === "openrouter"
+    ? OPENROUTER_FREE_MODEL_ID
+    : providerAdapters[providerId].defaultModel;
+}
+
+function isModelCompatibleWithProvider(modelId: string, providerId: AIProviderId): boolean {
+  const normalized = modelId.trim().toLowerCase();
+  if (!normalized) return false;
+  if (providerId === "openrouter") return true;
+
+  if (normalized.includes("/")) return false;
+
+  switch (providerId) {
+    case "openai":
+      return !startsWithAny(normalized, ["claude-", "gemini-"]);
+    case "anthropic":
+      return !startsWithAny(normalized, ["gpt-", "gemini-", "o1", "o3", "o4"]);
+    case "gemini":
+      return !startsWithAny(normalized, ["gpt-", "claude-", "o1", "o3", "o4"]);
+  }
+}
+
+function startsWithAny(value: string, prefixes: string[]): boolean {
+  return prefixes.some((prefix) => value.startsWith(prefix));
 }
 
 function providerEnvKey(providerId: AIProviderId): string | undefined {

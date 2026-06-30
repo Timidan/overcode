@@ -62,6 +62,15 @@ describe("OpenRouter AI runtime", () => {
     expect(configuredModel()).toBe("claude-sonnet-4-5");
   });
 
+  it("falls back to the active provider default when the saved model is stale for that provider", () => {
+    mockStoreValue.mockImplementation((key: string) =>
+      key === "settings"
+        ? { ai_provider_id: "anthropic", ai_model_id: "gpt-4.1-mini" }
+        : undefined);
+
+    expect(configuredModel()).toBe("claude-sonnet-4-5");
+  });
+
   it("reports Anthropic as configured without requiring OpenRouter", async () => {
     mockStoreValue.mockImplementation((key: string) =>
       key === "settings" ? { ai_provider_id: "anthropic" } : undefined);
@@ -150,6 +159,59 @@ describe("OpenRouter AI runtime", () => {
           ],
           max_tokens: 800,
           temperature: 0,
+        }),
+      }),
+    );
+  });
+
+  it("honors OPENROUTER_BASE_URL when calling OpenRouter", async () => {
+    resetAIEnv();
+    process.env.OPENROUTER = "test-key";
+    process.env.OPENROUTER_BASE_URL = "https://openrouter.example/api/v1/";
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "custom base" } }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const result = await callAIModel("system instructions", "user prompt");
+
+    expect(result).toBe("custom base");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://openrouter.example/api/v1/chat/completions",
+      expect.any(Object),
+    );
+  });
+
+  it("falls back to env credentials and base URL when store helpers throw", async () => {
+    resetAIEnv();
+    process.env.OPENROUTER = "env-key";
+    process.env.OPENROUTER_BASE_URL = "https://fallback.example/api/v1";
+    mockStoreValue.mockImplementation(() => {
+      throw new Error("store unavailable");
+    });
+    mockGetAIProviderApiKey.mockImplementation(() => {
+      throw new Error("store unavailable");
+    });
+    mockGetAIProviderBaseUrl.mockImplementation(() => {
+      throw new Error("store unavailable");
+    });
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "env fallback" } }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const result = await callAIModel("system instructions", "user prompt");
+
+    expect(result).toBe("env fallback");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://fallback.example/api/v1/chat/completions",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer env-key",
         }),
       }),
     );

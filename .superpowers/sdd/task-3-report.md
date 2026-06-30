@@ -139,3 +139,41 @@ Result:
 ```text
 Passed with no TypeScript errors.
 ```
+
+---
+
+## Task 3 review findings fix
+
+### What changed
+
+- Hardened `configuredModel()` so it only keeps a saved `settings.ai_model_id` when it is compatible with the active provider. Obvious stale cross-provider IDs now fall back to the active provider default model, while non-obvious manual IDs still pass through.
+- Switched `configuredProvider()` and `callAIModel()` to the existing guarded provider helpers so store read failures do not block env fallback.
+- Restored `callAIModel()` base URL resolution through `providerBaseUrl()`, which preserves `OPENROUTER_BASE_URL` support for live requests.
+- Scoped runtime health history by `provider:model` instead of model alone so cached history does not bleed across providers that reuse similar model names.
+
+### Verification
+
+Command:
+
+```bash
+npm test -- --run electron/lib/ai-runtime.test.ts electron/lib/ai-providers.test.ts
+```
+
+Result:
+
+```text
+Test Files  2 passed (2)
+Tests  20 passed (20)
+```
+
+Command:
+
+```bash
+npx tsc --noEmit
+```
+
+Result:
+
+```text
+Passed with no TypeScript errors.
+```
