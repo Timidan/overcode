@@ -54,7 +54,21 @@ console.log(
   ),
 );
 
-if (!apiKey) process.exit(1);
+if (!apiKey) {
+  console.log(
+    JSON.stringify(
+      {
+        openrouter: {
+          skipped: true,
+          reason: "OPENROUTER_API_KEY or OPENROUTER missing; no live smoke request sent.",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  process.exit(0);
+}
 
 const response = await fetch(`${baseUrl}/chat/completions`, {
   method: "POST",

@@ -5,13 +5,13 @@
 <h1 align="center">Overcode</h1>
 
 <p align="center">
-  <strong>A native desktop hub for Git workspaces, repository state, OpenRouter AI, and Cognee-backed memory.</strong>
+  <strong>A native desktop hub for Git workspaces, repository state, BYOK AI providers, and Cognee-backed memory.</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-0.1.0-1e40af?style=flat-square" alt="Version 0.1.0">
   <img src="https://img.shields.io/badge/Memory-Cognee%20repository%20memory-0f766e?style=flat-square" alt="Cognee repository memory layer">
-  <img src="https://img.shields.io/badge/AI-OpenRouter-1f70c1?style=flat-square" alt="OpenRouter AI runtime">
+  <img src="https://img.shields.io/badge/AI-BYOK%20providers-1f70c1?style=flat-square" alt="BYOK AI providers runtime">
   <img src="https://img.shields.io/badge/Runtime-Electron%2030-47848f?style=flat-square" alt="Electron 30">
 </p>
 
@@ -21,7 +21,7 @@
 
 Overcode is a native desktop application that consolidates local Git state, GitHub, and GitLab into a single operator workspace. It is built for engineers who maintain multiple repositories, monitor pull requests and merge requests, and switch between branches, worktrees, and stashes during a normal working day.
 
-The data plane is local. Repositories are read directly from disk through `simple-git` in an isolated worker process. Remote provider data is pulled per-account through user-scoped OAuth and cached locally. AI calls are explicit, routed through OpenRouter, and recorded in a local audit log. Cognee is used as an optional repository memory layer for approved summaries and structured facts.
+The data plane is local. Repositories are read directly from disk through `simple-git` in an isolated worker process. Remote provider data is pulled per-account through user-scoped OAuth and cached locally. AI calls are explicit, routed through the selected provider, and recorded in a local audit log. Cognee is used as an optional repository memory layer for approved summaries and structured facts.
 
 There is no Overcode backend.
 
@@ -79,8 +79,8 @@ Overcode reads local files and watches them continuously. A hosted web app would
 | Operating system | macOS 11, Windows 10 22H2, or glibc 2.31+ Linux |
 | Memory | 4 GB available |
 | Disk | 500 MB for the application, plus repository metadata cache |
-| Network | Outbound HTTPS to OpenRouter, Cognee if configured, GitHub, GitLab, and any configured enterprise instances |
-| Accounts | Optional OpenRouter API key, optional Cognee endpoint, optional GitHub and GitLab OAuth applications |
+| Network | Outbound HTTPS to OpenRouter, OpenAI, Anthropic, Gemini / AI Studio, Cognee if configured, GitHub, GitLab, and any configured enterprise instances |
+| Accounts | Optional AI provider API keys, optional Cognee endpoint, optional GitHub and GitLab OAuth applications |
 
 ---
 
@@ -108,9 +108,15 @@ To remove all stored state, delete `~/.overcode/` or run:
 
 ---
 
-## OpenRouter Setup
+## AI Provider Setup
 
-AI features require an OpenRouter API key. Stored Settings values take precedence over environment variables.
+Overcode uses bring-your-own-key AI providers. You can save keys for OpenRouter, OpenAI, Anthropic, and Gemini, then choose one active provider and model under Settings -> AI Providers.
+
+OpenRouter is the default because it exposes a broad model catalog, including free and paid models. Direct provider keys are supported for users who prefer billing through OpenAI, Anthropic, or Google AI Studio.
+
+Paid models are allowed. Overcode marks provider-billed models before activation and does not charge for model usage.
+
+Stored Settings values take precedence over environment variables.
 
 ### In-App Setup
 
@@ -124,17 +130,23 @@ Credentials are persisted to `~/.overcode/config.json` and encrypted with Electr
 
 ### Environment Variables
 
-| Key | Required | Notes |
-| --- | --- | --- |
-| `OPENROUTER_API_KEY` | yes | Preferred API key variable. |
-| `OPENROUTER` | alias | Accepted for existing local env files. |
-| `OPENROUTER_MODEL` | no | Defaults to `openrouter/free`. |
-| `OPENROUTER_BASE_URL` | no | Defaults to `https://openrouter.ai/api/v1`. |
+| Provider | Environment variables |
+| --- | --- |
+| OpenRouter | `OPENROUTER_API_KEY`, accepted alias `OPENROUTER`, optional `OPENROUTER_MODEL`, optional `OPENROUTER_BASE_URL` |
+| OpenAI | `OPENAI_API_KEY` |
+| Anthropic | `ANTHROPIC_API_KEY` |
+| Gemini / AI Studio | `GEMINI_API_KEY`, accepted alias `GOOGLE_API_KEY` |
 
-Run a direct connectivity check with:
+Run the generic smoke path with:
 
 ```bash
-npm run smoke:openrouter
+node scripts/smoke-ai-provider.mjs
+```
+
+Run the OpenRouter-specific check directly with:
+
+```bash
+node scripts/smoke-openrouter.mjs
 ```
 
 ---
