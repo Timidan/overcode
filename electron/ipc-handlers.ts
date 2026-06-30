@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import os from "node:os";
 import * as storeLib from "./lib/store";
 import { callAIModel, aiConfigStatus, configuredModel } from "./lib/ai-runtime";
+import { listProviderModels } from "./lib/ai-providers";
 import {
   sanitizeSettingsForRendererRead,
   sanitizeSettingsForRendererWrite,
@@ -13,7 +14,12 @@ import { startOAuthFlow, fetchProfile } from "./oauth-server";
 import * as github from "./lib/github";
 import * as gitlab from "./lib/gitlab";
 import { getProviderRateLimitSnapshots } from "./lib/provider-http";
-import type { AIProviderCredentialUpdate } from "./lib/ai-provider-types";
+import type {
+  AIModelCatalogEntry,
+  AIProviderCredentialUpdate,
+  AIProviderId,
+  AIProviderStatus,
+} from "./lib/ai-provider-types";
 import {
   cogneeStatus,
   forgetMemory,
@@ -89,6 +95,12 @@ interface RemoteCacheEntry<T> {
 }
 
 type Provider = "github" | "gitlab";
+const AI_PROVIDER_IDS: AIProviderId[] = [
+  "openrouter",
+  "openai",
+  "anthropic",
+  "gemini",
+];
 
 type GitChannel =
   | "git:scan"
@@ -167,6 +179,13 @@ function assertProvider(value: unknown): Provider {
   throw new Error("Provider must be 'github' or 'gitlab'.");
 }
 
+function assertAIProviderId(value: unknown): AIProviderId {
+  if (typeof value === "string" && AI_PROVIDER_IDS.includes(value as AIProviderId)) {
+    return value as AIProviderId;
+  }
+  throw new Error("Provider id must be one of: openrouter, openai, anthropic, gemini.");
+}
+
 function assertPositiveInteger(value: unknown, name: string): number {
   if (typeof value === "number" && Number.isInteger(value) && value > 0)
     return value;
@@ -200,6 +219,38 @@ function assertGitLabProjectId(value: unknown): string {
     throw new Error("GitLab project id contains unsupported characters.");
   }
   return value;
+}
+
+function readActiveAIProvider(): AIProviderId {
+  const settings = storeLib.getSettings();
+  const configured = settings.ai_provider_id;
+  return typeof configured === "string" && AI_PROVIDER_IDS.includes(configured as AIProviderId)
+    ? (configured as AIProviderId)
+    : "openrouter";
+}
+
+function readAIProviderStatuses(): AIProviderStatus[] {
+  const activeProviderId = readActiveAIProvider();
+  const credentialStatuses = storeLib.aiProviderCredentialStatus();
+  return AI_PROVIDER_IDS.map((providerId) => {
+    const status = credentialStatuses[providerId];
+    const configured = status.api_key !== "none";
+    const active = providerId === activeProviderId;
+    return {
+      providerId,
+      configured,
+      active,
+      credentialSource: status.api_key,
+      baseUrlSource:
+        providerId === "openrouter" && status.base_url === "default" && process.env.OPENROUTER_BASE_URL?.trim()
+          ? "env"
+          : status.base_url,
+      health: configured ? "unknown" : "not_configured",
+      reason: configured
+        ? "Passive provider status is local only and skips provider health probes."
+        : "API key is not configured.",
+    };
+  });
 }
 
 function recordGitWorkerChange(event: WorkerEvent): void {
@@ -782,6 +833,35 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
   );
 
   ipcMain.handle("ai:status", () => aiConfigStatus());
+  ipcMain.handle("ai:providers", async () => readAIProviderStatuses());
+  ipcMain.handle(
+    "ai:models",
+    async (
+      _event,
+      payload: { providerId?: unknown; options?: { force?: boolean } } | undefined,
+    ): Promise<AIModelCatalogEntry[]> => {
+      const providerId = assertAIProviderId(payload?.providerId);
+      return listProviderModels(providerId);
+    },
+  );
+  ipcMain.handle(
+    "ai:set-active-provider",
+    async (
+      _event,
+      payload: { providerId?: unknown; modelId?: unknown } | undefined,
+    ): Promise<void> => {
+      const providerId = assertAIProviderId(payload?.providerId);
+      const settings = storeLib.getSettings();
+      const modelId =
+        typeof payload?.modelId === "string" && payload.modelId.trim()
+          ? payload.modelId.trim()
+          : settings.ai_model_id;
+      storeLib.updateSettings({
+        ai_provider_id: providerId,
+        ai_model_id: modelId,
+      });
+    },
+  );
 
   // ============================================================
   // MEMORY CHANNELS (5)
@@ -843,12 +923,14 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
   // ============================================================
   // AI PROVIDER CREDENTIALS (dedicated channels — secrets never echo back)
   // ============================================================
-  ipcMain.handle("settings:save-ai-provider", async (_, raw: unknown) => {
+  ipcMain.handle("settings:save-ai-provider", async (_, raw: unknown): Promise<void> => {
     if (!raw || typeof raw !== "object") {
       throw new Error("Invalid credentials payload.");
     }
     const payload = raw as Record<string, unknown>;
-    const update: AIProviderCredentialUpdate = { providerId: "openrouter" };
+    const update: AIProviderCredentialUpdate = {
+      providerId: assertAIProviderId(payload.providerId),
+    };
     const CAPS = { api_key: 8192, base_url: 2048 } as const;
     for (const field of ["api_key", "base_url"] as const) {
       if (!(field in payload)) continue;
@@ -876,31 +958,22 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
         }
       }
       if (field === "api_key") update.apiKey = v;
-      else update.baseUrl = v;
+      else update.baseUrl = v.trim();
     }
     storeLib.saveAIProviderCredentials(update);
-    const stored = storeLib.aiProviderCredentialStatus("openrouter").openrouter;
-    return {
-      api_key: stored.api_key,
-      base_url: stored.base_url === "stored"
-        ? "stored"
-        : process.env.OPENROUTER_BASE_URL?.trim()
-          ? "env"
-          : "none",
-    } as const;
   });
 
-  ipcMain.handle("settings:ai-provider-status", async () => {
-    const stored = storeLib.aiProviderCredentialStatus("openrouter").openrouter;
-    // Source-of-truth: tell the renderer whether each credential is satisfied
-    // via the encrypted-store path, the process.env fallback, or neither.
-    return {
-      api_key: stored.api_key,
-      base_url: stored.base_url === "stored"
-        ? "stored"
-        : process.env.OPENROUTER_BASE_URL?.trim()
-          ? "env"
-          : "none",
-    } as const;
-  });
+  ipcMain.handle(
+    "settings:ai-provider-status",
+    async (
+      _,
+      payload?: { providerId?: unknown },
+    ) => {
+      const providerId =
+        payload && "providerId" in payload && payload.providerId !== undefined
+          ? assertAIProviderId(payload.providerId)
+          : undefined;
+      return storeLib.aiProviderCredentialStatus(providerId);
+    },
+  );
 }

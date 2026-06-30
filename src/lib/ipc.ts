@@ -235,6 +235,57 @@ export interface AIStatus {
   health: AIModelHealth[];
 }
 
+export type AIProviderId = "openrouter" | "openai" | "anthropic" | "gemini";
+export type AIProviderCredentialSource = "stored" | "env" | "none";
+type LegacyAIProviderCredentialUpdate = {
+  api_key?: string | null;
+  base_url?: string | null;
+};
+
+export interface AIProviderCredentialUpdate {
+  providerId: AIProviderId;
+  apiKey?: string | null;
+  baseUrl?: string | null;
+}
+
+export interface AIProviderCredentialSourceStatus {
+  api_key: AIProviderCredentialSource;
+  base_url: AIProviderCredentialSource | "default";
+}
+
+interface LegacyAIProviderCredentialSourceStatus {
+  api_key: AIProviderCredentialSource;
+  base_url: AIProviderCredentialSource;
+}
+
+function isLegacyAIProviderCredentialUpdate(
+  update: AIProviderCredentialUpdate | LegacyAIProviderCredentialUpdate,
+): update is LegacyAIProviderCredentialUpdate {
+  return !("providerId" in update);
+}
+
+export interface AIProviderStatus {
+  providerId: AIProviderId;
+  configured: boolean;
+  active: boolean;
+  credentialSource: AIProviderCredentialSource;
+  baseUrlSource?: "stored" | "env" | "default" | "none";
+  health: AIModelHealthStatus;
+  reason?: string;
+}
+
+export interface AIModelCatalogEntry {
+  providerId: AIProviderId;
+  id: string;
+  name: string;
+  free?: boolean;
+  pricing?: { prompt?: string; completion?: string };
+  contextLength?: number;
+  modalities: string[];
+  tags: Array<"recommended" | "coding" | "long_context" | "vision" | "paid" | "free">;
+  source: "live" | "curated" | "manual";
+}
+
 export interface GitHubRepo {
   id: number;
   name: string;
@@ -702,6 +753,24 @@ export class IPC {
     return this.api.ai.status();
   }
 
+  async listAIProviders(): Promise<AIProviderStatus[]> {
+    return this.api.ai.providers();
+  }
+
+  async listAIModels(
+    providerId: AIProviderId,
+    options?: { force?: boolean },
+  ): Promise<AIModelCatalogEntry[]> {
+    return this.api.ai.models(providerId, options);
+  }
+
+  async setActiveAIProvider(
+    providerId: AIProviderId,
+    modelId?: string,
+  ): Promise<void> {
+    return this.api.ai.setActiveProvider(providerId, modelId);
+  }
+
   async rememberMemory(
     payload: MemoryRememberInput,
   ): Promise<MemoryRememberResult> {
@@ -738,28 +807,37 @@ export class IPC {
     return this.api.store.list();
   }
 
-  async saveAIProviderCredentials(update: {
-    api_key?: string | null;
-    base_url?: string | null;
-  }): Promise<AIProviderCredentialStatus> {
-    return this.api.settings.saveAIProvider(update);
+  async saveAIProviderCredentials(
+    update: AIProviderCredentialUpdate | LegacyAIProviderCredentialUpdate,
+  ): Promise<void> {
+    const legacy = isLegacyAIProviderCredentialUpdate(update);
+    const providerId = legacy ? "openrouter" : update.providerId;
+    const apiKey = legacy ? update.api_key : update.apiKey;
+    const baseUrl = legacy ? update.base_url : update.baseUrl;
+    return this.api.settings.saveAIProvider({
+      providerId,
+      api_key: apiKey,
+      base_url: baseUrl,
+    });
   }
 
-  async getAIProviderCredentialStatus(): Promise<AIProviderCredentialSourceStatus> {
-    return this.api.settings.aiProviderStatus();
+  async getAIProviderCredentialStatus(): Promise<LegacyAIProviderCredentialSourceStatus>;
+  async getAIProviderCredentialStatus(
+    providerId: AIProviderId | undefined,
+  ): Promise<Record<AIProviderId, AIProviderCredentialSourceStatus>>;
+  async getAIProviderCredentialStatus(
+    providerId?: AIProviderId,
+  ): Promise<
+    | LegacyAIProviderCredentialSourceStatus
+    | Record<AIProviderId, AIProviderCredentialSourceStatus>
+  > {
+    const result = await this.api.settings.aiProviderStatus(providerId);
+    if (providerId !== undefined) return result;
+    return {
+      api_key: result.openrouter.api_key,
+      base_url: result.openrouter.base_url === "default" ? "none" : result.openrouter.base_url,
+    };
   }
-}
-
-export type AIProviderCredentialSource = "stored" | "env" | "none";
-
-export interface AIProviderCredentialSourceStatus {
-  api_key: AIProviderCredentialSource;
-  base_url: AIProviderCredentialSource;
-}
-
-export interface AIProviderCredentialStatus {
-  api_key: boolean;
-  base_url: boolean;
 }
 
 export const ipc = new IPC();

@@ -82,6 +82,11 @@ const api = {
     complete: (systemPrompt: string, userPrompt: string) =>
       ipcRenderer.invoke("ai:complete", systemPrompt, userPrompt),
     status: () => ipcRenderer.invoke("ai:status"),
+    providers: () => ipcRenderer.invoke("ai:providers"),
+    models: (providerId: string, options?: { force?: boolean }) =>
+      ipcRenderer.invoke("ai:models", { providerId, options }),
+    setActiveProvider: (providerId: string, modelId?: string) =>
+      ipcRenderer.invoke("ai:set-active-provider", { providerId, modelId }),
   },
 
   memory: {
@@ -102,11 +107,10 @@ const api = {
   },
 
   settings: {
-    saveAIProvider: (update: {
-      api_key?: string | null;
-      base_url?: string | null;
-    }) => ipcRenderer.invoke("settings:save-ai-provider", update),
-    aiProviderStatus: () => ipcRenderer.invoke("settings:ai-provider-status"),
+    saveAIProvider: (update: unknown) =>
+      ipcRenderer.invoke("settings:save-ai-provider", update),
+    aiProviderStatus: (providerId?: string) =>
+      ipcRenderer.invoke("settings:ai-provider-status", { providerId }),
   },
 };
 

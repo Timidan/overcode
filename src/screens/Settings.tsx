@@ -630,7 +630,10 @@ export function SettingsScreen() {
 
             <div className="settings-credential-status-row">
               <CredentialBadge label="API key" source={credSource?.api_key} />
-              <CredentialBadge label="Base URL" source={credSource?.base_url} />
+              <CredentialBadge
+                label="Base URL"
+                source={credSource?.base_url === "default" ? "none" : credSource?.base_url}
+              />
             </div>
 
             <div className="settings-credential-form">

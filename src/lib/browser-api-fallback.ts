@@ -1,12 +1,103 @@
 import type { API } from "../../electron/preload";
+import type {
+  AIModelCatalogEntry,
+  AIProviderCredentialSourceStatus,
+  AIProviderId,
+  AIProviderStatus,
+} from "./ipc";
 
 const STORE_KEY = "overcode:browser-api-fallback";
-const KNOWN_MODELS = [
-  "openrouter/free",
-  "minimax/minimax-m3",
-  "qwen/qwen3-coder:free",
-  "meta-llama/llama-3.3-70b-instruct:free",
-];
+const PROVIDERS: AIProviderId[] = ["openrouter", "openai", "anthropic", "gemini"];
+const CURATED_MODELS: Record<AIProviderId, AIModelCatalogEntry[]> = {
+  openrouter: [
+    {
+      providerId: "openrouter",
+      id: "openrouter/free",
+      name: "Free Models Router",
+      free: true,
+      contextLength: 200000,
+      modalities: ["text"],
+      tags: ["free", "recommended"],
+      source: "curated",
+    },
+    {
+      providerId: "openrouter",
+      id: "qwen/qwen3-coder:free",
+      name: "Qwen3 Coder",
+      free: true,
+      contextLength: 1048576,
+      modalities: ["text"],
+      tags: ["free", "coding", "recommended", "long_context"],
+      source: "curated",
+    },
+  ],
+  openai: [
+    {
+      providerId: "openai",
+      id: "gpt-4.1",
+      name: "GPT-4.1",
+      free: false,
+      contextLength: 1047576,
+      modalities: ["text"],
+      tags: ["paid", "coding", "recommended", "long_context"],
+      source: "curated",
+    },
+    {
+      providerId: "openai",
+      id: "gpt-4.1-mini",
+      name: "GPT-4.1 Mini",
+      free: false,
+      contextLength: 1047576,
+      modalities: ["text"],
+      tags: ["paid", "coding"],
+      source: "curated",
+    },
+  ],
+  anthropic: [
+    {
+      providerId: "anthropic",
+      id: "claude-sonnet-4-5",
+      name: "Claude Sonnet 4.5",
+      free: false,
+      contextLength: 200000,
+      modalities: ["text"],
+      tags: ["paid", "coding", "recommended", "long_context"],
+      source: "curated",
+    },
+    {
+      providerId: "anthropic",
+      id: "claude-haiku-4-5",
+      name: "Claude Haiku 4.5",
+      free: false,
+      contextLength: 200000,
+      modalities: ["text"],
+      tags: ["paid", "coding"],
+      source: "curated",
+    },
+  ],
+  gemini: [
+    {
+      providerId: "gemini",
+      id: "gemini-2.5-pro",
+      name: "Gemini 2.5 Pro",
+      free: false,
+      contextLength: 1048576,
+      modalities: ["text", "image"],
+      tags: ["paid", "coding", "recommended", "long_context", "vision"],
+      source: "curated",
+    },
+    {
+      providerId: "gemini",
+      id: "gemini-2.5-flash",
+      name: "Gemini 2.5 Flash",
+      free: false,
+      contextLength: 1048576,
+      modalities: ["text", "image"],
+      tags: ["paid", "coding", "vision"],
+      source: "curated",
+    },
+  ],
+};
 
 type StoreData = Record<string, unknown>;
 const BRIDGE_URL =
@@ -24,6 +115,82 @@ function readStore(): StoreData {
 
 function writeStore(data: StoreData): void {
   window.localStorage.setItem(STORE_KEY, JSON.stringify(data));
+}
+
+function readActiveProviderId(data: StoreData): AIProviderId {
+  const providerId = data.ai_provider_id;
+  return typeof providerId === "string" && PROVIDERS.includes(providerId as AIProviderId)
+    ? (providerId as AIProviderId)
+    : "openrouter";
+}
+
+function readProviderStatusMap(data: StoreData): Record<AIProviderId, AIProviderCredentialSourceStatus> {
+  const raw = data.ai_provider_status;
+  const result = {} as Record<AIProviderId, AIProviderCredentialSourceStatus>;
+  for (const providerId of PROVIDERS) {
+    const value =
+      raw && typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)[providerId]
+        : undefined;
+    const entry = value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Partial<AIProviderCredentialSourceStatus>)
+      : undefined;
+    result[providerId] = {
+      api_key:
+        entry?.api_key === "stored" || entry?.api_key === "env" ? entry.api_key : "none",
+      base_url:
+        entry?.base_url === "stored" || entry?.base_url === "env" || entry?.base_url === "none"
+          ? entry.base_url
+          : "default",
+    };
+  }
+  return result;
+}
+
+function writeProviderStatus(
+  providerId: AIProviderId,
+  update: { api_key?: string | null; base_url?: string | null },
+): void {
+  const data = readStore();
+  const statuses = readProviderStatusMap(data);
+  const current = statuses[providerId];
+  statuses[providerId] = {
+    api_key:
+      update.api_key === undefined
+        ? current.api_key
+        : update.api_key === null || update.api_key.trim() === ""
+          ? "none"
+          : "stored",
+    base_url:
+      update.base_url === undefined
+        ? current.base_url
+        : update.base_url === null || update.base_url.trim() === ""
+          ? "default"
+          : "stored",
+  };
+  data.ai_provider_status = statuses;
+  writeStore(data);
+}
+
+function browserProviderStatuses(): AIProviderStatus[] {
+  const data = readStore();
+  const activeProviderId = readActiveProviderId(data);
+  const statuses = readProviderStatusMap(data);
+  return PROVIDERS.map((providerId) => {
+    const credentialStatus = statuses[providerId];
+    const configured = credentialStatus.api_key !== "none";
+    return {
+      providerId,
+      configured,
+      active: providerId === activeProviderId,
+      credentialSource: credentialStatus.api_key,
+      baseUrlSource: credentialStatus.base_url,
+      health: configured ? "unknown" : "not_configured",
+      reason: configured
+        ? "Browser fallback uses local mock provider metadata only."
+        : "API key is not configured in browser fallback mode.",
+    };
+  });
 }
 
 function unavailable(feature: string): Promise<never> {
@@ -160,6 +327,21 @@ export function installBrowserApiFallback(): void {
     ai: {
       complete: (systemPrompt, userPrompt) =>
         bridge("/api/ai/complete", { systemPrompt, userPrompt }),
+      providers: async () => browserProviderStatuses(),
+      models: async (providerId) => CURATED_MODELS[providerId as AIProviderId] ?? [],
+      setActiveProvider: async (providerId, modelId) => {
+        const data = readStore();
+        const nextProviderId = PROVIDERS.includes(providerId as AIProviderId)
+          ? (providerId as AIProviderId)
+          : "openrouter";
+        data.ai_provider_id = nextProviderId;
+        if (typeof modelId === "string" && modelId.trim()) {
+          data.ai_model_id = modelId.trim();
+        } else if (typeof data.ai_model_id !== "string" || !data.ai_model_id.trim()) {
+          data.ai_model_id = "openrouter/free";
+        }
+        writeStore(data);
+      },
       status: () => bridgeOr("/api/ai/status", {}, {
         configured: false,
         model: "openrouter/free",
@@ -167,8 +349,8 @@ export function installBrowserApiFallback(): void {
         env: {
           OPENROUTER_API_KEY: "missing",
         },
-        health: KNOWN_MODELS.map((model) => ({
-          model,
+        health: CURATED_MODELS.openrouter.map((entry) => ({
+          model: entry.id,
           status: "not_configured",
           reason: "Electron preload unavailable in browser mode",
           checkedAt: null,
@@ -236,9 +418,29 @@ export function installBrowserApiFallback(): void {
       },
     },
     settings: {
-      saveAIProvider: async () => ({ api_key: false, base_url: false }),
-      aiProviderStatus: async () =>
-        ({ api_key: "none", base_url: "none" } as const),
+      saveAIProvider: async (update) => {
+        if (!update || typeof update !== "object") return;
+        const payload = update as {
+          providerId?: unknown;
+          api_key?: string | null;
+          base_url?: string | null;
+        };
+        if (typeof payload.providerId !== "string" || !PROVIDERS.includes(payload.providerId as AIProviderId)) {
+          throw new Error("Provider id must be one of: openrouter, openai, anthropic, gemini.");
+        }
+        writeProviderStatus(payload.providerId as AIProviderId, payload);
+      },
+      aiProviderStatus: async (providerId) => {
+        const data = readStore();
+        const statuses = readProviderStatusMap(data);
+        if (typeof providerId === "string" && PROVIDERS.includes(providerId as AIProviderId)) {
+          return { [providerId]: statuses[providerId as AIProviderId] } as Record<
+            AIProviderId,
+            AIProviderCredentialSourceStatus
+          >;
+        }
+        return statuses;
+      },
     },
   };
 
