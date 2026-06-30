@@ -267,6 +267,13 @@ const providerEnvKeys: Record<AIProviderId, string[]> = {
   gemini: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
 };
 
+const providerBaseUrlEnvKeys: Record<AIProviderId, string[]> = {
+  openrouter: ["OPENROUTER_BASE_URL"],
+  openai: [],
+  anthropic: [],
+  gemini: [],
+};
+
 function readSecret(field: "openrouter_api_key"): string | undefined {
   const stored = store.get("settings") as StoredSettings | undefined;
   if (!stored) return undefined;
@@ -398,11 +405,12 @@ export function aiProviderCredentialStatus(
       const storedKey = Boolean(getAIProviderApiKey(id));
       const envKey = providerEnvKeys[id].some((key) => Boolean(process.env[key]?.trim()));
       const storedBaseUrl = Boolean(getAIProviderBaseUrl(id));
+      const envBaseUrl = providerBaseUrlEnvKeys[id].some((key) => Boolean(process.env[key]?.trim()));
       return [
         id,
         {
           api_key: storedKey ? "stored" : envKey ? "env" : "none",
-          base_url: storedBaseUrl ? "stored" : "default",
+          base_url: storedBaseUrl ? "stored" : envBaseUrl ? "env" : "default",
         },
       ];
     }),

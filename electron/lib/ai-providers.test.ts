@@ -194,6 +194,7 @@ describe("AI provider credential storage", () => {
     });
     delete process.env.OPENROUTER;
     delete process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_BASE_URL;
     delete process.env.OPENAI_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.GEMINI_API_KEY;
@@ -360,6 +361,7 @@ describe("AI provider credential storage", () => {
   });
 
   it("reports stored and env credential sources per provider", async () => {
+    process.env.OPENROUTER_BASE_URL = "https://openrouter.example/api/v1";
     process.env.OPENAI_API_KEY = "env-openai-key";
     process.env.GOOGLE_API_KEY = "env-gemini-key";
 
@@ -381,7 +383,7 @@ describe("AI provider credential storage", () => {
     });
 
     expect(store.aiProviderCredentialStatus()).toEqual({
-      openrouter: { api_key: "none", base_url: "default" },
+      openrouter: { api_key: "none", base_url: "env" },
       openai: { api_key: "env", base_url: "default" },
       anthropic: { api_key: "stored", base_url: "default" },
       gemini: { api_key: "env", base_url: "default" },

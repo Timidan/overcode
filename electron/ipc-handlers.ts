@@ -186,6 +186,20 @@ function assertAIProviderId(value: unknown): AIProviderId {
   throw new Error("Provider id must be one of: openrouter, openai, anthropic, gemini.");
 }
 
+function assertOptionalAIModelId(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") {
+    throw new Error("Model id must be a string when provided.");
+  }
+  const modelId = value.trim();
+  if (!modelId) throw new Error("Model id cannot be empty when provided.");
+  if (modelId.length > 300) throw new Error("Model id is too large.");
+  if (/[\0\r\n]/.test(modelId)) {
+    throw new Error("Model id contains unsupported characters.");
+  }
+  return modelId;
+}
+
 function assertPositiveInteger(value: unknown, name: string): number {
   if (typeof value === "number" && Number.isInteger(value) && value > 0)
     return value;
@@ -852,10 +866,7 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
     ): Promise<void> => {
       const providerId = assertAIProviderId(payload?.providerId);
       const settings = storeLib.getSettings();
-      const modelId =
-        typeof payload?.modelId === "string" && payload.modelId.trim()
-          ? payload.modelId.trim()
-          : settings.ai_model_id;
+      const modelId = assertOptionalAIModelId(payload?.modelId) ?? settings.ai_model_id;
       storeLib.updateSettings({
         ai_provider_id: providerId,
         ai_model_id: modelId,
