@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowsClockwise, Check, Warning, X } from "@phosphor-icons/react";
 import { AIProviderLogo } from "./AIProviderLogo";
 import {
@@ -62,17 +62,13 @@ export function AIProviderSettings() {
     [filter, models, query],
   );
 
-  useEffect(() => {
-    void refresh();
-  }, []);
-
-  async function readStoredModel(): Promise<string> {
+  const readStoredModel = useCallback(async (): Promise<string> => {
     const stored = await ipc.getFromStore("settings").catch(() => null);
     if (!stored || typeof stored !== "object" || Array.isArray(stored)) return "";
     return ((stored as SettingsShape).ai_model_id ?? "").trim();
-  }
+  }, []);
 
-  async function loadCredentialSources(): Promise<SourceState> {
+  const loadCredentialSources = useCallback(async (): Promise<SourceState> => {
     const entries = await Promise.all(
       providerOrder.map(async (providerId) => {
         const result = await ipc.getAIProviderCredentialStatus(providerId) as unknown as Record<
@@ -83,9 +79,29 @@ export function AIProviderSettings() {
       }),
     );
     return Object.fromEntries(entries);
-  }
+  }, []);
 
-  async function refresh(nextProvider?: AIProviderId): Promise<void> {
+  const refreshModels = useCallback(async (providerId: AIProviderId, preferredModel = ""): Promise<void> => {
+    setLoadingModels(true);
+    setError(null);
+    try {
+      const rows = await ipc.listAIModels(providerId);
+      setModels(rows);
+      const nextModel = chooseModel(rows, preferredModel);
+      setSelectedModel(nextModel);
+      setManualModel(nextModel && !rows.some((row) => row.id === nextModel) ? nextModel : "");
+      setPaidAcknowledged(false);
+    } catch (loadError) {
+      setModels([]);
+      setSelectedModel("");
+      setManualModel("");
+      setError(loadError instanceof Error ? loadError.message : "Failed to load model catalog.");
+    } finally {
+      setLoadingModels(false);
+    }
+  }, []);
+
+  const refresh = useCallback(async (nextProvider?: AIProviderId): Promise<void> => {
     setLoadingProviders(true);
     setError(null);
     try {
@@ -106,27 +122,11 @@ export function AIProviderSettings() {
     } finally {
       setLoadingProviders(false);
     }
-  }
+  }, [loadCredentialSources, readStoredModel, refreshModels]);
 
-  async function refreshModels(providerId: AIProviderId, preferredModel = ""): Promise<void> {
-    setLoadingModels(true);
-    setError(null);
-    try {
-      const rows = await ipc.listAIModels(providerId);
-      setModels(rows);
-      const nextModel = chooseModel(rows, preferredModel);
-      setSelectedModel(nextModel);
-      setManualModel(nextModel && !rows.some((row) => row.id === nextModel) ? nextModel : "");
-      setPaidAcknowledged(false);
-    } catch (loadError) {
-      setModels([]);
-      setSelectedModel("");
-      setManualModel("");
-      setError(loadError instanceof Error ? loadError.message : "Failed to load model catalog.");
-    } finally {
-      setLoadingModels(false);
-    }
-  }
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   async function handleSelectProvider(providerId: AIProviderId): Promise<void> {
     if (providerId === selectedProvider && !loadingProviders) return;
@@ -521,7 +521,7 @@ export function AIProviderSettings() {
                 type="button"
                 className="settings-button"
                 onClick={() => void handleActivate()}
-                disabled={activating || loadingModels}
+                disabled={activating || loadingModels || (requiresBillingAck && !paidAcknowledged)}
               >
                 <Check size={12} />
                 {activating ? "Activating..." : "Activate provider"}
