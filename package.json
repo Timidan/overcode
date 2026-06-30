@@ -2,7 +2,7 @@
   "name": "overcode",
   "private": true,
   "version": "0.1.0",
-  "description": "Desktop developer workspace hub for Git, pull requests, and watsonx.ai Granite-assisted repository workflows.",
+  "description": "Desktop developer workspace hub for Git, pull requests, OpenRouter AI, and Cognee-backed repository memory.",
   "author": {
     "name": "Timidan",
     "email": "akinnusotutemitayodaniel@gmail.com"
@@ -15,11 +15,12 @@
   "scripts": {
     "dev": "vite",
     "dev:browser": "node scripts/dev-browser.mjs",
+    "test": "vitest",
     "clean-start": "bash scripts/clean-start.sh",
     "build": "tsc && vite build && electron-builder",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "smoke:electron": "node scripts/smoke-electron.mjs",
-    "smoke:watsonx": "node scripts/smoke-watsonx.mjs",
+    "smoke:openrouter": "node scripts/smoke-openrouter.mjs",
     "smoke:github-issues": "node scripts/smoke-github-issues.mjs",
     "smoke:workspaces": "node scripts/smoke-workspaces.mjs",
     "smoke:backend-fixture": "node scripts/smoke-backend-fixture.mjs",
@@ -55,7 +56,8 @@
     "typescript": "^5.2.2",
     "vite": "^5.1.6",
     "vite-plugin-electron": "^0.28.6",
-    "vite-plugin-electron-renderer": "^0.14.5"
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "vitest": "^4.1.9"
   },
   "main": "dist-electron/main.js"
 }

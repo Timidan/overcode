@@ -11,14 +11,15 @@ import {
   type AIModelHealth,
   type AIModelHealthStatus,
   type AIStatus,
-  type WatsonxCredentialSource,
-  type WatsonxCredentialSourceStatus,
+  type MemoryStatus,
+  type AIProviderCredentialSource,
+  type AIProviderCredentialSourceStatus,
 } from "../lib/ipc";
 import "./Settings.css";
 
 interface SettingsShape {
   watch_directories: string[];
-  watsonx_model_id?: string;
+  ai_model_id?: string;
   // IDs of discovered workspaces the user explicitly chose to hide forever.
   // Set from the Repositories curation screen; revisited in the Hidden
   // repositories section below.
@@ -42,11 +43,15 @@ interface AIGovernanceState {
   audit: AIAuditEntry[];
 }
 
+const MEMORY_DATASET_NAME = "overcode_memory";
+const MEMORY_IMPROVE_FEEDBACK =
+  "Refine Overcode workspace memory for recurring risks, decisions, modules, and conventions.";
+
 const KNOWN_MODELS = [
-  "ibm/granite-4-h-small",
-  "ibm/granite-3-3-8b-instruct",
-  "ibm/granite-3-2-8b-instruct",
-  "mistralai/mistral-large",
+  "openrouter/free",
+  "minimax/minimax-m3",
+  "qwen/qwen3-coder:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
 ] as const;
 
 function healthLabel(status?: AIModelHealthStatus): string {
@@ -109,12 +114,25 @@ function historyBoxTitle(
   return `${iso} - ${healthLabel(entry.status)}${ms}`;
 }
 
+function memoryStatusLabel(status: MemoryStatus | null): string {
+  if (!status) return "Unknown";
+  if (!status.enabled) return "Disabled";
+  if (!status.configured) return "Not configured";
+  if (!status.endpointVerified) return "Endpoint unverified";
+  return "Enabled";
+}
+
+function memoryStatusClass(status: MemoryStatus | null): string {
+  if (!status || !status.enabled || !status.configured) return "is-not-configured";
+  return status.endpointVerified ? "is-available" : "is-unavailable";
+}
+
 function CredentialBadge({
   label,
   source,
 }: {
   label: string;
-  source: WatsonxCredentialSource | undefined;
+  source: AIProviderCredentialSource | undefined;
 }) {
   const status = source ?? "none";
   const text =
@@ -152,9 +170,13 @@ export function SettingsScreen() {
     cacheKeys: [],
     audit: [],
   });
-  const [credSource, setCredSource] = useState<WatsonxCredentialSourceStatus | null>(null);
-  const [credForm, setCredForm] = useState({ api_key: "", project_id: "", url: "" });
+  const [credSource, setCredSource] = useState<AIProviderCredentialSourceStatus | null>(null);
+  const [credForm, setCredForm] = useState({ api_key: "", base_url: "" });
   const [savingCreds, setSavingCreds] = useState(false);
+  const [memoryStatus, setMemoryStatus] = useState<MemoryStatus | null>(null);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryAction, setMemoryAction] = useState<"improve" | "forget" | null>(null);
+  const [memoryError, setMemoryError] = useState<string | null>(null);
 
   async function refreshAI() {
     setRefreshingAI(true);
@@ -176,7 +198,7 @@ export function SettingsScreen() {
       ipc.getAuthStatus(),
       ipc.getAIStatus(),
       loadGovernanceState(),
-      ipc.getWatsonxCredentialStatus(),
+      ipc.getAIProviderCredentialStatus(),
     ]);
     const storedSettings =
       (stored as SettingsShape | undefined) ?? {
@@ -186,26 +208,38 @@ export function SettingsScreen() {
     setAuth(status);
     setAiStatus(ai);
     setGovernance(governanceState);
-    setModelInput(storedSettings.watsonx_model_id ?? "");
+    setModelInput(storedSettings.ai_model_id ?? "");
     setCredSource(creds);
   }
 
+  async function refreshMemoryStatus() {
+    setMemoryLoading(true);
+    setMemoryError(null);
+    try {
+      setMemoryStatus(await ipc.getMemoryStatus());
+    } catch (e) {
+      setMemoryStatus(null);
+      setMemoryError(e instanceof Error ? e.message : "Failed to load memory status.");
+    } finally {
+      setMemoryLoading(false);
+    }
+  }
+
   async function saveCredentials() {
-    const update: { api_key?: string | null; project_id?: string | null; url?: string | null } = {};
+    const update: { api_key?: string | null; base_url?: string | null } = {};
     if (credForm.api_key.trim()) update.api_key = credForm.api_key.trim();
-    if (credForm.project_id.trim()) update.project_id = credForm.project_id.trim();
-    if (credForm.url.trim()) update.url = credForm.url.trim();
+    if (credForm.base_url.trim()) update.base_url = credForm.base_url.trim();
     if (Object.keys(update).length === 0) {
       setMessage("Enter at least one credential to save.");
       return;
     }
     setSavingCreds(true);
     try {
-      await ipc.saveWatsonxCredentials(update);
-      setCredForm({ api_key: "", project_id: "", url: "" });
-      setMessage("watsonx.ai credentials saved. Re-checking status…");
+      await ipc.saveAIProviderCredentials(update);
+      setCredForm({ api_key: "", base_url: "" });
+      setMessage("AI provider credentials saved. Re-checking status...");
       const [creds, ai] = await Promise.all([
-        ipc.getWatsonxCredentialStatus(),
+        ipc.getAIProviderCredentialStatus(),
         ipc.getAIStatus(),
       ]);
       setCredSource(creds);
@@ -220,11 +254,11 @@ export function SettingsScreen() {
   async function clearStoredCredentials() {
     setSavingCreds(true);
     try {
-      await ipc.saveWatsonxCredentials({ api_key: null, project_id: null, url: null });
-      setCredForm({ api_key: "", project_id: "", url: "" });
+      await ipc.saveAIProviderCredentials({ api_key: null, base_url: null });
+      setCredForm({ api_key: "", base_url: "" });
       setMessage("Stored credentials cleared. Environment-variable fallback (if any) is still in effect.");
       const [creds, ai] = await Promise.all([
-        ipc.getWatsonxCredentialStatus(),
+        ipc.getAIProviderCredentialStatus(),
         ipc.getAIStatus(),
       ]);
       setCredSource(creds);
@@ -236,6 +270,7 @@ export function SettingsScreen() {
 
   useEffect(() => {
     refresh();
+    refreshMemoryStatus();
   }, []);
 
   async function persistSettings(next: SettingsShape) {
@@ -283,10 +318,10 @@ export function SettingsScreen() {
   async function saveModel() {
     const next: SettingsShape = {
       ...settings,
-      watsonx_model_id: modelInput.trim() || undefined,
+      ai_model_id: modelInput.trim() || undefined,
     };
     await persistSettings(next);
-    setMessage("watsonx.ai model preference saved. Next AI request will use it.");
+    setMessage("AI model preference saved. Next AI request will use it.");
     setAiStatus(await ipc.getAIStatus());
   }
 
@@ -315,6 +350,48 @@ export function SettingsScreen() {
   function accountState(provider: Provider): ProviderState {
     if (busy === provider) return "connecting";
     return auth[provider] ? "connected" : "disconnected";
+  }
+
+  async function improveMemory() {
+    setMemoryAction("improve");
+    setMemoryError(null);
+    try {
+      const result = await ipc.improveMemory({
+        datasetName: MEMORY_DATASET_NAME,
+        feedback: MEMORY_IMPROVE_FEEDBACK,
+        accepted: true,
+      });
+      if (!result.ok || result.skipped) {
+        const detail = result.error ?? result.reason ?? "Memory improve was skipped.";
+        setMessage(`Memory improve not applied: ${detail}`);
+      } else {
+        setMessage("Repo memory improvement requested.");
+      }
+      await refreshMemoryStatus();
+    } catch (e) {
+      setMemoryError(e instanceof Error ? e.message : "Failed to improve repo memory.");
+    } finally {
+      setMemoryAction(null);
+    }
+  }
+
+  async function forgetMemory() {
+    setMemoryAction("forget");
+    setMemoryError(null);
+    try {
+      const result = await ipc.forgetMemory({ datasetName: MEMORY_DATASET_NAME });
+      if (!result.ok || result.skipped || !result.forgotten) {
+        const detail = result.error ?? result.reason ?? "Memory forget was skipped.";
+        setMessage(`Repo memory not cleared: ${detail}`);
+      } else {
+        setMessage("Configured Overcode memory dataset cleared.");
+      }
+      await refreshMemoryStatus();
+    } catch (e) {
+      setMemoryError(e instanceof Error ? e.message : "Failed to clear repo memory.");
+    } finally {
+      setMemoryAction(null);
+    }
   }
 
   const selectedModel = modelInput.trim() || aiStatus?.model || "";
@@ -433,7 +510,7 @@ export function SettingsScreen() {
         </section>
 
         <section className="settings-section">
-          <div className="section-label">watsonx.ai</div>
+          <div className="section-label">AI runtime</div>
           <div className="settings-row">
             <div className="settings-row-text">
               <div className="settings-row-title">Status</div>
@@ -473,7 +550,7 @@ export function SettingsScreen() {
             <button
               type="button"
               className="settings-button"
-              title="Re-check watsonx configuration"
+              title="Re-check AI runtime configuration"
               onClick={refreshAI}
               disabled={refreshingAI}
             >
@@ -487,7 +564,7 @@ export function SettingsScreen() {
           <div
             className="settings-model-list"
             role="radiogroup"
-            aria-label="watsonx.ai models"
+            aria-label="AI models"
           >
             {KNOWN_MODELS.map((model) => {
               const health = healthByModel.get(model);
@@ -518,19 +595,19 @@ export function SettingsScreen() {
             })}
           </div>
           <div className="settings-row-hint settings-hint-block">
-            Granite models are retired regularly. Type any model ID below or pick one above.
+            OpenRouter model availability changes over time. Type any model ID below or pick one above.
           </div>
           <div className="settings-add-row">
             <input
               type="text"
-              list="watsonx-models"
+              list="ai-models"
               className="settings-input"
-              placeholder="ibm/granite-4-h-small"
+              placeholder="openrouter/free"
               value={modelInput}
               onChange={(e) => setModelInput(e.target.value)}
               spellCheck={false}
             />
-            <datalist id="watsonx-models">
+            <datalist id="ai-models">
               {KNOWN_MODELS.map((m) => (
                 <option value={m} key={m} />
               ))}
@@ -548,13 +625,12 @@ export function SettingsScreen() {
           <div className="settings-credentials">
             <div className="section-label settings-credentials-label">Credentials</div>
             <div className="settings-row-hint settings-hint-block">
-              Required to use any AI feature. Stored on this device only, encrypted with the OS keystore when available. Values entered here take precedence over the matching <code>WATSONX_*</code> environment variables, which still work when running from source (<code>npm run dev</code>).
+              Required to use any AI feature. Stored on this device only, encrypted with the OS keystore when available. Values entered here take precedence over <code>OPENROUTER_API_KEY</code> or <code>OPENROUTER</code> from the environment.
             </div>
 
             <div className="settings-credential-status-row">
               <CredentialBadge label="API key" source={credSource?.api_key} />
-              <CredentialBadge label="Project ID" source={credSource?.project_id} />
-              <CredentialBadge label="URL" source={credSource?.url} />
+              <CredentialBadge label="Base URL" source={credSource?.base_url} />
             </div>
 
             <div className="settings-credential-form">
@@ -565,33 +641,21 @@ export function SettingsScreen() {
                   className="settings-input"
                   autoComplete="off"
                   spellCheck={false}
-                  placeholder={credSource?.api_key === "stored" ? "Stored. Enter a new value to replace." : "Paste your watsonx.ai API key"}
+                  placeholder={credSource?.api_key === "stored" ? "Stored. Enter a new value to replace." : "Paste your OpenRouter API key"}
                   value={credForm.api_key}
                   onChange={(e) => setCredForm((s) => ({ ...s, api_key: e.target.value }))}
                 />
               </label>
               <label className="settings-credential-field">
-                <span className="settings-credential-label">Project ID</span>
-                <input
-                  type="password"
-                  className="settings-input"
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder={credSource?.project_id === "stored" ? "Stored. Enter a new value to replace." : "Project ID from IBM Cloud watsonx.ai"}
-                  value={credForm.project_id}
-                  onChange={(e) => setCredForm((s) => ({ ...s, project_id: e.target.value }))}
-                />
-              </label>
-              <label className="settings-credential-field">
-                <span className="settings-credential-label">Region URL</span>
+                <span className="settings-credential-label">Base URL</span>
                 <input
                   type="url"
                   className="settings-input"
                   autoComplete="off"
                   spellCheck={false}
-                  placeholder="https://us-south.ml.cloud.ibm.com"
-                  value={credForm.url}
-                  onChange={(e) => setCredForm((s) => ({ ...s, url: e.target.value }))}
+                  placeholder="https://openrouter.ai/api/v1"
+                  value={credForm.base_url}
+                  onChange={(e) => setCredForm((s) => ({ ...s, base_url: e.target.value }))}
                 />
               </label>
               <div className="settings-credential-actions">
@@ -639,8 +703,8 @@ export function SettingsScreen() {
           </div>
           <div className="settings-policy-list" aria-label="AI input policy">
             <div>Environment files and git internals are blocked from file inspection.</div>
-            <div>Diffs and README data are bounded before they reach watsonx.ai.</div>
-            <div>OAuth tokens and watsonx credentials stay in the main process.</div>
+            <div>Diffs and README data are bounded before they reach the AI provider.</div>
+            <div>OAuth tokens and AI provider credentials stay in the main process.</div>
           </div>
           <div className="settings-audit-list">
             {governance.audit.length === 0 ? (
@@ -657,6 +721,90 @@ export function SettingsScreen() {
                 </div>
               ))
             )}
+          </div>
+        </section>
+
+        <section className="settings-section">
+          <div className="settings-section-header">
+            <div className="section-label">Workspace memory governance</div>
+            <button
+              type="button"
+              className="settings-button settings-button-quiet"
+              title="Refresh Cognee memory status"
+              onClick={refreshMemoryStatus}
+              disabled={memoryLoading || memoryAction !== null}
+            >
+              <ArrowsClockwise
+                size={12}
+                className={memoryLoading ? "motion-spin" : undefined}
+              />
+              Refresh
+            </button>
+          </div>
+          <div className="settings-row-hint settings-hint-block">
+            Cognee memory stores structured extracts and references only. Raw source, full diffs, secrets, and credentials are not sent as memory records.
+          </div>
+          <div className="settings-memory-grid">
+            <div className="settings-memory-field">
+              <span>Status</span>
+              <strong className={`settings-memory-status ${memoryStatusClass(memoryStatus)}`}>
+                {memoryLoading && !memoryStatus ? "Loading..." : memoryStatusLabel(memoryStatus)}
+              </strong>
+            </div>
+            <div className="settings-memory-field">
+              <span>Endpoint</span>
+              <code>{memoryStatus?.endpoint ?? "Not set"}</code>
+            </div>
+            <div className="settings-memory-field">
+              <span>Auth mode</span>
+              <strong>{memoryStatus?.auth === "api-key" ? "API key" : "None"}</strong>
+            </div>
+            <div className="settings-memory-field">
+              <span>Timeout</span>
+              <strong>
+                {typeof memoryStatus?.requestTimeoutMs === "number"
+                  ? `${memoryStatus.requestTimeoutMs}ms`
+                  : "Unknown"}
+              </strong>
+            </div>
+          </div>
+          {memoryStatus && (!memoryStatus.configured || memoryStatus.missing.length > 0) && (
+            <div className="settings-warning">
+              <Warning size={12} />
+              Missing: {memoryStatus.missing.length > 0 ? memoryStatus.missing.join(", ") : "Cognee configuration"}
+            </div>
+          )}
+          {memoryStatus?.reason && (
+            <div className="settings-row-hint">{memoryStatus.reason}</div>
+          )}
+          {memoryError && (
+            <div className="settings-warning">
+              <Warning size={12} />
+              {memoryError}
+            </div>
+          )}
+          <div className="settings-memory-actions">
+            <button
+              type="button"
+              className="settings-button"
+              title="Ask Cognee to refine the Overcode memory dataset"
+              onClick={improveMemory}
+              disabled={memoryAction !== null}
+            >
+              {memoryAction === "improve" ? "Improving..." : "Improve repo memory"}
+            </button>
+            <button
+              type="button"
+              className="settings-button settings-button-danger"
+              title="Clear the configured Overcode memory dataset"
+              onClick={forgetMemory}
+              disabled={memoryAction !== null}
+            >
+              {memoryAction === "forget" ? "Clearing..." : "Forget repo memory"}
+            </button>
+          </div>
+          <div className="settings-row-hint">
+            Forget clears the configured <code>{MEMORY_DATASET_NAME}</code> dataset used by Overcode workspace memory.
           </div>
         </section>
 
@@ -700,7 +848,7 @@ export function SettingsScreen() {
             <div className="settings-row-text">
               <div className="settings-row-title">Overcode</div>
               <div className="settings-row-hint">
-                Built with IBM Bob. Powered by watsonx.ai Granite. One calm signal across local, GitHub, and GitLab workspaces.
+                Preparing for Cognee-backed repository memory, with OpenRouter available for AI-assisted workspace operations.
               </div>
             </div>
           </div>
@@ -713,7 +861,7 @@ export function SettingsScreen() {
 
 async function loadGovernanceState(): Promise<AIGovernanceState> {
   const [cacheRaw, auditRaw] = await Promise.all([
-    ipc.getFromStore("granite_cache").catch(() => ({})),
+    ipc.getFromStore("ai_cache").catch(() => ({})),
     ipc.getFromStore("ai_audit_log").catch(() => []),
   ]);
   const cacheKeys =

@@ -20,7 +20,7 @@ import {
   summarizeIssueWithLocalContext,
   type IssueLocalContext,
 } from "../lib/issue-local-context";
-import type { GraniteEnvelope, IssueTriageData } from "../lib/ai-structured";
+import type { AIEnvelope, IssueTriageData } from "../lib/ai-structured";
 import "./GitHubIssueDetail.css";
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -43,7 +43,7 @@ export function GitHubIssueDetail() {
   const [localContext, setLocalContext] = useState<IssueLocalContext | null>(null);
   const [localContextLoading, setLocalContextLoading] = useState(false);
   const [inlineSummary, setInlineSummary] =
-    useState<GraniteEnvelope<IssueTriageData> | null>(null);
+    useState<AIEnvelope<IssueTriageData> | null>(null);
   const [inlineSummaryLoading, setInlineSummaryLoading] = useState(false);
   const [inlineSummaryError, setInlineSummaryError] = useState<string | null>(null);
 
@@ -374,7 +374,7 @@ export function GitHubIssueDetail() {
                 className="issue-triage-cta"
                 onClick={startTriage}
                 disabled={triageStarting}
-                title="Open Watson triage for this issue"
+                title="Open AI triage for this issue"
               >
                 <Sparkle size={13} weight="fill" />
                 <span>
@@ -410,7 +410,7 @@ function IssueIntelligencePanel({
 }: {
   context: IssueLocalContext | null;
   contextLoading: boolean;
-  summary: GraniteEnvelope<IssueTriageData> | null;
+  summary: AIEnvelope<IssueTriageData> | null;
   loading: boolean;
   error: string | null;
   onSummarize: () => void;
@@ -440,7 +440,7 @@ function IssueIntelligencePanel({
           onClick={summary ? onRefresh : onSummarize}
           disabled={loading}
         >
-          {loading ? "Summarizing…" : summary ? "Refresh Watson" : "Watson summary"}
+          {loading ? "Summarizing…" : summary ? "Refresh AI" : "AI summary"}
         </button>
       </div>
 

@@ -102,7 +102,7 @@ export function AIPanel() {
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, close]);
 
-  const featureLabel = feature ? FEATURE_LABELS[feature] : "watsonx.ai Granite";
+  const featureLabel = feature ? FEATURE_LABELS[feature] : "OpenRouter AI";
   const goHome = useCallback(() => {
     // Returning to home view without closing the panel: clear feature + payload.
     useAIPanel.setState({ feature: null, payload: null });
@@ -269,7 +269,7 @@ function AIHome({ onPickFeature }: AIHomeProps) {
             aria-hidden="true"
           />
           <code className="ai-home-model">
-            {status?.model ?? "ibm/granite-4-h-small"}
+            {status?.model ?? "openrouter/free"}
           </code>
           <span className={`ai-status-pill ${healthDotClass(healthStatus)}`}>
             {healthLabel(healthStatus)}
@@ -287,8 +287,8 @@ function AIHome({ onPickFeature }: AIHomeProps) {
             className="ai-panel-iconbtn ai-home-refresh"
             onClick={() => void loadStatus()}
             disabled={refreshing}
-            title="Re-check watsonx status"
-            aria-label="Re-check watsonx status"
+            title="Re-check OpenRouter status"
+            aria-label="Re-check OpenRouter status"
           >
             <ArrowsClockwise
               size={12}
@@ -304,7 +304,7 @@ function AIHome({ onPickFeature }: AIHomeProps) {
           className="ai-home-banner"
           onClick={() => navigate("settings")}
         >
-          <span>watsonx not configured — open Settings</span>
+          <span>OpenRouter not configured — open Settings</span>
           <span aria-hidden="true">→</span>
         </button>
       )}

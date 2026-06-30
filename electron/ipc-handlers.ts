@@ -4,11 +4,18 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import os from "node:os";
 import * as storeLib from "./lib/store";
-import { callGranite, aiConfigStatus, configuredModel } from "./lib/granite";
+import { callAIModel, aiConfigStatus, configuredModel } from "./lib/ai-runtime";
 import { startOAuthFlow, fetchProfile } from "./oauth-server";
 import * as github from "./lib/github";
 import * as gitlab from "./lib/gitlab";
 import { getProviderRateLimitSnapshots } from "./lib/provider-http";
+import {
+  cogneeStatus,
+  forgetMemory,
+  improveMemory,
+  recallMemory,
+  rememberMemory,
+} from "./lib/cognee";
 
 const execFileAsync = promisify(execFile);
 
@@ -376,7 +383,7 @@ function inferAIFeature(systemPrompt: string): string {
   if (prompt.includes("code or diff selection")) return "code_explain";
   if (prompt.includes("stash")) return "stash_annotator";
   if (prompt.includes("repair")) return "json_repair";
-  return "granite";
+  return "ai";
 }
 
 export function registerIPCHandlers(gitWorker: UtilityProcess) {
@@ -741,7 +748,7 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
       const feature = inferAIFeature(systemPrompt);
       const model = configuredModel();
       try {
-        const response = await callGranite(systemPrompt, userPrompt);
+        const response = await callAIModel(systemPrompt, userPrompt);
         recordAIAudit({
           feature,
           model,
@@ -772,17 +779,33 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
   ipcMain.handle("ai:status", () => aiConfigStatus());
 
   // ============================================================
+  // MEMORY CHANNELS (5)
+  // ============================================================
+
+  ipcMain.handle("memory:remember", async (_, payload: unknown) =>
+    rememberMemory(payload),
+  );
+  ipcMain.handle("memory:recall", async (_, payload: unknown) =>
+    recallMemory(payload),
+  );
+  ipcMain.handle("memory:improve", async (_, payload: unknown) =>
+    improveMemory(payload),
+  );
+  ipcMain.handle("memory:forget", async (_, payload: unknown) =>
+    forgetMemory(payload),
+  );
+  ipcMain.handle("memory:status", () => cogneeStatus());
+
+  // ============================================================
   // STORE CHANNELS (3)
   // ============================================================
   // 'accounts' holds OAuth tokens — must never traverse the renderer boundary.
   const FORBIDDEN_KEYS = new Set(["accounts"]);
   // Fields inside 'settings' that hold secrets — stripped on the way out,
-  // and never accepted from a `store:set` write (use settings:save-watsonx).
+  // and never accepted from a `store:set` write (use settings:save-ai-provider).
   const SETTINGS_SECRETS = new Set([
-    "watsonx_api_key",
-    "watsonx_project_id",
-    "watsonx_api_key_secret",
-    "watsonx_project_id_secret",
+    "openrouter_api_key",
+    "openrouter_api_key_secret",
   ]);
 
   function sanitize(key: string, value: unknown): unknown {
@@ -830,19 +853,16 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
   });
 
   // ============================================================
-  // WATSONX CREDENTIALS (dedicated channels — secrets never echo back)
+  // AI PROVIDER CREDENTIALS (dedicated channels — secrets never echo back)
   // ============================================================
-  ipcMain.handle("settings:save-watsonx", async (_, raw: unknown) => {
+  ipcMain.handle("settings:save-ai-provider", async (_, raw: unknown) => {
     if (!raw || typeof raw !== "object") {
       throw new Error("Invalid credentials payload.");
     }
     const payload = raw as Record<string, unknown>;
-    const update: storeLib.WatsonxCredentialUpdate = {};
-    // Defensive caps. A real IAM API key is ~44 chars and a project ID is a
-    // UUID; 8 KiB allows for unusual deployments while preventing the renderer
-    // from writing megabytes into ~/.overcode/config.json.
-    const CAPS = { api_key: 8192, project_id: 8192, url: 2048 } as const;
-    for (const field of ["api_key", "project_id", "url"] as const) {
+    const update: storeLib.AIProviderCredentialUpdate = {};
+    const CAPS = { api_key: 8192, base_url: 2048 } as const;
+    for (const field of ["api_key", "base_url"] as const) {
       if (!(field in payload)) continue;
       const v = payload[field];
       if (v === null) {
@@ -855,41 +875,36 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
       if (v.length > CAPS[field]) {
         throw new Error(`Field '${field}' exceeds maximum length (${CAPS[field]}).`);
       }
-      if (field === "url" && v.trim() !== "") {
+      if (field === "base_url" && v.trim() !== "") {
         let parsed: URL;
         try {
           parsed = new URL(v);
         } catch {
-          throw new Error("Region URL must be a valid URL.");
+          throw new Error("Base URL must be a valid URL.");
         }
         if (parsed.protocol !== "https:") {
-          throw new Error("Region URL must use https://.");
+          throw new Error("Base URL must use https://.");
         }
       }
       update[field] = v;
     }
-    storeLib.saveWatsonxCredentials(update);
-    return storeLib.watsonxCredentialStatus();
+    storeLib.saveAIProviderCredentials(update);
+    return storeLib.aiProviderCredentialStatus();
   });
 
-  ipcMain.handle("settings:watsonx-status", async () => {
-    const stored = storeLib.watsonxCredentialStatus();
+  ipcMain.handle("settings:ai-provider-status", async () => {
+    const stored = storeLib.aiProviderCredentialStatus();
     // Source-of-truth: tell the renderer whether each credential is satisfied
     // via the encrypted-store path, the process.env fallback, or neither.
     return {
       api_key: stored.api_key
         ? "stored"
-        : process.env.WATSONX_API_KEY?.trim()
+        : process.env.OPENROUTER_API_KEY?.trim() || process.env.OPENROUTER?.trim()
           ? "env"
           : "none",
-      project_id: stored.project_id
+      base_url: stored.base_url
         ? "stored"
-        : process.env.WATSONX_PROJECT_ID?.trim()
-          ? "env"
-          : "none",
-      url: stored.url
-        ? "stored"
-        : process.env.WATSONX_URL?.trim()
+        : process.env.OPENROUTER_BASE_URL?.trim()
           ? "env"
           : "none",
     } as const;

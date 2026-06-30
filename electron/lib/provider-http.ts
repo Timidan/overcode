@@ -1,4 +1,4 @@
-export type ProviderName = "github" | "gitlab" | "watsonx" | "ibm-iam";
+export type ProviderName = "github" | "gitlab";
 
 export interface ProviderRateLimit {
   provider: ProviderName;

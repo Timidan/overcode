@@ -84,6 +84,16 @@ const api = {
     status: () => ipcRenderer.invoke("ai:status"),
   },
 
+  memory: {
+    remember: (payload: unknown) =>
+      ipcRenderer.invoke("memory:remember", payload),
+    recall: (payload: unknown) => ipcRenderer.invoke("memory:recall", payload),
+    improve: (payload: unknown) =>
+      ipcRenderer.invoke("memory:improve", payload),
+    forget: (payload: unknown) => ipcRenderer.invoke("memory:forget", payload),
+    status: () => ipcRenderer.invoke("memory:status"),
+  },
+
   store: {
     get: (key: string) => ipcRenderer.invoke("store:get", key),
     set: (key: string, value: unknown) =>
@@ -92,12 +102,11 @@ const api = {
   },
 
   settings: {
-    saveWatsonx: (update: {
+    saveAIProvider: (update: {
       api_key?: string | null;
-      project_id?: string | null;
-      url?: string | null;
-    }) => ipcRenderer.invoke("settings:save-watsonx", update),
-    watsonxStatus: () => ipcRenderer.invoke("settings:watsonx-status"),
+      base_url?: string | null;
+    }) => ipcRenderer.invoke("settings:save-ai-provider", update),
+    aiProviderStatus: () => ipcRenderer.invoke("settings:ai-provider-status"),
   },
 };
 

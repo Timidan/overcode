@@ -165,7 +165,7 @@ export function StashList({ repoId, repoPath }: StashListProps) {
             <button
               type="button"
               className="stash-button stash-button-secondary"
-              title="Ask watsonx.ai to explain this stash"
+              title="Ask OpenRouter to explain this stash"
               onClick={() => void explain(stash)}
               disabled={busyRef !== null}
             >

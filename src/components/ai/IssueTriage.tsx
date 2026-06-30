@@ -14,7 +14,7 @@ import {
   type IssueTriagePayload,
 } from "../../lib/ai-features";
 import type {
-  GraniteEnvelope,
+  AIEnvelope,
   IssueTriageData,
   Severity,
 } from "../../lib/ai-structured";
@@ -34,7 +34,7 @@ export function IssueTriage({ payload: explicitPayload }: Props) {
   const closePanel = useAIPanel((s) => s.close);
 
   const [view, setView] = useState<View>(incoming ? "loading" : "picker");
-  const [content, setContent] = useState<GraniteEnvelope<IssueTriageData> | null>(null);
+  const [content, setContent] = useState<AIEnvelope<IssueTriageData> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [applied, setApplied] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
@@ -132,7 +132,7 @@ export function IssueTriage({ payload: explicitPayload }: Props) {
             <span />
           </span>
           <span className="issue-triage-loading-caption">
-            Watson is triaging…
+            AI is triaging…
           </span>
         </div>
       )}
@@ -230,7 +230,7 @@ export function IssueTriage({ payload: explicitPayload }: Props) {
               type="button"
               className="issue-triage-action"
               onClick={reset}
-              title="Re-run Watson"
+              title="Re-run AI"
             >
               <ArrowClockwise size={13} />
               <span>Re-run</span>
@@ -282,7 +282,7 @@ function PrioritySection({ data }: { data: IssueTriageData }) {
         <span className={filled >= 3 ? "is-on" : "is-off"}>&#9679;</span>
       </span>
       <span className="issue-triage-priority-reason">
-        {data.problem ? firstSentence(data.problem) : "Priority assigned by Watson."}
+        {data.problem ? firstSentence(data.problem) : "Priority assigned by AI."}
       </span>
     </section>
   );
@@ -370,7 +370,7 @@ function truncate(value: string, max: number): string {
 }
 
 function buildDraftResponse(
-  envelope: GraniteEnvelope<IssueTriageData>,
+  envelope: AIEnvelope<IssueTriageData>,
   payload: IssueTriagePayload,
 ): string {
   const data = envelope.data;
@@ -392,7 +392,7 @@ function buildDraftResponse(
 }
 
 function formatTriageForClipboard(
-  envelope: GraniteEnvelope<IssueTriageData>,
+  envelope: AIEnvelope<IssueTriageData>,
   payload: IssueTriagePayload | null,
 ): string {
   const data = envelope.data;
@@ -426,7 +426,7 @@ function formatTriageForClipboard(
   return lines.join("\n");
 }
 
-function defaultPayload(envelope: GraniteEnvelope<IssueTriageData>): IssueTriagePayload {
+function defaultPayload(envelope: AIEnvelope<IssueTriageData>): IssueTriagePayload {
   return {
     issue: {
       repoFullName: "unknown/unknown",

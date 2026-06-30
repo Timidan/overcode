@@ -10,7 +10,7 @@ import {
   type WorktreeComparePayload,
 } from "../../lib/ai-features";
 import type {
-  GraniteEnvelope,
+  AIEnvelope,
   WorktreeCompareData,
 } from "../../lib/ai-structured";
 import { WorktreeCompareSummary } from "./AIResultViews";
@@ -32,7 +32,7 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
     | null;
 
   const [view, setView] = useState<View>("picker");
-  const [content, setContent] = useState<GraniteEnvelope<WorktreeCompareData> | null>(null);
+  const [content, setContent] = useState<AIEnvelope<WorktreeCompareData> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [source, setSource] = useState<string>("");
@@ -182,7 +182,7 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
 
       {view === "picker" && !content && !error && (
         <div className="wt-empty">
-          Pick a target branch and run Compare to see Watson&apos;s structured analysis.
+          Pick a target branch and run Compare to see AI&apos;s structured analysis.
         </div>
       )}
 
@@ -193,7 +193,7 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
             <span className="wt-dot" style={{ animationDelay: "150ms" }} />
             <span className="wt-dot" style={{ animationDelay: "300ms" }} />
           </span>
-          <span className="wt-loading-caption">Watson is comparing…</span>
+          <span className="wt-loading-caption">AI is comparing…</span>
         </div>
       )}
 
@@ -223,7 +223,7 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
               type="button"
               className="wt-action"
               onClick={() => runCompare({ force: true })}
-              title="Re-run Watson"
+              title="Re-run AI"
             >
               <ArrowClockwise size={13} />
               <span>Re-run</span>
@@ -276,7 +276,7 @@ function shortPath(path: string): string {
 }
 
 function formatStructuredForClipboard(
-  envelope: GraniteEnvelope<WorktreeCompareData>,
+  envelope: AIEnvelope<WorktreeCompareData>,
 ): string {
   const { data } = envelope;
   const lines: string[] = [];

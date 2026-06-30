@@ -4,7 +4,7 @@ import {
   getRepoBriefStructured,
   type BriefPayload,
 } from "../../lib/ai-features";
-import type { GraniteEnvelope, RepoBriefData } from "../../lib/ai-structured";
+import type { AIEnvelope, RepoBriefData } from "../../lib/ai-structured";
 import { RepoBriefResult } from "./AIResultViews";
 import "./RepoBrief.css";
 
@@ -17,7 +17,7 @@ export function RepoBrief({ payload: explicitPayload }: Props) {
   const payload = explicitPayload ?? storePayload;
   const [isLoading, setIsLoading] = useState(false);
   const [content, setContent] =
-    useState<GraniteEnvelope<RepoBriefData> | null>(null);
+    useState<AIEnvelope<RepoBriefData> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

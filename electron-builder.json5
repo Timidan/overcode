@@ -48,7 +48,7 @@
     "icon": "build/icon.png",
     "category": "Development",
     "synopsis": "Developer workspace hub for repositories, pull requests, and AI-assisted Git workflows.",
-    "description": "Overcode is a desktop developer workspace hub for Git, pull requests, and watsonx.ai Granite-assisted workflows. Local-first, native, with GitHub and GitLab integrations.",
+    "description": "Overcode is a desktop developer workspace hub for Git, pull requests, OpenRouter AI, and Cognee-backed repository memory. Local-first, native, with GitHub and GitLab integrations.",
     "maintainer": "Timidan <akinnusotutemitayodaniel@gmail.com>",
     "desktop": {
       "Name": "Overcode",

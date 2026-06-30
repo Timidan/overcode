@@ -611,11 +611,11 @@
       "locked": false,
       "fontSize": 14,
       "fontFamily": 5,
-      "text": "• GitHub API\n• GitLab API\n• watsonx.ai Granite",
+      "text": "• GitHub API\n• GitLab API\n• OpenRouter AI",
       "textAlign": "left",
       "verticalAlign": "top",
       "containerId": null,
-      "originalText": "• GitHub API\n• GitLab API\n• watsonx.ai Granite",
+      "originalText": "• GitHub API\n• GitLab API\n• OpenRouter AI",
       "lineHeight": 1.25,
       "baseline": 25,
       "autoResize": true

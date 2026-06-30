@@ -9,20 +9,14 @@ import ts from "typescript";
 const DEFAULT_PORT = 5174;
 const STORE_FILE = path.join(os.homedir(), ".overcode", "browser-dev-store.json");
 const MODELS = [
-  "ibm/granite-4-h-small",
-  "ibm/granite-3-3-8b-instruct",
-  "ibm/granite-3-2-8b-instruct",
-  "mistralai/mistral-large",
+  "openrouter/free",
+  "minimax/minimax-m3",
+  "qwen/qwen3-coder:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
 ];
-const REQUIRED_WATSONX_ENV = [
-  "WATSONX_API_KEY",
-  "WATSONX_PROJECT_ID",
-  "WATSONX_URL",
-];
-const WATSONX_API_VERSION = "2023-05-29";
+const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
 let gitOpsModule;
-let tokenCache = { token: null, expiresAt: 0 };
 const healthCache = new Map();
 const remoteCache = new Map();
 let tsRequireHookInstalled = false;
@@ -35,7 +29,7 @@ const PROVIDER_FETCH_TIMEOUT_MS = 12_000;
 const PROVIDER_FETCH_RETRIES = 2;
 const TRANSIENT_PROVIDER_STATUSES = new Set([429, 502, 503, 504]);
 const FORBIDDEN_STORE_KEYS = new Set(["accounts"]);
-const SETTINGS_SECRET_KEYS = new Set(["watsonx_api_key", "watsonx_project_id"]);
+const SETTINGS_SECRET_KEYS = new Set(["openrouter_api_key"]);
 const SAFE_ERROR_PREFIXES = [
   "File path",
   "File inspection",
@@ -44,8 +38,8 @@ const SAFE_ERROR_PREFIXES = [
   "Git ref inspection",
   "GitHub token",
   "GitLab token",
-  "Watsonx",
-  "watsonx",
+  "OpenRouter",
+  "openrouter",
 ];
 
 class BridgeHttpError extends Error {
@@ -205,7 +199,7 @@ async function route(url, body) {
     case "/api/ai/status":
       return aiStatus();
     case "/api/ai/complete":
-      return callWatsonx(
+      return callAIModel(
         assertString(body.systemPrompt, "systemPrompt"),
         assertString(body.userPrompt, "userPrompt"),
       );
@@ -279,16 +273,19 @@ function transpileTypeScriptFile(filename) {
 }
 
 async function aiStatus() {
-  const missing = REQUIRED_WATSONX_ENV.filter((key) => !envValue(key));
-  const configured = missing.length === 0;
-  const activeModel = process.env.WATSONX_MODEL_ID?.trim() || MODELS[0];
+  const configured = Boolean(openRouterApiKey());
+  const missing = configured ? [] : ["OPENROUTER_API_KEY"];
+  const activeModel = process.env.OPENROUTER_MODEL?.trim() || MODELS[0];
   return {
     configured,
     model: activeModel,
     missing,
-    env: Object.fromEntries(
-      REQUIRED_WATSONX_ENV.map((key) => [key, envValue(key) ? "configured" : "missing"]),
-    ),
+    env: {
+      OPENROUTER_API_KEY: envValue("OPENROUTER_API_KEY") ? "configured" : "missing",
+      OPENROUTER: envValue("OPENROUTER") ? "configured" : "missing",
+      OPENROUTER_MODEL: envValue("OPENROUTER_MODEL") ? "configured" : "missing",
+      OPENROUTER_BASE_URL: envValue("OPENROUTER_BASE_URL") ? "configured" : "missing",
+    },
     health: configured
       ? await Promise.all(uniqueModels(activeModel).map((model) => modelHealth(model)))
       : uniqueModels(activeModel).map((model) => ({
@@ -305,7 +302,7 @@ async function modelHealth(model) {
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   const checkedAt = Date.now();
   try {
-    await watsonxChatRequest(model, "Return one token.", "health check", 1);
+    await openRouterChatRequest(model, "Return one token.", "health check", 1);
     const value = { model, status: "available", checkedAt };
     healthCache.set(model, { value, expiresAt: checkedAt + 10 * 60 * 1000 });
     return value;
@@ -321,31 +318,25 @@ async function modelHealth(model) {
   }
 }
 
-async function callWatsonx(systemPrompt, userPrompt) {
-  const model = process.env.WATSONX_MODEL_ID?.trim() || MODELS[0];
-  try {
-    const chatResult = await watsonxChatRequest(model, systemPrompt, userPrompt, 800);
-    if (chatResult.trim()) return chatResult;
-  } catch (error) {
-    if (!isRecoverableChatFailure(error)) throw error;
-  }
-  return watsonxTextRequest(model, `${systemPrompt}\n\n${userPrompt}`, 800);
+async function callAIModel(systemPrompt, userPrompt) {
+  const model = process.env.OPENROUTER_MODEL?.trim() || MODELS[0];
+  return openRouterChatRequest(model, systemPrompt, userPrompt, 800);
 }
 
-async function watsonxChatRequest(model, systemPrompt, userPrompt, maxTokens) {
-  const token = await iamToken();
-  const baseUrl = assertString(envValue("WATSONX_URL"), "WATSONX_URL").replace(/\/+$/, "");
-  const projectId = assertString(envValue("WATSONX_PROJECT_ID"), "WATSONX_PROJECT_ID");
-  const response = await fetch(`${baseUrl}/ml/v1/chat/completions?version=${WATSONX_API_VERSION}`, {
+async function openRouterChatRequest(model, systemPrompt, userPrompt, maxTokens) {
+  const apiKey = assertString(openRouterApiKey(), "OPENROUTER_API_KEY");
+  const baseUrl = (envValue("OPENROUTER_BASE_URL") || DEFAULT_OPENROUTER_BASE_URL).replace(/\/+$/, "");
+  const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       Accept: "application/json",
+      "HTTP-Referer": "https://github.com/Timidan/overcode",
+      "X-Title": "Overcode",
     },
     body: JSON.stringify({
       model,
-      project_id: projectId,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -354,36 +345,9 @@ async function watsonxChatRequest(model, systemPrompt, userPrompt, maxTokens) {
       temperature: 0,
     }),
   });
-  if (!response.ok) throw new Error(`watsonx.ai chat returned ${response.status}`);
+  if (!response.ok) throw new Error(`OpenRouter chat returned ${response.status}`);
   const data = await response.json();
   return extractChatContent(data) ?? "";
-}
-
-async function watsonxTextRequest(model, input, maxNewTokens) {
-  const token = await iamToken();
-  const baseUrl = assertString(envValue("WATSONX_URL"), "WATSONX_URL").replace(/\/+$/, "");
-  const projectId = assertString(envValue("WATSONX_PROJECT_ID"), "WATSONX_PROJECT_ID");
-  const response = await fetch(`${baseUrl}/ml/v1/text/generation?version=${WATSONX_API_VERSION}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      model_id: model,
-      project_id: projectId,
-      input,
-      parameters: {
-        decoding_method: "greedy",
-        max_new_tokens: maxNewTokens,
-        repetition_penalty: 1.05,
-      },
-    }),
-  });
-  if (!response.ok) throw new Error(`watsonx.ai returned ${response.status}`);
-  const data = await response.json();
-  return data?.results?.[0]?.generated_text ?? "";
 }
 
 function extractChatContent(data) {
@@ -398,36 +362,8 @@ function extractChatContent(data) {
   return undefined;
 }
 
-function isRecoverableChatFailure(error) {
-  if (!(error instanceof Error)) return false;
-  const message = error.message.toLowerCase();
-  return (
-    message.includes("400") ||
-    message.includes("404") ||
-    message.includes("not found") ||
-    message.includes("unexpected payload shape")
-  );
-}
-
-async function iamToken() {
-  if (tokenCache.token && Date.now() < tokenCache.expiresAt - 600_000) {
-    return tokenCache.token;
-  }
-  const response = await fetch("https://iam.cloud.ibm.com/identity/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ibm:params:oauth:grant-type:apikey",
-      apikey: assertString(envValue("WATSONX_API_KEY"), "WATSONX_API_KEY"),
-    }),
-  });
-  if (!response.ok) throw new Error(`IAM token request failed: ${response.status}`);
-  const data = await response.json();
-  tokenCache = {
-    token: data.access_token,
-    expiresAt: (data.expiration ?? 0) * 1000,
-  };
-  return tokenCache.token;
+function openRouterApiKey() {
+  return envValue("OPENROUTER_API_KEY") || envValue("OPENROUTER") || "";
 }
 
 async function githubFetch(apiPath) {
@@ -976,7 +912,7 @@ async function ensureStoreFile() {
     await writeStore({
       repositories: [],
       activity: [],
-      granite_cache: {},
+      ai_cache: {},
       settings: { watch_directories: ["~/projects", "~/Desktop/persona", "~/Desktop"] },
     });
   }

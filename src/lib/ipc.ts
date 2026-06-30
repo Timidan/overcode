@@ -203,10 +203,7 @@ export interface LocalIdentity {
   name: string | null;
 }
 
-export type RequiredWatsonxEnv =
-  | "WATSONX_API_KEY"
-  | "WATSONX_PROJECT_ID"
-  | "WATSONX_URL";
+export type RequiredAIEnv = "OPENROUTER_API_KEY";
 
 export type AIEnvStatus = "configured" | "missing";
 export type AIModelHealthStatus =
@@ -233,8 +230,8 @@ export interface AIModelHealth {
 export interface AIStatus {
   configured: boolean;
   model: string;
-  missing: RequiredWatsonxEnv[];
-  env: Record<RequiredWatsonxEnv, AIEnvStatus>;
+  missing: RequiredAIEnv[];
+  env: Record<RequiredAIEnv, AIEnvStatus>;
   health: AIModelHealth[];
 }
 
@@ -425,6 +422,90 @@ export interface PullRequestDetail {
   checks: PullRequestCheck[];
 }
 
+export type MemoryDocumentKind =
+  | "repository"
+  | "pull_request"
+  | "issue"
+  | "summary"
+  | "fact"
+  | "note";
+
+export interface MemoryDocument {
+  id: string;
+  kind: MemoryDocumentKind;
+  title: string;
+  summary: string;
+  tags?: string[];
+  metadata?: Record<string, string | number | boolean | null>;
+}
+
+export interface MemoryRememberInput {
+  documents: MemoryDocument[];
+  datasetName?: string;
+}
+
+export interface MemoryRecallQuery {
+  query: string;
+  datasets?: string[];
+  limit?: number;
+  filters?: Record<string, string | number | boolean | null>;
+}
+
+export interface MemoryImproveInput {
+  datasetName?: string;
+  documentId?: string;
+  feedback: string;
+  accepted?: boolean;
+}
+
+export interface MemoryForgetInput {
+  datasetName?: string;
+  id?: string;
+}
+
+export interface MemoryStatus {
+  enabled: boolean;
+  configured: boolean;
+  endpointVerified: boolean;
+  missing: "COGNEE_API_URL"[];
+  auth: "api-key" | "none";
+  endpoint?: string;
+  endpointSource?: "COGNEE_API_URL" | "COGNEE_SERVICE_URL" | "COGNEE_BASE_URL";
+  requestTimeoutMs: number;
+  reason?: string;
+}
+
+export interface MemoryResult {
+  ok: boolean;
+  skipped: boolean;
+  reason?: string;
+  error?: string;
+}
+
+export interface MemoryRememberResult extends MemoryResult {
+  stored: number;
+}
+
+export interface MemoryRecallItem {
+  id: string;
+  title: string;
+  summary: string;
+  score?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface MemoryRecallResult extends MemoryResult {
+  items: MemoryRecallItem[];
+}
+
+export interface MemoryImproveResult extends MemoryResult {
+  accepted: boolean;
+}
+
+export interface MemoryForgetResult extends MemoryResult {
+  forgotten: boolean;
+}
+
 export class IPC {
   private api = window.api;
 
@@ -613,12 +694,36 @@ export class IPC {
     return this.api.gitlab.comment(projectId, mrIid, body);
   }
 
-  async callGranite(systemPrompt: string, userPrompt: string): Promise<string> {
+  async callAIModel(systemPrompt: string, userPrompt: string): Promise<string> {
     return this.api.ai.complete(systemPrompt, userPrompt);
   }
 
   async getAIStatus(): Promise<AIStatus> {
     return this.api.ai.status();
+  }
+
+  async rememberMemory(
+    payload: MemoryRememberInput,
+  ): Promise<MemoryRememberResult> {
+    return this.api.memory.remember(payload);
+  }
+
+  async recallMemory(payload: MemoryRecallQuery): Promise<MemoryRecallResult> {
+    return this.api.memory.recall(payload);
+  }
+
+  async improveMemory(
+    payload: MemoryImproveInput,
+  ): Promise<MemoryImproveResult> {
+    return this.api.memory.improve(payload);
+  }
+
+  async forgetMemory(payload: MemoryForgetInput): Promise<MemoryForgetResult> {
+    return this.api.memory.forget(payload);
+  }
+
+  async getMemoryStatus(): Promise<MemoryStatus> {
+    return this.api.memory.status();
   }
 
   async getFromStore(key: string): Promise<unknown> {
@@ -633,31 +738,28 @@ export class IPC {
     return this.api.store.list();
   }
 
-  async saveWatsonxCredentials(update: {
+  async saveAIProviderCredentials(update: {
     api_key?: string | null;
-    project_id?: string | null;
-    url?: string | null;
-  }): Promise<WatsonxCredentialStatus> {
-    return this.api.settings.saveWatsonx(update);
+    base_url?: string | null;
+  }): Promise<AIProviderCredentialStatus> {
+    return this.api.settings.saveAIProvider(update);
   }
 
-  async getWatsonxCredentialStatus(): Promise<WatsonxCredentialSourceStatus> {
-    return this.api.settings.watsonxStatus();
+  async getAIProviderCredentialStatus(): Promise<AIProviderCredentialSourceStatus> {
+    return this.api.settings.aiProviderStatus();
   }
 }
 
-export type WatsonxCredentialSource = "stored" | "env" | "none";
+export type AIProviderCredentialSource = "stored" | "env" | "none";
 
-export interface WatsonxCredentialSourceStatus {
-  api_key: WatsonxCredentialSource;
-  project_id: WatsonxCredentialSource;
-  url: WatsonxCredentialSource;
+export interface AIProviderCredentialSourceStatus {
+  api_key: AIProviderCredentialSource;
+  base_url: AIProviderCredentialSource;
 }
 
-export interface WatsonxCredentialStatus {
+export interface AIProviderCredentialStatus {
   api_key: boolean;
-  project_id: boolean;
-  url: boolean;
+  base_url: boolean;
 }
 
 export const ipc = new IPC();

@@ -25,7 +25,7 @@ import {
   type WorktreeComparePayload,
 } from "../lib/ai-features";
 import type {
-  GraniteEnvelope,
+  AIEnvelope,
   PRFileChangeData,
   PRHunkReviewData,
   PRReviewData,
@@ -58,7 +58,7 @@ interface InspectorState {
 interface FileChangeSummaryState {
   loading?: boolean;
   error?: string;
-  result?: GraniteEnvelope<PRFileChangeData>;
+  result?: AIEnvelope<PRFileChangeData>;
 }
 
 function fetchDetail(ref: PRDetailRef): Promise<PullRequestDetail> {
@@ -612,7 +612,7 @@ function LocalContextStrip({
             type="button"
             className="pr-local-action"
             onClick={() => onCompare(comparePayload)}
-            title="Compare this PR branch/worktree with Watson"
+            title="Compare this PR branch/worktree with AI"
           >
             <GitBranch size={12} />
             <span>Compare local</span>
@@ -783,7 +783,7 @@ function FilesTab({
           error:
             err instanceof Error
               ? err.message
-              : "Watson file change summary failed.",
+              : "AI file change summary failed.",
         },
       }));
     }
@@ -856,17 +856,17 @@ function FilesTab({
                 disabled={summaryState?.loading}
                 title={
                   file.patch
-                    ? "Ask watsonx.ai what this file added and removed"
-                    : "Ask watsonx.ai with provider metadata only"
+                    ? "Ask OpenRouter what this file added and removed"
+                    : "Ask OpenRouter with provider metadata only"
                 }
               >
                 <Sparkle size={11} weight="bold" />
                 <span>
                   {summaryState?.loading
-                    ? "Watson…"
+                    ? "AI…"
                     : summaryState?.result
                       ? "Refresh"
-                      : "Watson"}
+                      : "AI"}
                 </span>
               </button>
               <svg
@@ -891,7 +891,7 @@ function FilesTab({
             </header>
             {summaryState?.loading && (
               <div className="pr-file-ai-summary pr-file-ai-summary-loading">
-                watsonx.ai is reading this file patch…
+                OpenRouter is reading this file patch…
               </div>
             )}
             {summaryState?.error && (
@@ -935,12 +935,12 @@ function fileChangeKey(file: PullRequestFile): string {
 function PRFileChangeSummary({
   result,
 }: {
-  result: GraniteEnvelope<PRFileChangeData>;
+  result: AIEnvelope<PRFileChangeData>;
 }) {
   return (
-    <section className="pr-file-ai-summary" aria-label="Watson file change summary">
+    <section className="pr-file-ai-summary" aria-label="AI file change summary">
       <header className="pr-file-ai-summary-head">
-        <span className="pr-file-ai-kicker">watsonx.ai</span>
+        <span className="pr-file-ai-kicker">OpenRouter</span>
         <strong>{result.summary}</strong>
         <span className={`pr-file-ai-risk pr-file-ai-risk-${result.data.risk}`}>
           {result.data.risk} risk
@@ -1180,9 +1180,9 @@ function AISummaryTab({
   prRef: PRDetailRef;
 }) {
   const [summary, setSummary] =
-    useState<GraniteEnvelope<PRReviewData> | null>(null);
+    useState<AIEnvelope<PRReviewData> | null>(null);
   const [hunkReview, setHunkReview] =
-    useState<GraniteEnvelope<PRHunkReviewData> | null>(null);
+    useState<AIEnvelope<PRHunkReviewData> | null>(null);
   const [loading, setLoading] = useState(false);
   const [hunkLoading, setHunkLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1296,7 +1296,7 @@ function AISummaryTab({
           className="pr-action"
           onClick={() => void reviewHunks(!!hunkReview)}
           disabled={hunkLoading}
-          title="Ask Watson to review the changed hunks section by section"
+          title="Ask AI to review the changed hunks section by section"
         >
           <ArrowsClockwise size={12} className={hunkLoading ? "motion-spin" : undefined} />
           <span>{hunkLoading ? "Reviewing…" : hunkReview ? "Refresh hunks" : "Review hunks"}</span>
@@ -1322,18 +1322,18 @@ function AISummaryTab({
         <div className="pr-detail-note">Suggested response posted to the PR.</div>
       )}
       {loading && !summary && (
-        <div className="pr-detail-empty">Generating summary with watsonx.ai…</div>
+        <div className="pr-detail-empty">Generating summary with OpenRouter…</div>
       )}
       {summary && <PRReviewSummary result={summary} />}
       {hunkLoading && !hunkReview && (
-        <div className="pr-detail-empty">Reviewing diff hunks with watsonx.ai…</div>
+        <div className="pr-detail-empty">Reviewing diff hunks with OpenRouter…</div>
       )}
       {hunkReview && <PRHunkReviewSummary result={hunkReview} />}
     </div>
   );
 }
 
-function formatPRSummaryForClipboard(summary: GraniteEnvelope<PRReviewData>): string {
+function formatPRSummaryForClipboard(summary: AIEnvelope<PRReviewData>): string {
   return [
     summary.summary,
     "",

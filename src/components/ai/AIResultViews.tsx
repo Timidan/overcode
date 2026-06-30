@@ -7,7 +7,7 @@ import {
   Warning,
 } from "@phosphor-icons/react";
 import type {
-  GraniteEnvelope,
+  AIEnvelope,
   CodeExplanationData,
   ImpactData,
   PRHunkReviewData,
@@ -18,9 +18,10 @@ import type {
   StandupData,
   WorktreeCompareData,
 } from "../../lib/ai-structured";
+import type { ImpactPayload } from "../../lib/ai-features";
 import "./AIResultViews.css";
 
-export function AISummaryCard<T>({ result }: { result: GraniteEnvelope<T> }) {
+export function AISummaryCard<T>({ result }: { result: AIEnvelope<T> }) {
   return (
     <section className="ai-summary-card">
       <div className="ai-summary-topline">
@@ -43,10 +44,17 @@ export function AISummaryCard<T>({ result }: { result: GraniteEnvelope<T> }) {
   );
 }
 
-export function ImpactResult({ result }: { result: GraniteEnvelope<ImpactData> }) {
+export function ImpactResult({
+  result,
+  memoryUsed,
+}: {
+  result: AIEnvelope<ImpactData>;
+  memoryUsed?: ImpactPayload["memoryUsed"];
+}) {
   return (
     <div className="ai-result-stack">
       <AISummaryCard result={result} />
+      {memoryUsed && <AIMemoryUsed memoryUsed={memoryUsed} />}
       {result.data.intent && (
         <AIInsight
           label="Intent"
@@ -81,10 +89,40 @@ export function ImpactResult({ result }: { result: GraniteEnvelope<ImpactData> }
   );
 }
 
+function AIMemoryUsed({
+  memoryUsed,
+}: {
+  memoryUsed: NonNullable<ImpactPayload["memoryUsed"]>;
+}) {
+  const graphRows = memoryUsed.graphPath?.filter(Boolean).slice(0, 4) ?? [];
+  const references = memoryUsed.references?.filter(Boolean).slice(0, 8) ?? [];
+
+  return (
+    <section className="ai-memory-used">
+      <div className="ai-section-label">Memory used</div>
+      {memoryUsed.summary && <p>{memoryUsed.summary}</p>}
+      {graphRows.length > 0 && (
+        <div className="ai-memory-paths">
+          {graphRows.map((row) => (
+            <code key={row}>{row}</code>
+          ))}
+        </div>
+      )}
+      {references.length > 0 && (
+        <div className="ai-file-list">
+          {references.map((reference) => (
+            <span key={reference}>{reference}</span>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function RepoBriefResult({
   result,
 }: {
-  result: GraniteEnvelope<RepoBriefData>;
+  result: AIEnvelope<RepoBriefData>;
 }) {
   return (
     <div className="ai-result-stack">
@@ -118,7 +156,7 @@ export function RepoBriefResult({
 export function PRReviewSummary({
   result,
 }: {
-  result: GraniteEnvelope<PRReviewData>;
+  result: AIEnvelope<PRReviewData>;
 }) {
   return (
     <div className="ai-result-stack">
@@ -165,7 +203,7 @@ export function PRReviewSummary({
 export function PRHunkReviewSummary({
   result,
 }: {
-  result: GraniteEnvelope<PRHunkReviewData>;
+  result: AIEnvelope<PRHunkReviewData>;
 }) {
   return (
     <div className="ai-result-stack">
@@ -205,7 +243,7 @@ export function StandupSummary({
   result,
   displayGreeting,
 }: {
-  result: GraniteEnvelope<StandupData>;
+  result: AIEnvelope<StandupData>;
   displayGreeting?: string;
 }) {
   const greetingText =
@@ -260,7 +298,7 @@ export function StandupSummary({
 export function WorktreeCompareSummary({
   result,
 }: {
-  result: GraniteEnvelope<WorktreeCompareData>;
+  result: AIEnvelope<WorktreeCompareData>;
 }) {
   return (
     <div className="ai-result-stack">
@@ -304,7 +342,7 @@ export function WorktreeCompareSummary({
 export function StashExplainResult({
   result,
 }: {
-  result: GraniteEnvelope<StashExplainData>;
+  result: AIEnvelope<StashExplainData>;
 }) {
   return (
     <div className="ai-result-stack">
@@ -348,7 +386,7 @@ export function StashExplainResult({
 export function CodeExplanationResult({
   result,
 }: {
-  result: GraniteEnvelope<CodeExplanationData>;
+  result: AIEnvelope<CodeExplanationData>;
 }) {
   return (
     <div className="ai-result-stack">

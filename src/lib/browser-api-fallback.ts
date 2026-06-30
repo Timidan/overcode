@@ -2,10 +2,10 @@ import type { API } from "../../electron/preload";
 
 const STORE_KEY = "overcode:browser-api-fallback";
 const KNOWN_MODELS = [
-  "ibm/granite-4-h-small",
-  "ibm/granite-3-3-8b-instruct",
-  "ibm/granite-3-2-8b-instruct",
-  "mistralai/mistral-large",
+  "openrouter/free",
+  "minimax/minimax-m3",
+  "qwen/qwen3-coder:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
 ];
 
 type StoreData = Record<string, unknown>;
@@ -162,12 +162,10 @@ export function installBrowserApiFallback(): void {
         bridge("/api/ai/complete", { systemPrompt, userPrompt }),
       status: () => bridgeOr("/api/ai/status", {}, {
         configured: false,
-        model: "ibm/granite-4-h-small",
-        missing: ["WATSONX_API_KEY", "WATSONX_PROJECT_ID", "WATSONX_URL"],
+        model: "openrouter/free",
+        missing: ["OPENROUTER_API_KEY"],
         env: {
-          WATSONX_API_KEY: "missing",
-          WATSONX_PROJECT_ID: "missing",
-          WATSONX_URL: "missing",
+          OPENROUTER_API_KEY: "missing",
         },
         health: KNOWN_MODELS.map((model) => ({
           model,
@@ -175,6 +173,41 @@ export function installBrowserApiFallback(): void {
           reason: "Electron preload unavailable in browser mode",
           checkedAt: null,
         })),
+      }),
+    },
+    memory: {
+      remember: async () => ({
+        ok: false,
+        skipped: true,
+        reason: "Cognee memory is only available in the Electron app runtime.",
+        stored: 0,
+      }),
+      recall: async () => ({
+        ok: false,
+        skipped: true,
+        reason: "Cognee memory is only available in the Electron app runtime.",
+        items: [],
+      }),
+      improve: async () => ({
+        ok: false,
+        skipped: true,
+        reason: "Cognee memory is only available in the Electron app runtime.",
+        accepted: false,
+      }),
+      forget: async () => ({
+        ok: false,
+        skipped: true,
+        reason: "Cognee memory is only available in the Electron app runtime.",
+        forgotten: false,
+      }),
+      status: async () => ({
+        enabled: false,
+        configured: false,
+        endpointVerified: false,
+        missing: ["COGNEE_API_URL"],
+        auth: "none",
+        requestTimeoutMs: 8_000,
+        reason: "Electron preload unavailable in browser mode",
       }),
     },
     store: {
@@ -203,9 +236,9 @@ export function installBrowserApiFallback(): void {
       },
     },
     settings: {
-      saveWatsonx: async () => ({ api_key: false, project_id: false, url: false }),
-      watsonxStatus: async () =>
-        ({ api_key: "none", project_id: "none", url: "none" } as const),
+      saveAIProvider: async () => ({ api_key: false, base_url: false }),
+      aiProviderStatus: async () =>
+        ({ api_key: "none", base_url: "none" } as const),
     },
   };
 

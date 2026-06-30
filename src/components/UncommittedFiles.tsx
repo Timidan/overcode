@@ -25,7 +25,7 @@ interface InspectorState {
 }
 
 function fileListToDiff(files: GitFile[]): string {
-  // Plain-language summary fed to Granite when a real diff isn't available.
+  // Plain-language summary fed to AI when a real diff isn't available.
   return files
     .map((f) => {
       const label =
@@ -209,7 +209,7 @@ export function UncommittedFiles({ repoPath, onCommit }: Props) {
                 type="button"
                 className="file-action-button file-action-button-ai"
                 onClick={() => void explainFile(f)}
-                title={`Ask watsonx.ai to explain ${f.path}`}
+                title={`Ask OpenRouter to explain ${f.path}`}
               >
                 <Sparkle size={12} />
                 <span>AI</span>
@@ -244,7 +244,7 @@ export function UncommittedFiles({ repoPath, onCommit }: Props) {
           className="commit-button"
           onClick={handleCommit}
           type="button"
-          title="Generate a commit message for these changes with watsonx.ai"
+          title="Generate a commit message for these changes with OpenRouter"
         >
           Commit changes
         </button>

@@ -55,19 +55,17 @@ export interface ActivityItem {
 
 export interface Settings {
   watch_directories: string[];
-  watsonx_model_id?: string;
-  watsonx_url?: string;
+  ai_model_id?: string;
+  openrouter_base_url?: string;
   // Secrets live in StoredSettings (encrypted-on-disk when safeStorage is
-  // available). The plain string fields below are LEGACY and kept only so
-  // older configs can be migrated forward. Never write to them directly.
-  watsonx_api_key?: string;
-  watsonx_project_id?: string;
+  // available). The plain string field below is legacy and kept only so
+  // older configs can be migrated forward. Never write to it directly.
+  openrouter_api_key?: string;
   hidden_repo_ids?: string[];
 }
 
 interface StoredSettings extends Settings {
-  watsonx_api_key_secret?: StoredSecret;
-  watsonx_project_id_secret?: StoredSecret;
+  openrouter_api_key_secret?: StoredSecret;
 }
 
 export interface StoreSchema {
@@ -78,7 +76,7 @@ export interface StoreSchema {
   repositories: Repository[];
   discovered_workspaces: WorkspaceCandidate[];
   ignored_workspaces: string[];
-  granite_cache: Record<string, unknown>;
+  ai_cache: Record<string, unknown>;
   ai_audit_log: Array<{
     id: string;
     feature: string;
@@ -103,7 +101,7 @@ const store = new Store<StoreSchema>({
     repositories: [],
     discovered_workspaces: [],
     ignored_workspaces: [],
-    granite_cache: {},
+    ai_cache: {},
     ai_audit_log: [],
     remote_data_cache: {},
     activity: [],
@@ -112,44 +110,6 @@ const store = new Store<StoreSchema>({
     },
   },
 });
-
-// One-time startup migration: if a legacy plaintext credential field is sitting
-// in the on-disk settings (from a pre-v0.1.0 build, or from any future write
-// path that bypasses writeSecret()), promote it to the encrypted _secret slot
-// and drop the plain field. Run synchronously at module load so the renderer
-// never sees the legacy field via store:set's merge-preserve path.
-(function migrateLegacyWatsonxCredentials(): void {
-  try {
-    const current = store.get("settings") as StoredSettings | undefined;
-    if (!current) return;
-    let touched = false;
-    const next: StoredSettings = { ...current };
-    for (const field of ["watsonx_api_key", "watsonx_project_id"] as const) {
-      const legacy = next[field];
-      if (typeof legacy === "string" && legacy.length > 0) {
-        const secretField = `${field}_secret` as
-          | "watsonx_api_key_secret"
-          | "watsonx_project_id_secret";
-        if (!next[secretField]) {
-          if (safeStorage.isEncryptionAvailable()) {
-            next[secretField] = {
-              value_encrypted: safeStorage.encryptString(legacy).toString("base64"),
-              encoding: "safeStorage:v1",
-            };
-          } else {
-            next[secretField] = { value: legacy };
-          }
-        }
-        delete next[field];
-        touched = true;
-      }
-    }
-    if (touched) store.set("settings", next);
-  } catch {
-    // Migration is best-effort. If it fails the legacy field stays put;
-    // store:set's merge-preserve will still keep it out of the renderer.
-  }
-})();
 
 // ============================================================
 // REPOSITORY CRUD
@@ -213,29 +173,29 @@ export function clearActivity(): void {
 }
 
 // ============================================================
-// GRANITE CACHE CRUD
+// AI CACHE CRUD
 // ============================================================
 
 export function getCache(key: string): unknown {
-  const cache = store.get("granite_cache", {});
+  const cache = store.get("ai_cache", {});
   return cache[key];
 }
 
 export function setCache(key: string, value: unknown): void {
-  const cache = store.get("granite_cache", {});
+  const cache = store.get("ai_cache", {});
   cache[key] = value;
-  store.set("granite_cache", cache);
+  store.set("ai_cache", cache);
 }
 
 export function listCacheKeys(): string[] {
-  const cache = store.get("granite_cache", {});
+  const cache = store.get("ai_cache", {});
   return Object.keys(cache);
 }
 
 export function deleteCache(key: string): void {
-  const cache = store.get("granite_cache", {});
+  const cache = store.get("ai_cache", {});
   delete cache[key];
-  store.set("granite_cache", cache);
+  store.set("ai_cache", cache);
 }
 
 // ============================================================
@@ -288,15 +248,13 @@ export function updateSettings(settings: Partial<Settings>): void {
 }
 
 // ============================================================
-// WATSONX CREDENTIALS (encrypted at rest when safeStorage works)
+// AI PROVIDER CREDENTIALS (encrypted at rest when safeStorage works)
 // ============================================================
 
-function readSecret(field: "watsonx_api_key" | "watsonx_project_id"): string | undefined {
+function readSecret(field: "openrouter_api_key"): string | undefined {
   const stored = store.get("settings") as StoredSettings | undefined;
   if (!stored) return undefined;
-  const secretField = `${field}_secret` as
-    | "watsonx_api_key_secret"
-    | "watsonx_project_id_secret";
+  const secretField = `${field}_secret` as "openrouter_api_key_secret";
   const secret = stored[secretField];
   if (secret) {
     if (secret.value_encrypted && secret.encoding === "safeStorage:v1") {
@@ -316,14 +274,12 @@ function readSecret(field: "watsonx_api_key" | "watsonx_project_id"): string | u
 }
 
 function writeSecret(
-  field: "watsonx_api_key" | "watsonx_project_id",
+  field: "openrouter_api_key",
   value: string | null,
 ): void {
   const current = store.get("settings") as StoredSettings | undefined;
   const next: StoredSettings = { ...(current ?? { watch_directories: [] }) };
-  const secretField = `${field}_secret` as
-    | "watsonx_api_key_secret"
-    | "watsonx_project_id_secret";
+  const secretField = `${field}_secret` as "openrouter_api_key_secret";
 
   // Always clear the legacy plain field so it never lingers post-migration.
   delete next[field];
@@ -341,51 +297,43 @@ function writeSecret(
   store.set("settings", next);
 }
 
-export function getWatsonxApiKey(): string | undefined {
-  return readSecret("watsonx_api_key");
+export function getOpenRouterApiKey(): string | undefined {
+  return readSecret("openrouter_api_key");
 }
 
-export function getWatsonxProjectId(): string | undefined {
-  return readSecret("watsonx_project_id");
-}
-
-export function getWatsonxUrl(): string | undefined {
+export function getOpenRouterBaseUrl(): string | undefined {
   const stored = store.get("settings") as StoredSettings | undefined;
-  return stored?.watsonx_url?.trim() || undefined;
+  return stored?.openrouter_base_url?.trim() || undefined;
 }
 
-export interface WatsonxCredentialUpdate {
+export interface AIProviderCredentialUpdate {
   api_key?: string | null;
-  project_id?: string | null;
-  url?: string | null;
+  base_url?: string | null;
 }
 
-export function saveWatsonxCredentials(update: WatsonxCredentialUpdate): void {
-  if (update.api_key !== undefined) writeSecret("watsonx_api_key", update.api_key);
-  if (update.project_id !== undefined) writeSecret("watsonx_project_id", update.project_id);
-  if (update.url !== undefined) {
+export function saveAIProviderCredentials(update: AIProviderCredentialUpdate): void {
+  if (update.api_key !== undefined) writeSecret("openrouter_api_key", update.api_key);
+  if (update.base_url !== undefined) {
     const current = store.get("settings") as StoredSettings | undefined;
     const next: StoredSettings = { ...(current ?? { watch_directories: [] }) };
-    if (update.url === null || update.url === "") {
-      delete next.watsonx_url;
+    if (update.base_url === null || update.base_url === "") {
+      delete next.openrouter_base_url;
     } else {
-      next.watsonx_url = update.url.trim();
+      next.openrouter_base_url = update.base_url.trim();
     }
     store.set("settings", next);
   }
 }
 
-export interface WatsonxCredentialStatus {
+export interface AIProviderCredentialStatus {
   api_key: boolean;
-  project_id: boolean;
-  url: boolean;
+  base_url: boolean;
 }
 
-export function watsonxCredentialStatus(): WatsonxCredentialStatus {
+export function aiProviderCredentialStatus(): AIProviderCredentialStatus {
   return {
-    api_key: !!getWatsonxApiKey(),
-    project_id: !!getWatsonxProjectId(),
-    url: !!getWatsonxUrl(),
+    api_key: !!getOpenRouterApiKey(),
+    base_url: !!getOpenRouterBaseUrl(),
   };
 }
 

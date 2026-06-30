@@ -1,7 +1,7 @@
 import { ipc, type GitHubIssueDetail, type PullRequestDetail, type PullRequestFile } from "./ipc";
 import {
   fallbackEnvelope,
-  parseGraniteEnvelope,
+  parseAIEnvelope,
   validateCodeExplanationData,
   validateImpactData,
   validateIssueTriageData,
@@ -12,8 +12,8 @@ import {
   validateStashExplainData,
   validateStandupData,
   validateWorktreeCompareData,
-  type GraniteEnvelope,
-  type GraniteFeature,
+  type AIEnvelope,
+  type AIFeature as StructuredAIFeature,
   type CodeExplanationData,
   type ImpactData,
   type IssueTriageData,
@@ -26,7 +26,7 @@ import {
   type WorktreeCompareData,
 } from "./ai-structured";
 
-const GRANITE_CACHE_KEY = "granite_cache";
+const AI_CACHE_KEY = "ai_cache";
 const CACHE_TTL_MS = 24 * 3600 * 1000;
 const MAX_DIFF_CHARS = 24_000;
 const MAX_DIFF_FILES = 30;
@@ -35,6 +35,7 @@ const MAX_README_CHARS = 6_000;
 const MAX_TREE_ITEMS = 80;
 const MAX_LIST_ITEMS = 80;
 const MAX_PROMPT_CHARS = 14_000;
+const MAX_MEMORY_CONTEXT_CHARS = 4_000;
 
 const IMPACT_SYSTEM_PROMPT =
   "Analyze this code diff for a developer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"impact\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"intent\":\"...\",\"modules\":[{\"name\":\"...\",\"paths\":[\"...\"],\"changeType\":\"added|modified|removed|mixed\"}],\"risks\":[{\"severity\":\"low|medium|high\",\"area\":\"...\",\"reason\":\"...\",\"files\":[\"...\"]}],\"checks\":[{\"command\":\"optional command\",\"reason\":\"...\"}],\"recommendation\":\"...\"}}. No markdown fences.";
@@ -110,6 +111,15 @@ export interface ImpactPayload {
   diff?: string;
   fileTree?: string[];
   unavailableReason?: string;
+  repoId?: string;
+  repoName?: string;
+  branch?: string;
+  memoryContext?: string;
+  memoryUsed?: {
+    summary?: string;
+    graphPath?: string[];
+    references?: string[];
+  };
 }
 
 export interface CommitPayload {
@@ -243,11 +253,11 @@ export interface StashLabelInput {
 }
 
 interface StructuredCacheEntry<T> {
-  content: GraniteEnvelope<T>;
+  content: AIEnvelope<T>;
   timestamp: number;
 }
 
-type GraniteCache = Record<string, unknown>;
+type AICache = Record<string, unknown>;
 
 export async function analyzeImpact(payload: ImpactPayload): Promise<string> {
   const result = await analyzeImpactStructured(payload);
@@ -260,7 +270,7 @@ export async function analyzeImpact(payload: ImpactPayload): Promise<string> {
 
 export async function analyzeImpactStructured(
   payload: ImpactPayload,
-): Promise<GraniteEnvelope<ImpactData>> {
+): Promise<AIEnvelope<ImpactData>> {
   if (payload.unavailableReason) {
     return fallbackEnvelope("impact", payload.unavailableReason, emptyImpactData(), [
       payload.unavailableReason,
@@ -277,8 +287,11 @@ export async function analyzeImpactStructured(
   const prompt = [
     `DIFF:\n${diff}`,
     `CHANGED PATHS:\n${formatList(fileTree, "No changed paths were returned.")}`,
+    payload.memoryContext?.trim()
+      ? `MEMORY CONTEXT:\n${truncateText(payload.memoryContext.trim(), MAX_MEMORY_CONTEXT_CHARS)}`
+      : "",
   ].join("\n\n");
-  const structured = await callStructuredGranite(
+  const structured = await callStructuredAI(
     "impact",
     IMPACT_SYSTEM_PROMPT,
     prompt,
@@ -286,7 +299,7 @@ export async function analyzeImpactStructured(
   );
   return structured ?? fallbackEnvelope(
     "impact",
-    "Watson returned text that could not be converted into structured impact data.",
+    "AI returned text that could not be converted into structured impact data.",
     buildLocalImpactData(diff, fileTree),
     ["Structured response validation failed."],
   );
@@ -306,7 +319,7 @@ export async function generateCommitAssistant(
     );
   }
 
-  const response = await ipc.callGranite(
+  const response = await ipc.callAIModel(
     COMMIT_SYSTEM_PROMPT,
     `GIT CHANGES:\n${diff}`,
   );
@@ -325,7 +338,7 @@ export async function getRepoBrief(payload: BriefPayload): Promise<string> {
 
 export async function getRepoBriefStructured(
   payload: BriefPayload,
-): Promise<GraniteEnvelope<RepoBriefData>> {
+): Promise<AIEnvelope<RepoBriefData>> {
   if (payload.unavailableReason) {
     return fallbackEnvelope("brief", payload.unavailableReason, emptyRepoBriefData(), [
       payload.unavailableReason,
@@ -338,7 +351,7 @@ export async function getRepoBriefStructured(
     return fallbackEnvelope("brief", reason, emptyRepoBriefData(), [reason]);
   }
 
-  const cache = await getGraniteCache();
+  const cache = await getAICache();
   const key = `brief:v2:${payload.repoId}:${hashText(prompt)}`;
   const cached = cache[key];
 
@@ -346,7 +359,7 @@ export async function getRepoBriefStructured(
     return cached.content;
   }
 
-  let resolved = await callStructuredGranite(
+  let resolved = await callStructuredAI(
     "brief",
     REPO_BRIEF_SYSTEM_PROMPT,
     prompt,
@@ -356,7 +369,7 @@ export async function getRepoBriefStructured(
   if (!resolved) {
     const retryPrompt = buildCompactRepoBriefPrompt(payload);
     if (retryPrompt) {
-      resolved = await callStructuredGranite(
+      resolved = await callStructuredAI(
         "brief",
         REPO_BRIEF_RETRY_SYSTEM_PROMPT,
         retryPrompt,
@@ -368,13 +381,13 @@ export async function getRepoBriefStructured(
   if (!resolved) {
     resolved = fallbackEnvelope(
       "brief",
-      "watsonx.ai did not return structured brief data, so Overcode prepared a local brief.",
+      "OpenRouter did not return structured brief data, so Overcode prepared a local brief.",
       buildLocalRepoBriefData(payload),
       ["Structured response validation failed."],
     );
   }
 
-  await setGraniteCache({
+  await setAICache({
     ...cache,
     [key]: { content: resolved, timestamp: Date.now() },
   });
@@ -400,33 +413,33 @@ export async function summarizePullRequest(
 export async function summarizePullRequestStructured(
   detail: PullRequestDetail,
   options: { force?: boolean } = {},
-): Promise<GraniteEnvelope<PRReviewData>> {
+): Promise<AIEnvelope<PRReviewData>> {
   const prompt = buildPullRequestPrompt(detail);
   if (!prompt) {
     const reason = "PR summary unavailable: no real pull request data was returned.";
     return fallbackEnvelope("pr_review", reason, emptyPRReviewData(), [reason]);
   }
 
-  const cache = await getGraniteCache();
+  const cache = await getAICache();
   const key = `pr-review:v1:${detail.provider}:${detail.repoFullName}:${detail.number}:${detail.updated_at}:${hashText(prompt)}`;
   const cached = cache[key];
   if (!options.force && isFreshStructuredCacheEntry<PRReviewData>(cached)) {
     return cached.content;
   }
 
-  const result = await callStructuredGranite(
+  const result = await callStructuredAI(
     "pr_review",
     PR_REVIEW_SYSTEM_PROMPT,
     prompt,
     validatePRReviewData,
   ) ?? fallbackEnvelope(
     "pr_review",
-    "watsonx.ai did not return structured PR review data, so Overcode prepared a local review.",
+    "OpenRouter did not return structured PR review data, so Overcode prepared a local review.",
     buildLocalPRReviewData(detail),
     ["Structured response validation failed."],
   );
 
-  await setGraniteCache({
+  await setAICache({
     ...cache,
     [key]: { content: result, timestamp: Date.now() },
   });
@@ -436,33 +449,33 @@ export async function summarizePullRequestStructured(
 export async function summarizePullRequestHunksStructured(
   detail: PullRequestDetail,
   options: { force?: boolean } = {},
-): Promise<GraniteEnvelope<PRHunkReviewData>> {
+): Promise<AIEnvelope<PRHunkReviewData>> {
   const prompt = buildPullRequestHunkPrompt(detail);
   if (!prompt) {
     const reason = "Hunk review unavailable: no patch hunks were returned for this pull request.";
     return fallbackEnvelope("pr_hunk_review", reason, emptyPRHunkReviewData(), [reason]);
   }
 
-  const cache = await getGraniteCache();
+  const cache = await getAICache();
   const key = `pr-hunk-review:v1:${detail.provider}:${detail.repoFullName}:${detail.number}:${detail.updated_at}:${hashText(prompt)}`;
   const cached = cache[key];
   if (!options.force && isFreshStructuredCacheEntry<PRHunkReviewData>(cached)) {
     return cached.content;
   }
 
-  const result = await callStructuredGranite(
+  const result = await callStructuredAI(
     "pr_hunk_review",
     PR_HUNK_REVIEW_SYSTEM_PROMPT,
     prompt,
     validatePRHunkReviewData,
   ) ?? fallbackEnvelope(
     "pr_hunk_review",
-    "watsonx.ai did not return structured hunk review data, so Overcode prepared a local hunk review.",
+    "OpenRouter did not return structured hunk review data, so Overcode prepared a local hunk review.",
     buildLocalPRHunkReviewData(detail),
     ["Structured response validation failed."],
   );
 
-  await setGraniteCache({
+  await setAICache({
     ...cache,
     [key]: { content: result, timestamp: Date.now() },
   });
@@ -473,9 +486,9 @@ export async function summarizePullRequestFileChangeStructured(
   detail: PullRequestDetail,
   file: PullRequestFile,
   options: { force?: boolean } = {},
-): Promise<GraniteEnvelope<PRFileChangeData>> {
+): Promise<AIEnvelope<PRFileChangeData>> {
   const prompt = buildPullRequestFileChangePrompt(detail, file);
-  const cache = await getGraniteCache();
+  const cache = await getAICache();
   const key = [
     "pr-file-change:v1",
     detail.provider,
@@ -490,19 +503,19 @@ export async function summarizePullRequestFileChangeStructured(
     return cached.content;
   }
 
-  const result = await callStructuredGranite(
+  const result = await callStructuredAI(
     "pr_file_change",
     PR_FILE_CHANGE_SYSTEM_PROMPT,
     prompt,
     validatePRFileChangeData,
   ) ?? fallbackEnvelope(
     "pr_file_change",
-    "watsonx.ai did not return structured file change data, so Overcode prepared a local file summary.",
+    "OpenRouter did not return structured file change data, so Overcode prepared a local file summary.",
     buildLocalPRFileChangeData(file),
     ["Structured response validation failed."],
   );
 
-  await setGraniteCache({
+  await setAICache({
     ...cache,
     [key]: { content: result, timestamp: Date.now() },
   });
@@ -512,7 +525,7 @@ export async function summarizePullRequestFileChangeStructured(
 export async function summarizeGitHubIssueStructured(
   payload: IssueTriagePayload,
   options: { force?: boolean } = {},
-): Promise<GraniteEnvelope<IssueTriageData>> {
+): Promise<AIEnvelope<IssueTriageData>> {
   if (payload.unavailableReason) {
     return fallbackEnvelope(
       "issue_triage",
@@ -523,26 +536,26 @@ export async function summarizeGitHubIssueStructured(
   }
 
   const prompt = buildIssueTriagePrompt(payload);
-  const cache = await getGraniteCache();
+  const cache = await getAICache();
   const key = `issue-triage:v1:${payload.issue.number}:${payload.issue.updated_at}:${hashText(prompt)}`;
   const cached = cache[key];
   if (!options.force && isFreshStructuredCacheEntry<IssueTriageData>(cached)) {
     return cached.content;
   }
 
-  const result = await callStructuredGranite(
+  const result = await callStructuredAI(
     "issue_triage",
     ISSUE_TRIAGE_SYSTEM_PROMPT,
     prompt,
     validateIssueTriageData,
   ) ?? fallbackEnvelope(
     "issue_triage",
-    "watsonx.ai did not return structured issue triage data, so Overcode prepared a local triage.",
+    "OpenRouter did not return structured issue triage data, so Overcode prepared a local triage.",
     buildLocalIssueTriageData(payload),
     ["Structured response validation failed."],
   );
 
-  await setGraniteCache({
+  await setAICache({
     ...cache,
     [key]: { content: result, timestamp: Date.now() },
   });
@@ -552,7 +565,7 @@ export async function summarizeGitHubIssueStructured(
 export async function explainCodeSelectionStructured(
   payload: CodeExplainPayload,
   options: { force?: boolean } = {},
-): Promise<GraniteEnvelope<CodeExplanationData>> {
+): Promise<AIEnvelope<CodeExplanationData>> {
   if (payload.unavailableReason) {
     return fallbackEnvelope(
       "code_explain",
@@ -563,26 +576,26 @@ export async function explainCodeSelectionStructured(
   }
 
   const prompt = buildCodeExplanationPrompt(payload);
-  const cache = await getGraniteCache();
+  const cache = await getAICache();
   const key = `code-explain:v1:${payload.kind}:${hashText(prompt)}`;
   const cached = cache[key];
   if (!options.force && isFreshStructuredCacheEntry<CodeExplanationData>(cached)) {
     return cached.content;
   }
 
-  const result = await callStructuredGranite(
+  const result = await callStructuredAI(
     "code_explain",
     CODE_EXPLAIN_SYSTEM_PROMPT,
     prompt,
     validateCodeExplanationData,
   ) ?? fallbackEnvelope(
     "code_explain",
-    "watsonx.ai did not return structured code explanation data, so Overcode prepared a local explanation.",
+    "OpenRouter did not return structured code explanation data, so Overcode prepared a local explanation.",
     buildLocalCodeExplanationData(payload),
     ["Structured response validation failed."],
   );
 
-  await setGraniteCache({
+  await setAICache({
     ...cache,
     [key]: { content: result, timestamp: Date.now() },
   });
@@ -592,7 +605,7 @@ export async function explainCodeSelectionStructured(
 export async function explainStashStructured(
   payload: StashExplainPayload,
   options: { force?: boolean } = {},
-): Promise<GraniteEnvelope<StashExplainData>> {
+): Promise<AIEnvelope<StashExplainData>> {
   if (payload.unavailableReason) {
     return fallbackEnvelope(
       "stash_explain",
@@ -608,26 +621,26 @@ export async function explainStashStructured(
       ? await ipc.getStashDiff(payload.repoPath, payload.ref).catch(() => "")
       : "";
   const prompt = buildStashExplainPrompt({ ...payload, diff });
-  const cache = await getGraniteCache();
+  const cache = await getAICache();
   const key = `stash-explain:v1:${payload.repoId}:${payload.ref}:${hashText(prompt)}`;
   const cached = cache[key];
   if (!options.force && isFreshStructuredCacheEntry<StashExplainData>(cached)) {
     return cached.content;
   }
 
-  const result = await callStructuredGranite(
+  const result = await callStructuredAI(
     "stash_explain",
     STASH_EXPLAIN_SYSTEM_PROMPT,
     prompt,
     validateStashExplainData,
   ) ?? fallbackEnvelope(
     "stash_explain",
-    "watsonx.ai did not return structured stash data, so Overcode prepared a local stash summary.",
+    "OpenRouter did not return structured stash data, so Overcode prepared a local stash summary.",
     buildLocalStashExplainData({ ...payload, diff }),
     ["Structured response validation failed."],
   );
 
-  await setGraniteCache({
+  await setAICache({
     ...cache,
     [key]: { content: result, timestamp: Date.now() },
   });
@@ -637,7 +650,7 @@ export async function explainStashStructured(
 export async function summarizeWorktreeCompare(
   payload: WorktreeComparePayload,
   options: { force?: boolean } = {},
-): Promise<GraniteEnvelope<WorktreeCompareData>> {
+): Promise<AIEnvelope<WorktreeCompareData>> {
   if (payload.unavailableReason) {
     return fallbackEnvelope(
       "worktree_compare",
@@ -647,26 +660,26 @@ export async function summarizeWorktreeCompare(
     );
   }
   const prompt = buildWorktreeComparePrompt(payload);
-  const cache = await getGraniteCache();
+  const cache = await getAICache();
   const key = `worktree-compare:v1:${payload.repoId}:${hashText(prompt)}`;
   const cached = cache[key];
   if (!options.force && isFreshStructuredCacheEntry<WorktreeCompareData>(cached)) {
     return cached.content;
   }
 
-  const result = await callStructuredGranite(
+  const result = await callStructuredAI(
     "worktree_compare",
     WORKTREE_COMPARE_SYSTEM_PROMPT,
     prompt,
     validateWorktreeCompareData,
   ) ?? fallbackEnvelope(
     "worktree_compare",
-    "watsonx.ai did not return structured worktree compare data, so Overcode prepared a local comparison.",
+    "OpenRouter did not return structured worktree compare data, so Overcode prepared a local comparison.",
     buildLocalWorktreeCompareData(payload),
     ["Structured response validation failed."],
   );
 
-  await setGraniteCache({
+  await setAICache({
     ...cache,
     [key]: { content: result, timestamp: Date.now() },
   });
@@ -676,7 +689,7 @@ export async function summarizeWorktreeCompare(
 export async function summarizeDailyStandupStructured(
   payload: StandupPayload,
   options: { force?: boolean } = {},
-): Promise<GraniteEnvelope<StandupData>> {
+): Promise<AIEnvelope<StandupData>> {
   if (payload.unavailableReason) {
     return fallbackEnvelope(
       "standup",
@@ -687,46 +700,46 @@ export async function summarizeDailyStandupStructured(
   }
 
   const prompt = buildStandupPrompt(payload);
-  const cache = await getGraniteCache();
+  const cache = await getAICache();
   const key = `standup:v1:${payload.startIso}:${payload.endIso}:${hashText(prompt)}`;
   const cached = cache[key];
   if (!options.force && isFreshStructuredCacheEntry<StandupData>(cached)) {
     return cached.content;
   }
 
-  const result = await callStructuredGranite(
+  const result = await callStructuredAI(
     "standup",
     STANDUP_SYSTEM_PROMPT,
     prompt,
     validateStandupData,
   ) ?? fallbackEnvelope(
     "standup",
-    "watsonx.ai did not return structured standup data, so Overcode prepared a local digest.",
+    "OpenRouter did not return structured standup data, so Overcode prepared a local digest.",
     buildLocalStandupData(payload),
     ["Structured response validation failed."],
   );
 
-  await setGraniteCache({
+  await setAICache({
     ...cache,
     [key]: { content: result, timestamp: Date.now() },
   });
   return result;
 }
 
-async function callStructuredGranite<T>(
-  feature: GraniteFeature,
+async function callStructuredAI<T>(
+  feature: StructuredAIFeature,
   systemPrompt: string,
   userPrompt: string,
   validateData: (value: unknown) => T | null,
-): Promise<GraniteEnvelope<T> | null> {
-  const raw = await ipc.callGranite(systemPrompt, userPrompt)
+): Promise<AIEnvelope<T> | null> {
+  const raw = await ipc.callAIModel(systemPrompt, userPrompt)
     .then((value) => value.trim())
     .catch(() => "");
   if (!raw) return null;
-  const parsed = parseGraniteEnvelope(raw, feature, validateData);
+  const parsed = parseAIEnvelope(raw, feature, validateData);
   if (parsed) return parsed;
 
-  const repaired = await ipc.callGranite(
+  const repaired = await ipc.callAIModel(
     JSON_REPAIR_SYSTEM_PROMPT,
     [
       `FEATURE: ${feature}`,
@@ -739,7 +752,7 @@ async function callStructuredGranite<T>(
     .then((value) => value.trim())
     .catch(() => "");
   if (!repaired) return null;
-  return parseGraniteEnvelope(repaired, feature, validateData);
+  return parseAIEnvelope(repaired, feature, validateData);
 }
 
 function buildPullRequestPrompt(detail: PullRequestDetail): string | null {
@@ -1061,7 +1074,7 @@ export async function getStashLabel(
     return stash.message?.trim() || stash.ref;
   }
 
-  const cache = await getGraniteCache();
+  const cache = await getAICache();
   const key = `stash:${repoId}:${stash.ref}`;
   const cached = cache[key];
 
@@ -1070,11 +1083,11 @@ export async function getStashLabel(
   }
 
   const label = (
-    await ipc.callGranite(STASH_LABEL_SYSTEM_PROMPT, diff)
+    await ipc.callAIModel(STASH_LABEL_SYSTEM_PROMPT, diff)
   ).trim();
   const resolved = label || stash.message?.trim() || stash.ref;
 
-  await setGraniteCache({
+  await setAICache({
     ...cache,
     [key]: resolved,
   });
@@ -1263,7 +1276,7 @@ function buildLocalImpactData(diff: string, fileTree: string[]): ImpactData {
     changeType: "mixed" as const,
   }));
   return {
-    intent: "Local changes are present, but Watson did not return a structured intent.",
+    intent: "Local changes are present, but AI did not return a structured intent.",
     modules,
     risks: paths.length > 0
       ? [
@@ -1477,8 +1490,8 @@ function buildLocalCodeExplanationData(payload: CodeExplainPayload): CodeExplana
     subject: payload.subject,
     purpose:
       payload.kind === "diff-hunk"
-        ? "This diff hunk changes the selected lines. Watson did not return structured detail."
-        : "This file or selection is available for read-only inspection. Watson did not return structured detail.",
+        ? "This diff hunk changes the selected lines. AI did not return structured detail."
+        : "This file or selection is available for read-only inspection. AI did not return structured detail.",
     keyPoints: [
       payload.language ? `Language: ${payload.language}` : "",
       paths.length > 0 ? `Touched paths: ${paths.slice(0, 5).join(", ")}` : "",
@@ -1927,17 +1940,17 @@ function parseCommitAssistantResponse(response: string): CommitAssistantResult {
   };
 }
 
-async function getGraniteCache(): Promise<GraniteCache> {
-  return asGraniteCache(await ipc.getFromStore(GRANITE_CACHE_KEY));
+async function getAICache(): Promise<AICache> {
+  return asAICache(await ipc.getFromStore(AI_CACHE_KEY));
 }
 
-async function setGraniteCache(cache: GraniteCache): Promise<void> {
-  await ipc.setInStore(GRANITE_CACHE_KEY, cache);
+async function setAICache(cache: AICache): Promise<void> {
+  await ipc.setInStore(AI_CACHE_KEY, cache);
 }
 
-function asGraniteCache(value: unknown): GraniteCache {
+function asAICache(value: unknown): AICache {
   if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value as GraniteCache;
+    return value as AICache;
   }
   return {};
 }
@@ -1947,7 +1960,7 @@ function isFreshStructuredCacheEntry<T>(
 ): value is StructuredCacheEntry<T> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const entry = value as Partial<StructuredCacheEntry<T>>;
-  const content = entry.content as Partial<GraniteEnvelope<T>> | undefined;
+  const content = entry.content as Partial<AIEnvelope<T>> | undefined;
   if (!content) return false;
   return (
     content.schemaVersion === 1 &&

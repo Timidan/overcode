@@ -5,7 +5,7 @@ import {
   type StandupPayload,
 } from "../../lib/ai-features";
 import { buildStandupPayload, type StandupRange } from "../../lib/standup-data";
-import type { GraniteEnvelope, StandupData } from "../../lib/ai-structured";
+import type { AIEnvelope, StandupData } from "../../lib/ai-structured";
 import { StandupSummary } from "./AIResultViews";
 import "./DailyStandup.css";
 
@@ -20,7 +20,7 @@ const RANGES: Array<{ value: StandupRange; label: string }> = [
 export function DailyStandup({ payload }: { payload?: StandupPayload | null }) {
   const [range, setRange] = useState<StandupRange>("today");
   const [view, setView] = useState<View>(payload ? "loading" : "idle");
-  const [content, setContent] = useState<GraniteEnvelope<StandupData> | null>(null);
+  const [content, setContent] = useState<AIEnvelope<StandupData> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [lastPayload, setLastPayload] = useState<StandupPayload | null>(payload ?? null);
@@ -107,7 +107,7 @@ export function DailyStandup({ payload }: { payload?: StandupPayload | null }) {
 
       {view === "loading" && (
         <div className="standup-empty" role="status" aria-live="polite">
-          Aggregating workspace activity and asking watsonx.ai...
+          Aggregating workspace activity and asking OpenRouter...
         </div>
       )}
 
@@ -143,7 +143,7 @@ export function DailyStandup({ payload }: { payload?: StandupPayload | null }) {
   );
 }
 
-function formatStandup(result: GraniteEnvelope<StandupData>): string {
+function formatStandup(result: AIEnvelope<StandupData>): string {
   const data = result.data;
   return [
     data.greeting,

@@ -4,7 +4,7 @@ import {
   explainStashStructured,
   type StashExplainPayload,
 } from "../../lib/ai-features";
-import type { GraniteEnvelope, StashExplainData } from "../../lib/ai-structured";
+import type { AIEnvelope, StashExplainData } from "../../lib/ai-structured";
 import { StashExplainResult } from "./AIResultViews";
 import "./ImpactAnalysis.css";
 
@@ -17,7 +17,7 @@ export function StashExplain({ payload: explicitPayload }: Props) {
   const payload = explicitPayload ?? storePayload;
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] =
-    useState<GraniteEnvelope<StashExplainData> | null>(null);
+    useState<AIEnvelope<StashExplainData> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

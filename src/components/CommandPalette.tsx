@@ -133,7 +133,7 @@ export function CommandPalette() {
         label: "Toggle AI panel",
         icon: Sparkle,
         section: "Actions",
-        hint: "watsonx.ai",
+        hint: "OpenRouter",
         run: () => {
           toggleAI();
           close();

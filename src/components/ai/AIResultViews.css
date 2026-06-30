@@ -12,7 +12,8 @@
 .ai-list-block,
 .ai-suggested-comment,
 .ai-hunk-review,
-.ai-standup-greeting {
+.ai-standup-greeting,
+.ai-memory-used {
   border: 1px solid var(--color-ink);
   background: transparent;
   border-radius: 0;
@@ -132,8 +133,38 @@
 .ai-list-block,
 .ai-suggested-comment,
 .ai-hunk-review,
-.ai-standup-greeting {
+.ai-standup-greeting,
+.ai-memory-used {
   padding: var(--space-3);
+}
+
+.ai-memory-used {
+  border-left: 3px solid var(--color-accent-cyan);
+}
+
+.ai-memory-used p {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-primary);
+}
+
+.ai-memory-paths {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.ai-memory-paths code {
+  max-width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ai-module-row,

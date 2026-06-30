@@ -1,4 +1,4 @@
-export type GraniteFeature =
+export type AIFeature =
   | "impact"
   | "commit"
   | "brief"
@@ -14,9 +14,9 @@ export type GraniteFeature =
 export type AIConfidence = "low" | "medium" | "high";
 export type Severity = "low" | "medium" | "high";
 
-export interface GraniteEnvelope<T> {
+export interface AIEnvelope<T> {
   schemaVersion: 1;
-  feature: GraniteFeature;
+  feature: AIFeature;
   summary: string;
   confidence: AIConfidence;
   data: T;
@@ -163,16 +163,16 @@ export interface StandupData {
 
 export type DataValidator<T> = (value: unknown) => T | null;
 
-export function parseGraniteEnvelope<T>(
+export function parseAIEnvelope<T>(
   raw: string,
-  feature: GraniteFeature,
+  feature: AIFeature,
   validateData: DataValidator<T>,
-): GraniteEnvelope<T> | null {
+): AIEnvelope<T> | null {
   const parsed = parseJsonObject(raw);
   if (!parsed) return null;
   const object = asRecord(parsed);
   if (!object) return null;
-  // Granite sometimes returns the requested `data` object directly instead
+  // AI sometimes returns the requested `data` object directly instead
   // of wrapping it in the full Overcode envelope. Accept that shape and wrap
   // it here so callers still get the structured UI they asked for.
   const dataSource = "data" in object ? object.data : object;
@@ -191,12 +191,12 @@ export function parseGraniteEnvelope<T>(
 }
 
 export function fallbackEnvelope<T>(
-  feature: GraniteFeature,
+  feature: AIFeature,
   summary: string,
   data: T,
   warnings: string[] = [],
   raw?: string,
-): GraniteEnvelope<T> {
+): AIEnvelope<T> {
   return {
     schemaVersion: 1,
     feature,
@@ -616,8 +616,8 @@ function asBlockerSource(value: unknown): PRReviewData["blockers"][number]["sour
 }
 
 function summarizeDataFallback(value: unknown): string {
-  if (value && typeof value === "object") return "Watson returned structured analysis.";
-  return "Watson returned analysis.";
+  if (value && typeof value === "object") return "AI returned structured analysis.";
+  return "AI returned analysis.";
 }
 
 function isPresent<T>(value: T | null | undefined): value is T {

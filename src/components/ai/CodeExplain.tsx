@@ -4,7 +4,7 @@ import {
   explainCodeSelectionStructured,
   type CodeExplainPayload,
 } from "../../lib/ai-features";
-import type { CodeExplanationData, GraniteEnvelope } from "../../lib/ai-structured";
+import type { CodeExplanationData, AIEnvelope } from "../../lib/ai-structured";
 import { CodeExplanationResult } from "./AIResultViews";
 import "./ImpactAnalysis.css";
 
@@ -17,7 +17,7 @@ export function CodeExplain({ payload: explicitPayload }: Props) {
   const payload = explicitPayload ?? storePayload;
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] =
-    useState<GraniteEnvelope<CodeExplanationData> | null>(null);
+    useState<AIEnvelope<CodeExplanationData> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
