@@ -260,7 +260,7 @@ export function RepoDetail() {
           <div>
             <div className="section-label">AI for this workspace</div>
             <p className="repo-ai-hint">
-              OpenRouter uses this repo's real local status, diffs, file tree, README, and commit log.
+              The active AI provider uses this repo's real local status, diffs, file tree, README, and commit log.
             </p>
           </div>
           <div className="repo-ai-buttons">
@@ -269,7 +269,7 @@ export function RepoDetail() {
               className="repo-ai-button"
               onClick={openImpactAnalysis}
               disabled={aiBusy !== null}
-              title="Analyze local changes with OpenRouter"
+              title="Analyze local changes with the active AI provider"
             >
               <Sparkle size={13} />
               {aiBusy === "impact" ? "Preparing..." : "Analyze impact"}

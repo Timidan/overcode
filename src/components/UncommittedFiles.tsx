@@ -209,7 +209,7 @@ export function UncommittedFiles({ repoPath, onCommit }: Props) {
                 type="button"
                 className="file-action-button file-action-button-ai"
                 onClick={() => void explainFile(f)}
-                title={`Ask OpenRouter to explain ${f.path}`}
+                title={`Ask the active AI provider to explain ${f.path}`}
               >
                 <Sparkle size={12} />
                 <span>AI</span>
@@ -244,7 +244,7 @@ export function UncommittedFiles({ repoPath, onCommit }: Props) {
           className="commit-button"
           onClick={handleCommit}
           type="button"
-          title="Generate a commit message for these changes with OpenRouter"
+          title="Generate a commit message for these changes with the active AI provider"
         >
           Commit changes
         </button>

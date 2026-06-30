@@ -128,7 +128,7 @@ export function MorningBrief({ stats, repositories }: Props) {
         <button
           type="button"
           className="morning-brief-standup"
-          title="Generate today's standup with OpenRouter"
+          title="Generate today's standup with the active AI provider"
           onClick={() => openAIPanel("standup", undefined)}
         >
           <Sparkle size={12} weight="bold" />

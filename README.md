@@ -47,7 +47,7 @@ Each AI feature routes through `electron/lib/ai-runtime.ts` and validates struct
 
 Three isolated process tiers:
 
-1. **Main process** ([electron/](electron/)) - IPC handlers, OAuth callback servers, OpenRouter client, Cognee adapter, and `electron-store` persistence at `~/.overcode/config.json`.
+1. **Main process** ([electron/](electron/)) - IPC handlers, OAuth callback servers, AI provider adapters, Cognee adapter, and `electron-store` persistence at `~/.overcode/config.json`.
 2. **Preload bridge** ([electron/preload.ts](electron/preload.ts)) - typed `window.api` exposed through `contextBridge`.
 3. **Renderer** ([src/](src/)) - React 18 + TypeScript, Zustand state, and vanilla CSS design tokens.
 
@@ -120,11 +120,11 @@ Stored Settings values take precedence over environment variables.
 
 ### In-App Setup
 
-1. Open **Settings -> AI runtime**.
-2. Paste your API key.
-3. Choose a model. The default is `openrouter/free`; `OPENROUTER_MODEL` or the Settings model field can override it.
-4. Click **Save credentials**.
-5. Refresh the status panel to confirm the health probe succeeds.
+1. Open **Settings -> AI providers**.
+2. Choose OpenRouter, OpenAI, Anthropic, or Gemini.
+3. Paste the provider API key, then click **Save credentials**.
+4. Choose a catalog model or enter a manual model ID.
+5. Acknowledge provider billing if the selected model is paid or pricing is unknown, then click **Activate provider**.
 
 Credentials are persisted to `~/.overcode/config.json` and encrypted with Electron `safeStorage` whenever the operating-system keystore is available. On systems without a keystore, values are stored as plaintext in that file.
 
@@ -202,7 +202,7 @@ Output is written to `release/0.1.0/`.
 | Boundary | Implementation |
 | --- | --- |
 | Secrets in version control | `.env` is ignored. Keys, tokens, and OAuth client secrets are not committed. |
-| Credential storage | OAuth and OpenRouter credentials are written by the main process. The renderer cannot read the raw credential store or secret blobs through IPC. |
+| Credential storage | OAuth and AI provider credentials are written by the main process. The renderer cannot read the raw credential store or secret blobs through IPC. |
 | OAuth flow | A random `state` parameter is validated on callback. Local callback servers bind to `127.0.0.1` and are started only for a single authorization round-trip. |
 | Renderer trust boundary | Token material, raw OAuth responses, and raw AI request bodies do not cross the preload bridge. |
 | External URL handling | `shell:open` validates URLs against an allowlist before calling `shell.openExternal`. |
@@ -215,7 +215,7 @@ Output is written to `release/0.1.0/`.
 ### 0.1.0
 
 - Desktop Git workspace hub with GitHub and GitLab OAuth.
-- OpenRouter-backed AI panel and inline PR analysis workflows.
+- BYOK-provider-backed AI panel and inline PR analysis workflows.
 - Cognee-backed repository memory surfaces for remember, recall, improve, and forget flows.
 - Linux AppImage, Windows NSIS, and macOS DMG build targets.
 

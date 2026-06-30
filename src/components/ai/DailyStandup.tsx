@@ -107,7 +107,7 @@ export function DailyStandup({ payload }: { payload?: StandupPayload | null }) {
 
       {view === "loading" && (
         <div className="standup-empty" role="status" aria-live="polite">
-          Aggregating workspace activity and asking OpenRouter...
+          Aggregating workspace activity and asking the active AI provider...
         </div>
       )}
 

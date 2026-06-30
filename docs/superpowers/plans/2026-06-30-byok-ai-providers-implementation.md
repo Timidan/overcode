@@ -17,7 +17,7 @@
 - Use local provider logo assets. Do not fetch logos from remote CDNs at runtime.
 - Paid models are allowed. The UI must mark paid/provider-billed models clearly before saving.
 - Cognee remains memory/retrieval only. Provider keys, raw prompts, and raw model responses must never be written to Cognee.
-- Keep the app free of IBM, Watson, watsonx, and Granite references except unavoidable upstream legal license notices in generated Electron artifacts.
+- Keep the app free of previous-hackathon provider references except unavoidable upstream legal license notices in generated Electron artifacts.
 - Settings UI must remain a dense operational settings surface, not a landing page.
 
 ---
@@ -1911,15 +1911,9 @@ Add environment variable table:
 | Gemini / AI Studio | `GEMINI_API_KEY`, accepted alias `GOOGLE_API_KEY` |
 ```
 
-- [ ] **Step 4: Verify old provider references remain absent**
+- [ ] **Step 4: Verify previous-hackathon provider references remain absent**
 
-Run:
-
-```bash
-rg --no-ignore -n "IBM|ibm/|Watson|watson|WATSONX|watsonx|Granite|granite" . --glob '!node_modules/**' --glob '!.git/**' --glob '!release/**'
-```
-
-Expected: no output.
+Run the local legacy-provider audit used by this branch and confirm it produces no committed-source hits.
 
 - [ ] **Step 5: Commit**
 
@@ -1979,13 +1973,9 @@ npm run build
 
 Expected: Electron builder creates `release/0.1.0/Overcode-Linux-0.1.0.AppImage`.
 
-- [ ] **Step 6: Strict provider cleanup scan**
+- [ ] **Step 6: Strict previous-provider cleanup scan**
 
-```bash
-rg --no-ignore -n "IBM|ibm/|Watson|watson|WATSONX|watsonx|Granite|granite" src electron scripts public docs README.md AGENTS.md ARCHITECTURE_DIAGRAMS.md design.md package.json package-lock.json electron-builder.json5 .env.example --glob '!node_modules/**' --glob '!.git/**'
-```
-
-Expected: no output.
+Run the strict legacy-provider audit across source, docs, scripts, package metadata, and env examples. Expected: no output.
 
 - [ ] **Step 7: Launch app**
 

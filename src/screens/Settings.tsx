@@ -504,7 +504,7 @@ export function SettingsScreen() {
             <div className="settings-row-text">
               <div className="settings-row-title">Overcode</div>
               <div className="settings-row-hint">
-                Preparing for Cognee-backed repository memory, with OpenRouter available for AI-assisted workspace operations.
+                Preparing for Cognee-backed repository memory, with BYOK AI providers available for workspace operations.
               </div>
             </div>
           </div>

@@ -261,7 +261,7 @@ export function ActivityItem({ item, repository }: ActivityItemProps) {
     ? IMPACT_NO_LOCAL_PATH
     : typeof item.metadata?.hash !== "string"
       ? IMPACT_NO_HASH
-      : "Analyze this change with OpenRouter AI";
+      : "Analyze this change with the active AI provider";
   const briefUnavailableTitle = !repository?.local_path
     ? BRIEF_NO_LOCAL_PATH
     : "Generate an onboarding brief for this repository";

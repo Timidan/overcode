@@ -255,7 +255,7 @@
   flex: 0 0 auto;
 }
 
-/* Amber-bordered hint when OpenRouter is not configured. */
+/* Amber-bordered hint when no AI provider is configured. */
 .ai-home-banner {
   display: flex;
   align-items: center;

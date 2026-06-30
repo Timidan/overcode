@@ -381,7 +381,7 @@ export async function getRepoBriefStructured(
   if (!resolved) {
     resolved = fallbackEnvelope(
       "brief",
-      "OpenRouter did not return structured brief data, so Overcode prepared a local brief.",
+      "The AI provider did not return structured brief data, so Overcode prepared a local brief.",
       buildLocalRepoBriefData(payload),
       ["Structured response validation failed."],
     );
@@ -434,7 +434,7 @@ export async function summarizePullRequestStructured(
     validatePRReviewData,
   ) ?? fallbackEnvelope(
     "pr_review",
-    "OpenRouter did not return structured PR review data, so Overcode prepared a local review.",
+    "The AI provider did not return structured PR review data, so Overcode prepared a local review.",
     buildLocalPRReviewData(detail),
     ["Structured response validation failed."],
   );
@@ -470,7 +470,7 @@ export async function summarizePullRequestHunksStructured(
     validatePRHunkReviewData,
   ) ?? fallbackEnvelope(
     "pr_hunk_review",
-    "OpenRouter did not return structured hunk review data, so Overcode prepared a local hunk review.",
+    "The AI provider did not return structured hunk review data, so Overcode prepared a local hunk review.",
     buildLocalPRHunkReviewData(detail),
     ["Structured response validation failed."],
   );
@@ -510,7 +510,7 @@ export async function summarizePullRequestFileChangeStructured(
     validatePRFileChangeData,
   ) ?? fallbackEnvelope(
     "pr_file_change",
-    "OpenRouter did not return structured file change data, so Overcode prepared a local file summary.",
+    "The AI provider did not return structured file change data, so Overcode prepared a local file summary.",
     buildLocalPRFileChangeData(file),
     ["Structured response validation failed."],
   );
@@ -550,7 +550,7 @@ export async function summarizeGitHubIssueStructured(
     validateIssueTriageData,
   ) ?? fallbackEnvelope(
     "issue_triage",
-    "OpenRouter did not return structured issue triage data, so Overcode prepared a local triage.",
+    "The AI provider did not return structured issue triage data, so Overcode prepared a local triage.",
     buildLocalIssueTriageData(payload),
     ["Structured response validation failed."],
   );
@@ -590,7 +590,7 @@ export async function explainCodeSelectionStructured(
     validateCodeExplanationData,
   ) ?? fallbackEnvelope(
     "code_explain",
-    "OpenRouter did not return structured code explanation data, so Overcode prepared a local explanation.",
+    "The AI provider did not return structured code explanation data, so Overcode prepared a local explanation.",
     buildLocalCodeExplanationData(payload),
     ["Structured response validation failed."],
   );
@@ -635,7 +635,7 @@ export async function explainStashStructured(
     validateStashExplainData,
   ) ?? fallbackEnvelope(
     "stash_explain",
-    "OpenRouter did not return structured stash data, so Overcode prepared a local stash summary.",
+    "The AI provider did not return structured stash data, so Overcode prepared a local stash summary.",
     buildLocalStashExplainData({ ...payload, diff }),
     ["Structured response validation failed."],
   );
@@ -674,7 +674,7 @@ export async function summarizeWorktreeCompare(
     validateWorktreeCompareData,
   ) ?? fallbackEnvelope(
     "worktree_compare",
-    "OpenRouter did not return structured worktree compare data, so Overcode prepared a local comparison.",
+    "The AI provider did not return structured worktree compare data, so Overcode prepared a local comparison.",
     buildLocalWorktreeCompareData(payload),
     ["Structured response validation failed."],
   );
@@ -714,7 +714,7 @@ export async function summarizeDailyStandupStructured(
     validateStandupData,
   ) ?? fallbackEnvelope(
     "standup",
-    "OpenRouter did not return structured standup data, so Overcode prepared a local digest.",
+    "The AI provider did not return structured standup data, so Overcode prepared a local digest.",
     buildLocalStandupData(payload),
     ["Structured response validation failed."],
   );

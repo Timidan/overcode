@@ -102,7 +102,7 @@ export function AIPanel() {
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, close]);
 
-  const featureLabel = feature ? FEATURE_LABELS[feature] : "OpenRouter AI";
+  const featureLabel = feature ? FEATURE_LABELS[feature] : "AI provider";
   const goHome = useCallback(() => {
     // Returning to home view without closing the panel: clear feature + payload.
     useAIPanel.setState({ feature: null, payload: null });
@@ -287,8 +287,8 @@ function AIHome({ onPickFeature }: AIHomeProps) {
             className="ai-panel-iconbtn ai-home-refresh"
             onClick={() => void loadStatus()}
             disabled={refreshing}
-            title="Re-check OpenRouter status"
-            aria-label="Re-check OpenRouter status"
+            title="Re-check AI provider status"
+            aria-label="Re-check AI provider status"
           >
             <ArrowsClockwise
               size={12}
@@ -304,7 +304,7 @@ function AIHome({ onPickFeature }: AIHomeProps) {
           className="ai-home-banner"
           onClick={() => navigate("settings")}
         >
-          <span>OpenRouter not configured — open Settings</span>
+          <span>AI provider not configured — open Settings</span>
           <span aria-hidden="true">→</span>
         </button>
       )}

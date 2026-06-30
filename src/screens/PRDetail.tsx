@@ -856,8 +856,8 @@ function FilesTab({
                 disabled={summaryState?.loading}
                 title={
                   file.patch
-                    ? "Ask OpenRouter what this file added and removed"
-                    : "Ask OpenRouter with provider metadata only"
+                    ? "Ask the active AI provider what this file added and removed"
+                    : "Ask the active AI provider with provider metadata only"
                 }
               >
                 <Sparkle size={11} weight="bold" />
@@ -891,7 +891,7 @@ function FilesTab({
             </header>
             {summaryState?.loading && (
               <div className="pr-file-ai-summary pr-file-ai-summary-loading">
-                OpenRouter is reading this file patch…
+                The active AI provider is reading this file patch…
               </div>
             )}
             {summaryState?.error && (
@@ -940,7 +940,7 @@ function PRFileChangeSummary({
   return (
     <section className="pr-file-ai-summary" aria-label="AI file change summary">
       <header className="pr-file-ai-summary-head">
-        <span className="pr-file-ai-kicker">OpenRouter</span>
+        <span className="pr-file-ai-kicker">AI provider</span>
         <strong>{result.summary}</strong>
         <span className={`pr-file-ai-risk pr-file-ai-risk-${result.data.risk}`}>
           {result.data.risk} risk
@@ -1322,11 +1322,11 @@ function AISummaryTab({
         <div className="pr-detail-note">Suggested response posted to the PR.</div>
       )}
       {loading && !summary && (
-        <div className="pr-detail-empty">Generating summary with OpenRouter…</div>
+        <div className="pr-detail-empty">Generating summary with the active AI provider…</div>
       )}
       {summary && <PRReviewSummary result={summary} />}
       {hunkLoading && !hunkReview && (
-        <div className="pr-detail-empty">Reviewing diff hunks with OpenRouter…</div>
+        <div className="pr-detail-empty">Reviewing diff hunks with the active AI provider…</div>
       )}
       {hunkReview && <PRHunkReviewSummary result={hunkReview} />}
     </div>

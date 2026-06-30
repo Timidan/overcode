@@ -2,7 +2,7 @@
   "name": "overcode",
   "private": true,
   "version": "0.1.0",
-  "description": "Desktop developer workspace hub for Git, pull requests, OpenRouter AI, and Cognee-backed repository memory.",
+  "description": "Desktop developer workspace hub for Git, pull requests, BYOK AI providers, and Cognee-backed repository memory.",
   "author": {
     "name": "Timidan",
     "email": "akinnusotutemitayodaniel@gmail.com"
