@@ -5,6 +5,10 @@ import { promisify } from "node:util";
 import os from "node:os";
 import * as storeLib from "./lib/store";
 import { callAIModel, aiConfigStatus, configuredModel } from "./lib/ai-runtime";
+import {
+  sanitizeSettingsForRendererRead,
+  sanitizeSettingsForRendererWrite,
+} from "./lib/settings-ipc-sanitizer";
 import { startOAuthFlow, fetchProfile } from "./oauth-server";
 import * as github from "./lib/github";
 import * as gitlab from "./lib/gitlab";
@@ -802,21 +806,9 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
   // ============================================================
   // 'accounts' holds OAuth tokens — must never traverse the renderer boundary.
   const FORBIDDEN_KEYS = new Set(["accounts"]);
-  // Fields inside 'settings' that hold secrets — stripped on the way out,
-  // and never accepted from a `store:set` write (use settings:save-ai-provider).
-  const SETTINGS_SECRETS = new Set([
-    "openrouter_api_key",
-    "openrouter_api_key_secret",
-  ]);
 
   function sanitize(key: string, value: unknown): unknown {
-    if (key === "settings" && value && typeof value === "object") {
-      const out: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(value)) {
-        if (!SETTINGS_SECRETS.has(k)) out[k] = v;
-      }
-      return out;
-    }
+    if (key === "settings") return sanitizeSettingsForRendererRead(value);
     return value;
   }
 
@@ -834,16 +826,11 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
       throw new Error(`Access to '${key}' is restricted to the main process.`);
     }
     if (key === "settings" && value && typeof value === "object") {
-      // Renderer cannot write secret settings fields. Preserve any existing secret values
-      // so a partial settings write from the renderer doesn't wipe them.
-      const existing =
-        (storeLib.getStoreValue("settings") as Record<string, unknown>) ?? {};
-      const merged: Record<string, unknown> = { ...value };
-      for (const secret of SETTINGS_SECRETS) {
-        if (existing[secret] !== undefined) merged[secret] = existing[secret];
-        else delete merged[secret];
-      }
-      storeLib.setStoreValue(key, merged);
+      const existing = storeLib.getStoreValue("settings");
+      storeLib.setStoreValue(
+        key,
+        sanitizeSettingsForRendererWrite(value, existing),
+      );
       return;
     }
     storeLib.setStoreValue(key, value);

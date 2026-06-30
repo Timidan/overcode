@@ -129,3 +129,33 @@ Tests  6 passed (6)
 ### Files changed
 
 - `electron/lib/ai-providers.ts`
+
+## Fix report: settings IPC sanitizer hardening
+
+### What changed
+
+- Extracted renderer-boundary settings sanitization into `electron/lib/settings-ipc-sanitizer.ts`.
+- Updated `electron/ipc-handlers.ts` so `store:get("settings")` strips all provider-managed credential storage fields before returning data to the renderer:
+  - `openrouter_api_key`
+  - `openrouter_api_key_secret`
+  - `openrouter_base_url`
+  - `ai_provider_secrets`
+  - `ai_provider_base_urls`
+- Updated `store:set("settings", ...)` handling so renderer writes cannot overwrite or delete those main-process-only fields. Existing stored values are preserved and renderer-supplied replacements are dropped.
+- Added focused tests in `electron/lib/settings-ipc-sanitizer.test.ts` to prove:
+  - generic provider secrets are stripped from renderer reads
+  - renderer writes preserve stored provider secrets/base URLs instead of accepting renderer-supplied values
+
+### Test commands and results
+
+- `npm test -- --run electron/lib/settings-ipc-sanitizer.test.ts`
+  - Passed
+  - `1` test file passed, `2` tests passed
+- `npx tsc --noEmit`
+  - Passed
+
+### Files changed
+
+- `electron/ipc-handlers.ts`
+- `electron/lib/settings-ipc-sanitizer.ts`
+- `electron/lib/settings-ipc-sanitizer.test.ts`
