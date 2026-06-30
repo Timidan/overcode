@@ -155,6 +155,35 @@ describe("AI provider adapters", () => {
       }),
     );
   });
+
+  it("uses provider health checks to issue a minimal Anthropic chat request", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ content: [{ type: "text", text: "ok" }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await providerAdapters.anthropic.healthCheck(
+      { apiKey: "sk-ant" },
+      "claude-sonnet-4-5",
+    );
+
+    expect(result).toMatchObject({
+      model: "claude-sonnet-4-5",
+      status: "available",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.anthropic.com/v1/messages",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          model: "claude-sonnet-4-5",
+          system: "Health check.",
+          messages: [{ role: "user", content: "Reply with ok." }],
+          max_tokens: 1,
+          temperature: 0,
+        }),
+      }),
+    );
+  });
 });
 
 describe("AI provider credential storage", () => {

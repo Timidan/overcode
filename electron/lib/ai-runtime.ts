@@ -1,20 +1,25 @@
 import * as storeLib from "./store";
-import { OPENROUTER_FREE_MODEL_ID, providerAdapters } from "./ai-providers";
+import {
+  OPENROUTER_FREE_MODEL_ID,
+  curatedModelsForProvider,
+  providerAdapters,
+} from "./ai-providers";
 import type { AIProviderId } from "./ai-provider-types";
 
-const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
-const KNOWN_MODELS = [
-  "openrouter/free",
-  "minimax/minimax-m3",
-  "qwen/qwen3-coder:free",
-  "meta-llama/llama-3.3-70b-instruct:free",
-] as const;
-const REQUIRED_ENV = ["OPENROUTER_API_KEY"] as const;
 const HEALTH_CACHE_TTL_MS = 10 * 60 * 1000;
-const HEALTH_PROBE_TIMEOUT_MS = 8_000;
 const HEALTH_HISTORY_LIMIT = 5;
+const providerRequiredEnv = {
+  openrouter: ["OPENROUTER_API_KEY"] as const,
+  openai: ["OPENAI_API_KEY"] as const,
+  anthropic: ["ANTHROPIC_API_KEY"] as const,
+  gemini: ["GEMINI_API_KEY"] as const,
+} as const;
 
-export type RequiredAIEnv = (typeof REQUIRED_ENV)[number];
+export type RequiredAIEnv =
+  | "OPENROUTER_API_KEY"
+  | "OPENAI_API_KEY"
+  | "ANTHROPIC_API_KEY"
+  | "GEMINI_API_KEY";
 export type AIEnvStatus = "configured" | "missing";
 export type AIModelHealthStatus =
   | "available"
@@ -41,7 +46,7 @@ export interface AIStatus {
   configured: boolean;
   model: string;
   missing: RequiredAIEnv[];
-  env: Record<RequiredAIEnv, AIEnvStatus>;
+  env: Partial<Record<RequiredAIEnv, AIEnvStatus>>;
   health: AIModelHealth[];
 }
 
@@ -98,41 +103,46 @@ export function configuredProvider(): AIProviderId {
   return "openrouter";
 }
 
-function apiKey(): string | undefined {
+function providerApiKey(providerId: AIProviderId): string | undefined {
   try {
-    const stored = storeLib.getOpenRouterApiKey();
+    const stored = storeLib.getAIProviderApiKey(providerId);
     if (stored) return stored;
   } catch {
     // Store unreachable, so fall through to env.
   }
-  return process.env.OPENROUTER_API_KEY?.trim() || process.env.OPENROUTER?.trim() || undefined;
+  return providerEnvKey(providerId);
 }
 
-function baseUrl(): string {
+function providerBaseUrl(providerId: AIProviderId): string | undefined {
   try {
-    const stored = storeLib.getOpenRouterBaseUrl();
+    const stored = storeLib.getAIProviderBaseUrl(providerId);
     if (stored) return stored.replace(/\/+$/, "");
   } catch {
     // Store unreachable, so fall through to env/default.
   }
-  return (process.env.OPENROUTER_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, "");
+  return providerId === "openrouter" && process.env.OPENROUTER_BASE_URL?.trim()
+    ? process.env.OPENROUTER_BASE_URL.trim().replace(/\/+$/, "")
+    : undefined;
 }
 
-function envStatus(): {
+function envStatus(providerId: AIProviderId): {
   missing: RequiredAIEnv[];
-  env: Record<RequiredAIEnv, AIEnvStatus>;
+  env: Partial<Record<RequiredAIEnv, AIEnvStatus>>;
 } {
-  const configured = !!apiKey();
+  const envKeys = providerRequiredEnv[providerId];
+  const configured = !!providerApiKey(providerId);
+  const primaryEnvKey = envKeys[0];
   return {
-    missing: configured ? [] : ["OPENROUTER_API_KEY"],
+    missing: configured ? [] : [primaryEnvKey],
     env: {
-      OPENROUTER_API_KEY: configured ? "configured" : "missing",
+      [primaryEnvKey]: configured ? "configured" : "missing",
     },
   };
 }
 
 export async function aiConfigStatus(): Promise<AIStatus> {
-  const { missing, env } = envStatus();
+  const providerId = configuredProvider();
+  const { missing, env } = envStatus(providerId);
   const model = configuredModel();
   const configured = missing.length === 0;
   return {
@@ -140,12 +150,13 @@ export async function aiConfigStatus(): Promise<AIStatus> {
     model,
     missing,
     env,
-    health: await modelHealthEntries(configured, missing, model),
+    health: await modelHealthEntries(providerId, configured, missing, model),
   };
 }
 
-function uniqueModels(activeModel: string): string[] {
-  return Array.from(new Set([...KNOWN_MODELS, activeModel]));
+function uniqueModels(providerId: AIProviderId, activeModel: string): string[] {
+  const curated = curatedModelsForProvider(providerId).map((entry) => entry.id);
+  return Array.from(new Set([...curated, activeModel]));
 }
 
 function notConfiguredHealth(model: string, missing: RequiredAIEnv[]): AIModelHealth {
@@ -171,18 +182,19 @@ function unknownHealth(
 }
 
 async function modelHealthEntries(
+  providerId: AIProviderId,
   configured: boolean,
   missing: RequiredAIEnv[],
   activeModel: string,
 ): Promise<AIModelHealth[]> {
-  const models = uniqueModels(activeModel);
+  const models = uniqueModels(providerId, activeModel);
   if (!configured) return models.map((model) => notConfiguredHealth(model, missing));
 
   const checkedAt = Date.now();
   const healthByModel = new Map<string, AIModelHealth>();
   const modelsToProbe: string[] = [];
   for (const model of models) {
-    const cached = healthCache.get(model);
+    const cached = healthCache.get(cacheKey(providerId, model));
     if (cached && cached.expiresAt > checkedAt) {
       healthByModel.set(model, cached.value);
     } else {
@@ -195,7 +207,7 @@ async function modelHealthEntries(
   }
 
   const probed = await Promise.all(
-    modelsToProbe.map((model) => probeAndCacheModel(model, checkedAt)),
+    modelsToProbe.map((model) => probeAndCacheModel(providerId, model, checkedAt)),
   );
   for (const health of probed) healthByModel.set(health.model, health);
   return orderedHealthEntries(models, healthByModel, checkedAt);
@@ -215,93 +227,58 @@ function orderedHealthEntries(
 }
 
 async function probeAndCacheModel(
+  providerId: AIProviderId,
   model: string,
   checkedAt: number,
 ): Promise<AIModelHealth> {
-  const value = await probeModel(model, checkedAt);
+  const value = await probeModel(providerId, model, checkedAt);
   recordHealthHistory(value);
-  healthCache.set(model, {
+  healthCache.set(cacheKey(providerId, model), {
     value,
     expiresAt: checkedAt + HEALTH_CACHE_TTL_MS,
   });
   return value;
 }
 
-async function probeModel(model: string, checkedAt: number): Promise<AIModelHealth> {
-  const key = apiKey();
-  if (!key) return notConfiguredHealth(model, ["OPENROUTER_API_KEY"]);
+async function probeModel(
+  providerId: AIProviderId,
+  model: string,
+  _checkedAt: number,
+): Promise<AIModelHealth> {
+  const key = providerApiKey(providerId);
+  if (!key) return notConfiguredHealth(model, [...providerRequiredEnv[providerId]]);
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), HEALTH_PROBE_TIMEOUT_MS);
-  const startedAt = Date.now();
   try {
-    const response = await fetch(`${baseUrl()}/chat/completions`, {
-      method: "POST",
-      signal: controller.signal,
-      headers: requestHeaders(key),
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: "health check" }],
-        max_tokens: 1,
-        temperature: 0,
-      }),
-    });
-    await discardBody(response);
-    const latencyMs = Date.now() - startedAt;
-    if (response.ok) return { model, status: "available", checkedAt, latencyMs };
-    return {
+    return await providerAdapters[providerId].healthCheck(
+      {
+        apiKey: key,
+        baseUrl: providerBaseUrl(providerId),
+      },
       model,
-      status: "unavailable",
-      reason: sanitizeHttpStatus(response.status),
-      checkedAt,
-      latencyMs,
-    };
+    );
   } catch (error) {
-    const latencyMs = Date.now() - startedAt;
     return {
-      ...unknownHealth(model, sanitizeRequestError(error), checkedAt),
-      latencyMs,
+      ...unknownHealth(model, sanitizeRequestError(providerId, error), Date.now()),
+      latencyMs: undefined,
     };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
-function requestHeaders(key: string): Record<string, string> {
-  return {
-    Authorization: `Bearer ${key}`,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    "HTTP-Referer": "https://github.com/Timidan/overcode",
-    "X-Title": "Overcode",
-  };
+function cacheKey(providerId: AIProviderId, model: string): string {
+  return `${providerId}:${model}`;
 }
 
-async function discardBody(response: Response): Promise<void> {
-  try {
-    await response.arrayBuffer();
-  } catch {
-    // Health checks only need the status code.
-  }
-}
-
-function sanitizeHttpStatus(status: number): string {
-  if (status === 400) return "Model request was rejected";
-  if (status === 401 || status === 403) return "OpenRouter credentials rejected";
-  if (status === 404) return "Model is not available";
-  if (status === 429) return "OpenRouter rate limit reached";
-  if (status >= 500) return "OpenRouter service error";
-  return `OpenRouter returned HTTP ${status}`;
-}
-
-function sanitizeRequestError(error: unknown): string {
+function sanitizeRequestError(providerId: AIProviderId, error: unknown): string {
   if (error instanceof Error) {
     if (error.name === "AbortError") return "Probe timed out";
     const message = error.message.toLowerCase();
-    if (message.includes("missing")) return "OpenRouter configuration is incomplete";
+    if (message.includes("missing")) {
+      return `${providerAdapters[providerId].displayName} configuration is incomplete`;
+    }
     if (message.includes("fetch") || message.includes("network")) {
       return "Network request failed";
     }
+    return error.message;
   }
   return "Health probe failed";
 }

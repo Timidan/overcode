@@ -297,7 +297,8 @@ async function curatedListModels(providerId: AIProviderId): Promise<AIModelCatal
   return curatedModelsForProvider(providerId);
 }
 
-async function defaultHealthCheck(
+async function providerHealthCheck(
+  providerId: AIProviderId,
   credentials: AIProviderCredentials,
   modelId: string,
 ): Promise<AIModelHealth> {
@@ -309,11 +310,34 @@ async function defaultHealthCheck(
       checkedAt: null,
     };
   }
-  return {
-    model: modelId,
-    status: "unknown",
-    checkedAt: Date.now(),
-  };
+  const checkedAt = Date.now();
+  const startedAt = checkedAt;
+  try {
+    await providerAdapters[providerId].completeChat({
+      apiKey: credentials.apiKey,
+      baseUrl: credentials.baseUrl,
+      model: modelId,
+      systemPrompt: "Health check.",
+      userPrompt: "Reply with ok.",
+      maxTokens: 1,
+      temperature: 0,
+    } as AIChatRequest);
+    return {
+      model: modelId,
+      status: "available",
+      checkedAt,
+      latencyMs: Date.now() - startedAt,
+    };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "Health check failed";
+    return {
+      model: modelId,
+      status: "unavailable",
+      reason,
+      checkedAt,
+      latencyMs: Date.now() - startedAt,
+    };
+  }
 }
 
 export async function listProviderModels(providerId: AIProviderId): Promise<AIModelCatalogEntry[]> {
@@ -327,7 +351,8 @@ export const providerAdapters: Record<AIProviderId, AIProviderAdapter> = {
     defaultBaseUrl: defaultBaseUrls.openrouter,
     defaultModel: OPENROUTER_FREE_MODEL_ID,
     listModels: () => curatedListModels("openrouter"),
-    healthCheck: defaultHealthCheck,
+    healthCheck: (credentials, modelId) =>
+      providerHealthCheck("openrouter", credentials, modelId),
     completeChat: (request) => openAICompatibleChat("openrouter", request),
   },
   openai: {
@@ -336,7 +361,8 @@ export const providerAdapters: Record<AIProviderId, AIProviderAdapter> = {
     defaultBaseUrl: defaultBaseUrls.openai,
     defaultModel: "gpt-4.1",
     listModels: () => curatedListModels("openai"),
-    healthCheck: defaultHealthCheck,
+    healthCheck: (credentials, modelId) =>
+      providerHealthCheck("openai", credentials, modelId),
     completeChat: (request) => openAICompatibleChat("openai", request),
   },
   anthropic: {
@@ -345,7 +371,8 @@ export const providerAdapters: Record<AIProviderId, AIProviderAdapter> = {
     defaultBaseUrl: defaultBaseUrls.anthropic,
     defaultModel: "claude-sonnet-4-5",
     listModels: () => curatedListModels("anthropic"),
-    healthCheck: defaultHealthCheck,
+    healthCheck: (credentials, modelId) =>
+      providerHealthCheck("anthropic", credentials, modelId),
     completeChat: anthropicChat,
   },
   gemini: {
@@ -354,7 +381,8 @@ export const providerAdapters: Record<AIProviderId, AIProviderAdapter> = {
     defaultBaseUrl: defaultBaseUrls.gemini,
     defaultModel: "gemini-2.5-pro",
     listModels: () => curatedListModels("gemini"),
-    healthCheck: defaultHealthCheck,
+    healthCheck: (credentials, modelId) =>
+      providerHealthCheck("gemini", credentials, modelId),
     completeChat: geminiChat,
   },
 };

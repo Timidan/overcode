@@ -95,3 +95,47 @@ Tests  15 passed (15)
 ## Any concerns
 
 - `aiConfigStatus()` remains OpenRouter-oriented in this task. That matches current scope and existing tests, but broader per-provider runtime health/status behavior will need follow-on work in later tasks.
+
+---
+
+## Task 3 completeness fix before review
+
+### What changed
+
+- Updated `electron/lib/ai-runtime.ts` so `aiConfigStatus()` now resolves status from the active provider returned by `configuredProvider()`, instead of assuming OpenRouter.
+- Added provider-aware env reporting for:
+  - `OPENROUTER_API_KEY` with `OPENROUTER` accepted as an alias
+  - `OPENAI_API_KEY`
+  - `ANTHROPIC_API_KEY`
+  - `GEMINI_API_KEY` with `GOOGLE_API_KEY` accepted as an alias
+- Switched runtime health probing to call the active provider adapter’s `healthCheck`.
+- Replaced placeholder adapter health checks in `electron/lib/ai-providers.ts` with a consistent minimal-chat probe using each provider’s existing `completeChat` path and `maxTokens: 1`.
+- Scoped health model lists to the active provider’s curated catalog plus the active model, instead of probing OpenRouter-only models for every provider.
+- Added regression coverage proving an explicit Anthropic provider with an `ANTHROPIC_API_KEY` is configured without reporting missing OpenRouter.
+
+### Verification
+
+Command:
+
+```bash
+npm test -- --run electron/lib/ai-runtime.test.ts electron/lib/ai-providers.test.ts
+```
+
+Result:
+
+```text
+Test Files  2 passed (2)
+Tests  17 passed (17)
+```
+
+Command:
+
+```bash
+npx tsc --noEmit
+```
+
+Result:
+
+```text
+Passed with no TypeScript errors.
+```

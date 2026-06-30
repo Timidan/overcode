@@ -62,6 +62,31 @@ describe("OpenRouter AI runtime", () => {
     expect(configuredModel()).toBe("claude-sonnet-4-5");
   });
 
+  it("reports Anthropic as configured without requiring OpenRouter", async () => {
+    mockStoreValue.mockImplementation((key: string) =>
+      key === "settings" ? { ai_provider_id: "anthropic" } : undefined);
+    mockGetAIProviderApiKey.mockImplementation((providerId: string) =>
+      providerId === "anthropic" ? "sk-ant" : undefined);
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ content: [{ type: "text", text: "ok" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const status = await aiConfigStatus();
+
+    expect(status.configured).toBe(true);
+    expect(status.model).toBe("claude-sonnet-4-5");
+    expect(status.missing).toEqual([]);
+    expect(status.env).toEqual({ ANTHROPIC_API_KEY: "configured" });
+    expect(status.health[0]).toMatchObject({
+      model: "claude-sonnet-4-5",
+      status: "available",
+    });
+    expect(status.env).not.toHaveProperty("OPENROUTER_API_KEY");
+  });
+
   it("uses the free OpenRouter router by default", () => {
     resetAIEnv();
 
