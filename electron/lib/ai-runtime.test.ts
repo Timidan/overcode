@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { providerAdapters } from "./ai-providers";
 
 const {
   mockStoreValue,
@@ -62,6 +63,31 @@ describe("OpenRouter AI runtime", () => {
     expect(configuredModel()).toBe("claude-sonnet-4-5");
   });
 
+  it("ignores an invalid persisted provider id and falls back to available credentials", async () => {
+    mockStoreValue.mockImplementation((key: string) =>
+      key === "settings" ? { ai_provider_id: "stale-provider" } : undefined);
+    mockGetAIProviderApiKey.mockImplementation((providerId: string) =>
+      providerId === "openai" ? "sk-openai" : undefined);
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "fallback ok" } }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    expect(configuredProvider()).toBe("openai");
+    expect(configuredModel()).toBe("gpt-4.1");
+    await expect(callAIModel("system instructions", "user prompt")).resolves.toBe("fallback ok");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.openai.com/v1/chat/completions",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer sk-openai",
+        }),
+      }),
+    );
+  });
+
   it("falls back to the active provider default when the saved model is stale for that provider", () => {
     mockStoreValue.mockImplementation((key: string) =>
       key === "settings"
@@ -76,12 +102,6 @@ describe("OpenRouter AI runtime", () => {
       key === "settings" ? { ai_provider_id: "anthropic" } : undefined);
     mockGetAIProviderApiKey.mockImplementation((providerId: string) =>
       providerId === "anthropic" ? "sk-ant" : undefined);
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ content: [{ type: "text", text: "ok" }] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }));
-    globalThis.fetch = fetchMock as typeof fetch;
 
     const status = await aiConfigStatus();
 
@@ -91,9 +111,26 @@ describe("OpenRouter AI runtime", () => {
     expect(status.env).toEqual({ ANTHROPIC_API_KEY: "configured" });
     expect(status.health[0]).toMatchObject({
       model: "claude-sonnet-4-5",
-      status: "available",
+      status: "unknown",
+      checkedAt: null,
     });
     expect(status.env).not.toHaveProperty("OPENROUTER_API_KEY");
+  });
+
+  it("keeps passive status local and skips provider health probes", async () => {
+    mockStoreValue.mockImplementation((key: string) =>
+      key === "settings" ? { ai_provider_id: "anthropic" } : undefined);
+    mockGetAIProviderApiKey.mockImplementation((providerId: string) =>
+      providerId === "anthropic" ? "sk-ant" : undefined);
+    const healthCheckSpy = vi.spyOn(providerAdapters.anthropic, "healthCheck");
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const status = await aiConfigStatus();
+
+    expect(status.health.map((entry) => entry.status)).toEqual(["unknown", "unknown"]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(healthCheckSpy).not.toHaveBeenCalled();
   });
 
   it("uses the free OpenRouter router by default", () => {

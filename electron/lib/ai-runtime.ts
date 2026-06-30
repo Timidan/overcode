@@ -6,8 +6,12 @@ import {
 } from "./ai-providers";
 import type { AIProviderId } from "./ai-provider-types";
 
-const HEALTH_CACHE_TTL_MS = 10 * 60 * 1000;
-const HEALTH_HISTORY_LIMIT = 5;
+const supportedProviderIds: AIProviderId[] = [
+  "openrouter",
+  "openai",
+  "anthropic",
+  "gemini",
+];
 const providerRequiredEnv = {
   openrouter: ["OPENROUTER_API_KEY"] as const,
   openai: ["OPENAI_API_KEY"] as const,
@@ -50,27 +54,8 @@ export interface AIStatus {
   health: AIModelHealth[];
 }
 
-const healthCache = new Map<
-  string,
-  { expiresAt: number; value: AIModelHealth }
->();
+const healthCache = new Map<string, AIModelHealth>();
 const healthHistory = new Map<string, AIModelHealthHistoryEntry[]>();
-
-function recordHealthHistory(
-  providerId: AIProviderId,
-  health: AIModelHealth,
-): AIModelHealthHistoryEntry[] {
-  const key = cacheKey(providerId, health.model);
-  const list = healthHistory.get(key) ?? [];
-  list.push({
-    status: health.status,
-    checkedAt: health.checkedAt ?? Date.now(),
-    latencyMs: health.latencyMs,
-  });
-  while (list.length > HEALTH_HISTORY_LIMIT) list.shift();
-  healthHistory.set(key, list);
-  return list;
-}
 
 function withHistory(
   providerId: AIProviderId,
@@ -109,17 +94,24 @@ export function configuredModel(): string {
 
 export function configuredProvider(): AIProviderId {
   try {
-    const settings = storeLib.getStoreValue("settings") as { ai_provider_id?: AIProviderId } | undefined;
-    if (settings?.ai_provider_id) return settings.ai_provider_id;
+    const settings = storeLib.getStoreValue("settings") as
+      | { ai_provider_id?: string }
+      | undefined;
+    if (isAIProviderId(settings?.ai_provider_id)) return settings.ai_provider_id;
   } catch {
     // Settings unreadable, so fall through to credential-based detection.
   }
-  if (providerApiKey("openrouter") || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER) {
-    return "openrouter";
+  return fallbackProvider();
+}
+
+function isAIProviderId(value: unknown): value is AIProviderId {
+  return typeof value === "string" && supportedProviderIds.includes(value as AIProviderId);
+}
+
+function fallbackProvider(): AIProviderId {
+  for (const providerId of supportedProviderIds) {
+    if (providerApiKey(providerId)) return providerId;
   }
-  if (process.env.OPENAI_API_KEY) return "openai";
-  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
-  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) return "gemini";
   return "openrouter";
 }
 
@@ -170,7 +162,7 @@ export async function aiConfigStatus(): Promise<AIStatus> {
     model,
     missing,
     env,
-    health: await modelHealthEntries(providerId, configured, missing, model),
+    health: passiveModelHealthEntries(providerId, configured, missing, model),
   };
 }
 
@@ -188,121 +180,45 @@ function notConfiguredHealth(model: string, missing: RequiredAIEnv[]): AIModelHe
   };
 }
 
-function unknownHealth(
-  model: string,
-  reason: string,
-  checkedAt: number,
-): AIModelHealth {
-  return {
-    model,
-    status: "unknown",
-    reason,
-    checkedAt,
-  };
-}
-
-async function modelHealthEntries(
+function passiveModelHealthEntries(
   providerId: AIProviderId,
   configured: boolean,
   missing: RequiredAIEnv[],
   activeModel: string,
-): Promise<AIModelHealth[]> {
+): AIModelHealth[] {
   const models = uniqueModels(providerId, activeModel);
   if (!configured) return models.map((model) => notConfiguredHealth(model, missing));
-
-  const checkedAt = Date.now();
-  const healthByModel = new Map<string, AIModelHealth>();
-  const modelsToProbe: string[] = [];
-  for (const model of models) {
-    const cached = healthCache.get(cacheKey(providerId, model));
-    if (cached && cached.expiresAt > checkedAt) {
-      healthByModel.set(model, cached.value);
-    } else {
-      modelsToProbe.push(model);
-    }
-  }
-
-  if (modelsToProbe.length === 0) {
-    return orderedHealthEntries(providerId, models, healthByModel, checkedAt);
-  }
-
-  const probed = await Promise.all(
-    modelsToProbe.map((model) => probeAndCacheModel(providerId, model, checkedAt)),
-  );
-  for (const health of probed) healthByModel.set(health.model, health);
-  return orderedHealthEntries(providerId, models, healthByModel, checkedAt);
+  return models.map((model) => passiveHealthForModel(providerId, model));
 }
 
-function orderedHealthEntries(
-  providerId: AIProviderId,
-  models: string[],
-  healthByModel: Map<string, AIModelHealth>,
-  checkedAt: number,
-): AIModelHealth[] {
-  return models.map((model) =>
-    withHistory(
-      providerId,
-      healthByModel.get(model) ??
-        unknownHealth(model, "Health probe failed", checkedAt),
-    ),
-  );
-}
+function passiveHealthForModel(providerId: AIProviderId, model: string): AIModelHealth {
+  const key = cacheKey(providerId, model);
+  const cached = healthCache.get(key);
+  if (cached) return withHistory(providerId, cached);
 
-async function probeAndCacheModel(
-  providerId: AIProviderId,
-  model: string,
-  checkedAt: number,
-): Promise<AIModelHealth> {
-  const value = await probeModel(providerId, model, checkedAt);
-  recordHealthHistory(providerId, value);
-  healthCache.set(cacheKey(providerId, model), {
-    value,
-    expiresAt: checkedAt + HEALTH_CACHE_TTL_MS,
-  });
-  return value;
-}
-
-async function probeModel(
-  providerId: AIProviderId,
-  model: string,
-  _checkedAt: number,
-): Promise<AIModelHealth> {
-  const key = providerApiKey(providerId);
-  if (!key) return notConfiguredHealth(model, [...providerRequiredEnv[providerId]]);
-
-  try {
-    return await providerAdapters[providerId].healthCheck(
-      {
-        apiKey: key,
-        baseUrl: providerBaseUrl(providerId),
-      },
-      model,
-    );
-  } catch (error) {
+  const history = healthHistory.get(key);
+  if (history && history.length > 0) {
+    const latest = history[history.length - 1];
     return {
-      ...unknownHealth(model, sanitizeRequestError(providerId, error), Date.now()),
-      latencyMs: undefined,
+      model,
+      status: latest.status,
+      checkedAt: latest.checkedAt,
+      latencyMs: latest.latencyMs,
+      reason: "Last known status from a prior active probe.",
+      history: history.slice(),
     };
   }
+
+  return {
+    model,
+    status: "unknown",
+    reason: "Passive status is local only and skips provider health probes.",
+    checkedAt: null,
+  };
 }
 
 function cacheKey(providerId: AIProviderId, model: string): string {
   return `${providerId}:${model}`;
-}
-
-function sanitizeRequestError(providerId: AIProviderId, error: unknown): string {
-  if (error instanceof Error) {
-    if (error.name === "AbortError") return "Probe timed out";
-    const message = error.message.toLowerCase();
-    if (message.includes("missing")) {
-      return `${providerAdapters[providerId].displayName} configuration is incomplete`;
-    }
-    if (message.includes("fetch") || message.includes("network")) {
-      return "Network request failed";
-    }
-    return error.message;
-  }
-  return "Health probe failed";
 }
 
 export async function callAIModel(

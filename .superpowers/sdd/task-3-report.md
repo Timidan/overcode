@@ -142,6 +142,43 @@ Passed with no TypeScript errors.
 
 ---
 
+## Task 3 re-review findings fix
+
+### Changed files
+
+- `electron/lib/ai-runtime.ts`
+- `electron/lib/ai-runtime.test.ts`
+
+### Commit hash
+
+`b51f14a3f8dc0289ece6f5844c9838d97394efcb`
+
+### What changed
+
+- Made `aiConfigStatus()` passive and local-only. Opening Settings or refreshing status now reports configuration and model state without issuing provider health checks or completion probes across curated model catalogs.
+- Validated persisted `settings.ai_provider_id` before using it. Invalid or stale ids now fall back through stored credentials, env credentials, and finally the default provider instead of indexing `providerAdapters` with an unsafe value.
+- Added regression coverage proving passive status does not touch adapter health checks or `fetch`, and that an invalid persisted provider id falls back cleanly to a working provider path.
+
+### Commands run
+
+```bash
+npm test -- --run electron/lib/ai-runtime.test.ts electron/lib/ai-providers.test.ts
+npx tsc --noEmit
+```
+
+### Exact pass/fail summary
+
+```text
+npm test -- --run electron/lib/ai-runtime.test.ts electron/lib/ai-providers.test.ts
+Test Files  2 passed (2)
+Tests  22 passed (22)
+
+npx tsc --noEmit
+Passed with no TypeScript errors.
+```
+
+---
+
 ## Task 3 review findings fix
 
 ### What changed
