@@ -2,7 +2,6 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-primary);
   flex: 0 0 auto;
   line-height: 1;
 }
@@ -26,43 +25,5 @@
   width: 100%;
   height: 100%;
   display: block;
-  overflow: visible;
-  color: inherit;
-}
-
-.ai-provider-logo-mark rect,
-.ai-provider-logo-mark circle,
-.ai-provider-logo-mark path {
-  stroke: currentColor;
-  stroke-width: 3;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
-  vector-effect: non-scaling-stroke;
-}
-
-.ai-provider-logo-mark text {
-  fill: currentColor;
-  font-family: var(--font-mono);
-  font-size: 17px;
-  font-weight: var(--weight-black);
-  letter-spacing: 0;
-  text-anchor: middle;
-  dominant-baseline: middle;
-  pointer-events: none;
-}
-
-.ai-provider-logo.is-sm .ai-provider-logo-mark text {
-  font-size: 18px;
-}
-
-.ai-provider-logo.is-openrouter .ai-provider-logo-mark text {
-  font-size: 14px;
-}
-
-.ai-provider-logo.is-openai .ai-provider-logo-mark text {
-  font-size: 15px;
-}
-
-.ai-provider-logo.is-cognee .ai-provider-logo-mark text {
-  font-size: 20px;
+  object-fit: contain;
 }
