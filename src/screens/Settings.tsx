@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Plus, X, ArrowsClockwise, Warning, Eye } from "@phosphor-icons/react";
+import { AIProviderSettings } from "../components/AIProviderSettings";
 import { Sidebar } from "../components/Sidebar";
 import { AIProviderLogo } from "../components/AIProviderLogo";
 import {
@@ -9,12 +10,7 @@ import {
 } from "../components/ProviderConnectionPill";
 import {
   ipc,
-  type AIModelHealth,
-  type AIModelHealthStatus,
-  type AIStatus,
   type MemoryStatus,
-  type AIProviderCredentialSource,
-  type AIProviderCredentialSourceStatus,
 } from "../lib/ipc";
 import "./Settings.css";
 
@@ -48,73 +44,6 @@ const MEMORY_DATASET_NAME = "overcode_memory";
 const MEMORY_IMPROVE_FEEDBACK =
   "Refine Overcode workspace memory for recurring risks, decisions, modules, and conventions.";
 
-const KNOWN_MODELS = [
-  "openrouter/free",
-  "minimax/minimax-m3",
-  "qwen/qwen3-coder:free",
-  "meta-llama/llama-3.3-70b-instruct:free",
-] as const;
-
-function healthLabel(status?: AIModelHealthStatus): string {
-  switch (status) {
-    case "available":
-      return "Available";
-    case "unavailable":
-      return "Unavailable";
-    case "not_configured":
-      return "Not configured";
-    case "unknown":
-    default:
-      return "Unknown";
-  }
-}
-
-function healthClass(status?: AIModelHealthStatus): string {
-  switch (status) {
-    case "available":
-      return "is-available";
-    case "unavailable":
-      return "is-unavailable";
-    case "not_configured":
-      return "is-not-configured";
-    case "unknown":
-    default:
-      return "is-unknown";
-  }
-}
-
-function modelHealthTitle(model: string, health?: AIModelHealth): string {
-  const label = healthLabel(health?.status);
-  return health?.reason
-    ? `${model}: ${label} - ${health.reason}`
-    : `${model}: ${label}`;
-}
-
-function historyBoxClass(status?: AIModelHealthStatus): string {
-  switch (status) {
-    case "available":
-      return "is-available";
-    case "unavailable":
-      return "is-unavailable";
-    case "not_configured":
-      return "is-not-configured";
-    case "unknown":
-      return "is-unknown";
-    default:
-      return "is-empty";
-  }
-}
-
-function historyBoxTitle(
-  entry: { status: AIModelHealthStatus; checkedAt: number; latencyMs?: number },
-): string {
-  const iso = new Date(entry.checkedAt).toISOString();
-  const ms = typeof entry.latencyMs === "number"
-    ? ` - ${Math.round(entry.latencyMs)}ms`
-    : "";
-  return `${iso} - ${healthLabel(entry.status)}${ms}`;
-}
-
 function memoryStatusLabel(status: MemoryStatus | null): string {
   if (!status) return "Unknown";
   if (!status.enabled) return "Disabled";
@@ -126,28 +55,6 @@ function memoryStatusLabel(status: MemoryStatus | null): string {
 function memoryStatusClass(status: MemoryStatus | null): string {
   if (!status || !status.enabled || !status.configured) return "is-not-configured";
   return status.endpointVerified ? "is-available" : "is-unavailable";
-}
-
-function CredentialBadge({
-  label,
-  source,
-}: {
-  label: string;
-  source: AIProviderCredentialSource | undefined;
-}) {
-  const status = source ?? "none";
-  const text =
-    status === "stored"
-      ? "Stored (encrypted on device)"
-      : status === "env"
-        ? "From environment"
-        : "Not set";
-  return (
-    <div className={`settings-credential-badge is-${status}`}>
-      <span className="settings-credential-badge-label">{label}</span>
-      <span className="settings-credential-badge-status">{text}</span>
-    </div>
-  );
 }
 
 function prettyHiddenId(id: string): { prefix: string; rest: string } {
@@ -162,44 +69,22 @@ export function SettingsScreen() {
   });
   const [newPath, setNewPath] = useState("");
   const [auth, setAuth] = useState({ github: false, gitlab: false });
-  const [aiStatus, setAiStatus] = useState<AIStatus | null>(null);
-  const [modelInput, setModelInput] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [refreshingAI, setRefreshingAI] = useState(false);
   const [governance, setGovernance] = useState<AIGovernanceState>({
     cacheKeys: [],
     audit: [],
   });
-  const [credSource, setCredSource] = useState<AIProviderCredentialSourceStatus | null>(null);
-  const [credForm, setCredForm] = useState({ api_key: "", base_url: "" });
-  const [savingCreds, setSavingCreds] = useState(false);
   const [memoryStatus, setMemoryStatus] = useState<MemoryStatus | null>(null);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memoryAction, setMemoryAction] = useState<"improve" | "forget" | null>(null);
   const [memoryError, setMemoryError] = useState<string | null>(null);
 
-  async function refreshAI() {
-    setRefreshingAI(true);
-    try {
-      const [ai, governanceState] = await Promise.all([
-        ipc.getAIStatus(),
-        loadGovernanceState(),
-      ]);
-      setAiStatus(ai);
-      setGovernance(governanceState);
-    } finally {
-      setRefreshingAI(false);
-    }
-  }
-
   async function refresh() {
-    const [stored, status, ai, governanceState, creds] = await Promise.all([
+    const [stored, status, governanceState] = await Promise.all([
       ipc.getFromStore("settings"),
       ipc.getAuthStatus(),
-      ipc.getAIStatus(),
       loadGovernanceState(),
-      ipc.getAIProviderCredentialStatus(),
     ]);
     const storedSettings =
       (stored as SettingsShape | undefined) ?? {
@@ -207,10 +92,7 @@ export function SettingsScreen() {
       };
     setSettings(storedSettings);
     setAuth(status);
-    setAiStatus(ai);
     setGovernance(governanceState);
-    setModelInput(storedSettings.ai_model_id ?? "");
-    setCredSource(creds);
   }
 
   async function refreshMemoryStatus() {
@@ -223,49 +105,6 @@ export function SettingsScreen() {
       setMemoryError(e instanceof Error ? e.message : "Failed to load memory status.");
     } finally {
       setMemoryLoading(false);
-    }
-  }
-
-  async function saveCredentials() {
-    const update: { api_key?: string | null; base_url?: string | null } = {};
-    if (credForm.api_key.trim()) update.api_key = credForm.api_key.trim();
-    if (credForm.base_url.trim()) update.base_url = credForm.base_url.trim();
-    if (Object.keys(update).length === 0) {
-      setMessage("Enter at least one credential to save.");
-      return;
-    }
-    setSavingCreds(true);
-    try {
-      await ipc.saveAIProviderCredentials(update);
-      setCredForm({ api_key: "", base_url: "" });
-      setMessage("AI provider credentials saved. Re-checking status...");
-      const [creds, ai] = await Promise.all([
-        ipc.getAIProviderCredentialStatus(),
-        ipc.getAIStatus(),
-      ]);
-      setCredSource(creds);
-      setAiStatus(ai);
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Failed to save credentials.");
-    } finally {
-      setSavingCreds(false);
-    }
-  }
-
-  async function clearStoredCredentials() {
-    setSavingCreds(true);
-    try {
-      await ipc.saveAIProviderCredentials({ api_key: null, base_url: null });
-      setCredForm({ api_key: "", base_url: "" });
-      setMessage("Stored credentials cleared. Environment-variable fallback (if any) is still in effect.");
-      const [creds, ai] = await Promise.all([
-        ipc.getAIProviderCredentialStatus(),
-        ipc.getAIStatus(),
-      ]);
-      setCredSource(creds);
-      setAiStatus(ai);
-    } finally {
-      setSavingCreds(false);
     }
   }
 
@@ -314,16 +153,6 @@ export function SettingsScreen() {
     if (!settings.hidden_repo_ids || settings.hidden_repo_ids.length === 0) return;
     await persistSettings({ ...settings, hidden_repo_ids: [] });
     setMessage("All hidden repositories restored.");
-  }
-
-  async function saveModel() {
-    const next: SettingsShape = {
-      ...settings,
-      ai_model_id: modelInput.trim() || undefined,
-    };
-    await persistSettings(next);
-    setMessage("AI model preference saved. Next AI request will use it.");
-    setAiStatus(await ipc.getAIStatus());
   }
 
   async function handleConnect(provider: Provider) {
@@ -395,14 +224,6 @@ export function SettingsScreen() {
     }
   }
 
-  const selectedModel = modelInput.trim() || aiStatus?.model || "";
-  const healthByModel = new Map<string, AIModelHealth>(
-    aiStatus?.health.map((entry) => [entry.model, entry] as const) ?? [],
-  );
-  const activeModel = aiStatus?.model;
-  const activeHealth = activeModel
-    ? aiStatus?.health.find((entry) => entry.model === activeModel)
-    : undefined;
   const cacheFeatureCounts = summarizeCacheKeys(governance.cacheKeys);
 
   return (
@@ -510,189 +331,7 @@ export function SettingsScreen() {
           </ul>
         </section>
 
-        <section className="settings-section">
-          <div className="section-label">AI runtime</div>
-          <div className="settings-provider-strip" aria-label="AI providers">
-            <span className="settings-provider-strip-label">Providers</span>
-            <div className="settings-provider-strip-logos">
-              <AIProviderLogo providerId="openrouter" size="sm" />
-              <AIProviderLogo providerId="openai" size="sm" />
-              <AIProviderLogo providerId="anthropic" size="sm" />
-              <AIProviderLogo providerId="gemini" size="sm" />
-            </div>
-          </div>
-          <div className="settings-row">
-            <div className="settings-row-text">
-              <div className="settings-row-title">Status</div>
-              <div className="settings-row-hint settings-status-line">
-                Active model: <code>{aiStatus?.model ?? "—"}</code>
-                <span
-                  className={`settings-health-pill ${healthClass(activeHealth?.status)}`}
-                >
-                  <span
-                    className={`settings-health-dot ${healthClass(activeHealth?.status)}`}
-                    aria-hidden="true"
-                  />
-                  {healthLabel(activeHealth?.status)}
-                </span>
-                {activeHealth?.history && activeHealth.history.length > 0 && (
-                  <span
-                    className="settings-health-history"
-                    aria-label="Last 5 probe results"
-                  >
-                    {activeHealth.history.map((entry, idx) => (
-                      <span
-                        key={`${entry.checkedAt}-${idx}`}
-                        className={`settings-health-history-box ${historyBoxClass(entry.status)}`}
-                        title={historyBoxTitle(entry)}
-                      />
-                    ))}
-                  </span>
-                )}
-              </div>
-              {aiStatus && !aiStatus.configured && (
-                <div className="settings-warning">
-                  <Warning size={12} />
-                  Missing: {aiStatus.missing.join(", ")}
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              className="settings-button"
-              title="Re-check AI runtime configuration"
-              onClick={refreshAI}
-              disabled={refreshingAI}
-            >
-              <ArrowsClockwise
-                size={12}
-                className={refreshingAI ? "motion-spin" : undefined}
-              />
-              Refresh
-            </button>
-          </div>
-          <div
-            className="settings-model-list"
-            role="radiogroup"
-            aria-label="AI models"
-          >
-            {KNOWN_MODELS.map((model) => {
-              const health = healthByModel.get(model);
-              const selected = selectedModel === model;
-              return (
-                <button
-                  key={model}
-                  type="button"
-                  className={`settings-model-option${selected ? " is-selected" : ""}`}
-                  role="radio"
-                  aria-checked={selected}
-                  title={modelHealthTitle(model, health)}
-                  onClick={() => setModelInput(model)}
-                >
-                  <span
-                    className={`settings-health-dot ${healthClass(health?.status)}`}
-                    aria-hidden="true"
-                  />
-                  <span className="settings-model-name">{model}</span>
-                  <span className={`settings-model-health ${healthClass(health?.status)}`}>
-                    {healthLabel(health?.status)}
-                  </span>
-                  {health?.reason && (
-                    <span className="settings-model-reason">{health.reason}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <div className="settings-row-hint settings-hint-block">
-            OpenRouter model availability changes over time. Type any model ID below or pick one above.
-          </div>
-          <div className="settings-add-row">
-            <input
-              type="text"
-              list="ai-models"
-              className="settings-input"
-              placeholder="openrouter/free"
-              value={modelInput}
-              onChange={(e) => setModelInput(e.target.value)}
-              spellCheck={false}
-            />
-            <datalist id="ai-models">
-              {KNOWN_MODELS.map((m) => (
-                <option value={m} key={m} />
-              ))}
-            </datalist>
-            <button
-              type="button"
-              className="settings-button"
-              title="Save model preference"
-              onClick={saveModel}
-            >
-              Save
-            </button>
-          </div>
-
-          <div className="settings-credentials">
-            <div className="section-label settings-credentials-label">Credentials</div>
-            <div className="settings-row-hint settings-hint-block">
-              Required to use any AI feature. Stored on this device only, encrypted with the OS keystore when available. Values entered here take precedence over <code>OPENROUTER_API_KEY</code> or <code>OPENROUTER</code> from the environment.
-            </div>
-
-            <div className="settings-credential-status-row">
-              <CredentialBadge label="API key" source={credSource?.api_key} />
-              <CredentialBadge
-                label="Base URL"
-                source={credSource?.base_url === "default" ? "none" : credSource?.base_url}
-              />
-            </div>
-
-            <div className="settings-credential-form">
-              <label className="settings-credential-field">
-                <span className="settings-credential-label">API key</span>
-                <input
-                  type="password"
-                  className="settings-input"
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder={credSource?.api_key === "stored" ? "Stored. Enter a new value to replace." : "Paste your OpenRouter API key"}
-                  value={credForm.api_key}
-                  onChange={(e) => setCredForm((s) => ({ ...s, api_key: e.target.value }))}
-                />
-              </label>
-              <label className="settings-credential-field">
-                <span className="settings-credential-label">Base URL</span>
-                <input
-                  type="url"
-                  className="settings-input"
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder="https://openrouter.ai/api/v1"
-                  value={credForm.base_url}
-                  onChange={(e) => setCredForm((s) => ({ ...s, base_url: e.target.value }))}
-                />
-              </label>
-              <div className="settings-credential-actions">
-                <button
-                  type="button"
-                  className="settings-button"
-                  onClick={saveCredentials}
-                  disabled={savingCreds}
-                >
-                  {savingCreds ? "Saving…" : "Save credentials"}
-                </button>
-                <button
-                  type="button"
-                  className="settings-button settings-button-quiet"
-                  onClick={clearStoredCredentials}
-                  disabled={savingCreds}
-                  title="Remove all stored credentials from this device. Env vars (if set) still apply."
-                >
-                  Clear stored
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
+        <AIProviderSettings />
 
         <section className="settings-section">
           <div className="section-label">AI governance</div>

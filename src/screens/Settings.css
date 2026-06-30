@@ -50,6 +50,10 @@
   padding: var(--space-5);
 }
 
+.settings-section.ai-provider-settings .settings-row-hint {
+  max-width: none;
+}
+
 .section-label {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
