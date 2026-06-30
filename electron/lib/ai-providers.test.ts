@@ -188,6 +188,94 @@ describe("AI provider credential storage", () => {
     );
   });
 
+  it("migrates the legacy openrouter key when saving only a new base URL", async () => {
+    const store = await import("./store") as typeof import("./store") & {
+      getAIProviderApiKey(providerId: string): string | undefined;
+      getAIProviderBaseUrl(providerId: string): string | undefined;
+      saveAIProviderCredentials(update: {
+        providerId: string;
+        apiKey?: string | null;
+        baseUrl?: string | null;
+      }): void;
+      setStoreValue(key: string, value: unknown): void;
+      getStoreValue(key: string): unknown;
+    };
+
+    store.setStoreValue("settings", {
+      watch_directories: [],
+      openrouter_api_key: "legacy-openrouter-key",
+      openrouter_base_url: "https://openrouter.ai/api/v1",
+    });
+
+    store.saveAIProviderCredentials({
+      providerId: "openrouter",
+      baseUrl: "https://openrouter.example/api/v1",
+    });
+
+    expect(store.getAIProviderApiKey("openrouter")).toBe("legacy-openrouter-key");
+    expect(store.getAIProviderBaseUrl("openrouter")).toBe("https://openrouter.example/api/v1");
+    expect(store.getStoreValue("settings")).toEqual(
+      expect.objectContaining({
+        watch_directories: [],
+        ai_provider_secrets: {
+          openrouter: { value: "legacy-openrouter-key" },
+        },
+        ai_provider_base_urls: {
+          openrouter: "https://openrouter.example/api/v1",
+        },
+      }),
+    );
+    expect(store.getStoreValue("settings")).not.toEqual(
+      expect.objectContaining({
+        openrouter_api_key: expect.anything(),
+        openrouter_base_url: expect.anything(),
+      }),
+    );
+  });
+
+  it("clears only the explicitly nulled openrouter key and keeps the legacy base URL", async () => {
+    const store = await import("./store") as typeof import("./store") & {
+      getAIProviderApiKey(providerId: string): string | undefined;
+      getAIProviderBaseUrl(providerId: string): string | undefined;
+      saveAIProviderCredentials(update: {
+        providerId: string;
+        apiKey?: string | null;
+        baseUrl?: string | null;
+      }): void;
+      setStoreValue(key: string, value: unknown): void;
+      getStoreValue(key: string): unknown;
+    };
+
+    store.setStoreValue("settings", {
+      watch_directories: [],
+      openrouter_api_key: "legacy-openrouter-key",
+      openrouter_base_url: "https://openrouter.ai/api/v1",
+    });
+
+    store.saveAIProviderCredentials({
+      providerId: "openrouter",
+      apiKey: null,
+    });
+
+    expect(store.getAIProviderApiKey("openrouter")).toBeUndefined();
+    expect(store.getAIProviderBaseUrl("openrouter")).toBe("https://openrouter.ai/api/v1");
+    expect(store.getStoreValue("settings")).toEqual(
+      expect.objectContaining({
+        watch_directories: [],
+        ai_provider_secrets: {},
+        ai_provider_base_urls: {
+          openrouter: "https://openrouter.ai/api/v1",
+        },
+      }),
+    );
+    expect(store.getStoreValue("settings")).not.toEqual(
+      expect.objectContaining({
+        openrouter_api_key: expect.anything(),
+        openrouter_base_url: expect.anything(),
+      }),
+    );
+  });
+
   it("reports stored and env credential sources per provider", async () => {
     process.env.OPENAI_API_KEY = "env-openai-key";
     process.env.GOOGLE_API_KEY = "env-gemini-key";

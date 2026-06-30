@@ -159,3 +159,29 @@ Tests  6 passed (6)
 - `electron/ipc-handlers.ts`
 - `electron/lib/settings-ipc-sanitizer.ts`
 - `electron/lib/settings-ipc-sanitizer.test.ts`
+
+## Fix report: Partial OpenRouter credential migration preserves legacy fields
+
+### What changed
+
+- Updated `electron/lib/store.ts` so `saveAIProviderCredentials()` migrates legacy OpenRouter credentials into the generic provider maps before deleting legacy `openrouter_*` fields.
+- The OpenRouter save path now distinguishes three cases per field:
+  - explicit replacement string: write the new generic value
+  - explicit `null`: clear the generic value
+  - omitted field: migrate any existing legacy value into generic storage before legacy cleanup
+- Added regression coverage in `electron/lib/ai-providers.test.ts` for:
+  - saving only a new OpenRouter base URL while preserving the legacy API key
+  - saving `apiKey: null` while preserving the legacy base URL
+
+### Test commands and results
+
+- `npm test -- --run electron/lib/ai-providers.test.ts electron/lib/settings-ipc-sanitizer.test.ts`
+  - Passed
+  - `2` test files passed, `10` tests passed
+- `npx tsc --noEmit`
+  - Passed
+
+### Files changed
+
+- `electron/lib/store.ts`
+- `electron/lib/ai-providers.test.ts`

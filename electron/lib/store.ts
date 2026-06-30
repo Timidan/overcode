@@ -289,6 +289,15 @@ function readSecret(field: "openrouter_api_key"): string | undefined {
   return stored[field];
 }
 
+function readLegacyOpenRouterApiKey(stored: StoredSettings): string | undefined {
+  const secret = stored.openrouter_api_key_secret;
+  if (secret) {
+    const decrypted = decryptSecret(secret);
+    if (decrypted !== undefined) return decrypted;
+  }
+  return stored.openrouter_api_key;
+}
+
 export interface AIProviderCredentialSourceStatus {
   api_key: AIProviderCredentialSource;
   base_url: AIProviderCredentialSource | "default";
@@ -352,11 +361,21 @@ export function saveAIProviderCredentials(update: AIProviderCredentialUpdate): v
   if (update.apiKey !== undefined) {
     if (update.apiKey === null) delete next.ai_provider_secrets![update.providerId];
     else next.ai_provider_secrets![update.providerId] = encryptSecret(update.apiKey);
+  } else if (update.providerId === "openrouter") {
+    const legacyApiKey = readLegacyOpenRouterApiKey(current);
+    if (legacyApiKey !== undefined && next.ai_provider_secrets?.openrouter === undefined) {
+      next.ai_provider_secrets!.openrouter = encryptSecret(legacyApiKey);
+    }
   }
 
   if (update.baseUrl !== undefined) {
     if (update.baseUrl === null) delete next.ai_provider_base_urls![update.providerId];
     else next.ai_provider_base_urls![update.providerId] = update.baseUrl;
+  } else if (update.providerId === "openrouter") {
+    const legacyBaseUrl = current.openrouter_base_url;
+    if (legacyBaseUrl !== undefined && next.ai_provider_base_urls?.openrouter === undefined) {
+      next.ai_provider_base_urls!.openrouter = legacyBaseUrl;
+    }
   }
 
   if (update.providerId === "openrouter") {
