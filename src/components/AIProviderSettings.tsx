@@ -35,7 +35,7 @@ export function AIProviderSettings() {
   const [credentialSources, setCredentialSources] = useState<SourceState>({});
   const [selectedProvider, setSelectedProvider] = useState<AIProviderId>("openrouter");
   const [models, setModels] = useState<AIModelCatalogEntry[]>([]);
-  const [filter, setFilter] = useState<Filter>("recommended");
+  const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -134,7 +134,7 @@ export function AIProviderSettings() {
     setApiKey("");
     setBaseUrl("");
     setQuery("");
-    setFilter("recommended");
+    setFilter("all");
     setMessage(null);
     await refresh(providerId);
   }
@@ -239,7 +239,7 @@ export function AIProviderSettings() {
         <div>
           <div className="section-label">AI providers</div>
           <div className="settings-row-hint">
-            Bring your own key, choose a provider, and activate the model Overcode uses. Catalog and status data stay passive and local here.
+            Bring your own key, choose a provider, and activate the model Overcode uses. Catalog data loads from provider indexes where available; status checks stay passive here.
           </div>
         </div>
         <button
@@ -426,7 +426,9 @@ export function AIProviderSettings() {
           </div>
 
           <div className="settings-row-hint">
-            Free and paid labels come from local catalog metadata. Refresh reloads local status and catalog paths only.
+            {models.length.toLocaleString()} models loaded. Free and paid labels come from {
+              selectedProvider === "openrouter" ? "OpenRouter catalog metadata" : "local catalog metadata"
+            }. Use filters to narrow the list.
           </div>
 
           <div className="ai-provider-model-list" role="listbox" aria-label={`${providerNames[selectedProvider]} models`}>

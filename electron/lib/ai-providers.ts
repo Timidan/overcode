@@ -297,6 +297,24 @@ async function curatedListModels(providerId: AIProviderId): Promise<AIModelCatal
   return curatedModelsForProvider(providerId);
 }
 
+async function openRouterListModels(
+  credentials: AIProviderCredentials,
+): Promise<AIModelCatalogEntry[]> {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (credentials.apiKey) {
+    headers.Authorization = `Bearer ${credentials.apiKey}`;
+  }
+
+  const response = await fetch(`${cleanBaseUrl(credentials.baseUrl, "openrouter")}/models`, {
+    headers,
+  });
+  if (!response.ok) throw new Error(`OpenRouter model catalog returned ${response.status}`);
+
+  const models = normalizeOpenRouterCatalog(await readJson(response));
+  if (models.length === 0) throw new Error("OpenRouter returned an empty model catalog");
+  return models;
+}
+
 async function providerHealthCheck(
   providerId: AIProviderId,
   credentials: AIProviderCredentials,
@@ -340,8 +358,11 @@ async function providerHealthCheck(
   }
 }
 
-export async function listProviderModels(providerId: AIProviderId): Promise<AIModelCatalogEntry[]> {
-  return curatedListModels(providerId);
+export async function listProviderModels(
+  providerId: AIProviderId,
+  credentials: AIProviderCredentials = {},
+): Promise<AIModelCatalogEntry[]> {
+  return providerAdapters[providerId].listModels(credentials);
 }
 
 export const providerAdapters: Record<AIProviderId, AIProviderAdapter> = {
@@ -350,7 +371,7 @@ export const providerAdapters: Record<AIProviderId, AIProviderAdapter> = {
     displayName: "OpenRouter",
     defaultBaseUrl: defaultBaseUrls.openrouter,
     defaultModel: OPENROUTER_FREE_MODEL_ID,
-    listModels: () => curatedListModels("openrouter"),
+    listModels: openRouterListModels,
     healthCheck: (credentials, modelId) =>
       providerHealthCheck("openrouter", credentials, modelId),
     completeChat: (request) => openAICompatibleChat("openrouter", request),

@@ -855,7 +855,10 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
       payload: { providerId?: unknown; options?: { force?: boolean } } | undefined,
     ): Promise<AIModelCatalogEntry[]> => {
       const providerId = assertAIProviderId(payload?.providerId);
-      return listProviderModels(providerId);
+      return listProviderModels(providerId, {
+        apiKey: storeLib.getAIProviderApiKey(providerId),
+        baseUrl: storeLib.getAIProviderBaseUrl(providerId),
+      });
     },
   );
   ipcMain.handle(

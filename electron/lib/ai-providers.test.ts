@@ -105,6 +105,54 @@ describe("AI provider model catalogs", () => {
 });
 
 describe("AI provider adapters", () => {
+  it("loads OpenRouter models from the live provider catalog", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({
+        data: [
+          {
+            id: "anthropic/claude-sonnet-5",
+            name: "Anthropic: Claude Sonnet 5",
+            pricing: { prompt: "0.000003", completion: "0.000015" },
+            context_length: 200000,
+            architecture: { modality: "text+image->text" },
+          },
+          {
+            id: "moonshotai/kimi-k2",
+            name: "MoonshotAI: Kimi K2",
+            pricing: { prompt: "0.0000006", completion: "0.0000025" },
+            context_length: 131072,
+            architecture: { modality: "text->text" },
+          },
+        ],
+      }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await providerAdapters.openrouter.listModels({
+      apiKey: "sk-openrouter",
+      baseUrl: "https://router.example/api/v1/",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://router.example/api/v1/models",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: "application/json",
+          Authorization: "Bearer sk-openrouter",
+        }),
+      }),
+    );
+    expect(result.map((model) => model.id)).toEqual([
+      "anthropic/claude-sonnet-5",
+      "moonshotai/kimi-k2",
+    ]);
+    expect(result[0]).toEqual(expect.objectContaining({
+      providerId: "openrouter",
+      source: "live",
+      free: false,
+      tags: expect.arrayContaining(["paid", "long_context", "vision"]),
+    }));
+  });
+
   it("sends OpenAI chat completions with Bearer auth", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 }));
