@@ -45,9 +45,22 @@ describe("AI provider model catalogs", () => {
 
   it("returns curated fallback models for every supported provider", () => {
     expect(OPENROUTER_FREE_MODEL_ID).toBe("openrouter/free");
-    expect(curatedModelsForProvider("openrouter").map((m) => m.id)).toContain("openrouter/free");
+    const openrouterModels = curatedModelsForProvider("openrouter");
+    expect(openrouterModels.map((m) => m.id)).toContain("openrouter/free");
+    expect(openrouterModels[0]?.tags).toEqual(expect.arrayContaining(["free", "recommended"]));
+    expect(openrouterModels[0]?.tags).not.toContain("coding");
     expect(curatedModelsForProvider("openai").length).toBeGreaterThan(0);
     expect(curatedModelsForProvider("anthropic").length).toBeGreaterThan(0);
     expect(curatedModelsForProvider("gemini").length).toBeGreaterThan(0);
+  });
+
+  it("returns curated entries with cloned array fields", () => {
+    const curated = curatedModelsForProvider("openrouter");
+    curated[0]?.tags.push("coding");
+    curated[0]?.modalities.push("audio");
+
+    const fresh = curatedModelsForProvider("openrouter");
+    expect(fresh[0]?.tags).not.toContain("coding");
+    expect(fresh[0]?.modalities).not.toContain("audio");
   });
 });

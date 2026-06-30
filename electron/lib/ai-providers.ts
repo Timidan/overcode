@@ -22,7 +22,6 @@ const curatedModels: Record<AIProviderId, AIModelCatalogEntry[]> = {
   openrouter: [
     model("openrouter", OPENROUTER_FREE_MODEL_ID, "Free Models Router", true, [
       "free",
-      "coding",
       "recommended",
     ], 200000),
     model("openrouter", "qwen/qwen3-coder:free", "Qwen3 Coder", true, [
@@ -98,7 +97,11 @@ function model(
 }
 
 export function curatedModelsForProvider(providerId: AIProviderId): AIModelCatalogEntry[] {
-  return curatedModels[providerId].map((entry) => ({ ...entry, tags: [...entry.tags] }));
+  return curatedModels[providerId].map((entry) => ({
+    ...entry,
+    tags: [...entry.tags],
+    modalities: [...entry.modalities],
+  }));
 }
 
 export function normalizeOpenRouterCatalog(data: unknown): AIModelCatalogEntry[] {
@@ -165,4 +168,4 @@ function longContextTags(contextLength: unknown): AIModelCatalogEntry["tags"] {
     : [];
 }
 
-export const providerAdapters = {} as Record<AIProviderId, AIProviderAdapter>;
+export const providerAdapters: Partial<Record<AIProviderId, AIProviderAdapter>> = {};
