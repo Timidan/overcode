@@ -1,6 +1,7 @@
 import * as storeLib from "./store";
+import { OPENROUTER_FREE_MODEL_ID, providerAdapters } from "./ai-providers";
+import type { AIProviderId } from "./ai-provider-types";
 
-const DEFAULT_MODEL_ID = "openrouter/free";
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 const KNOWN_MODELS = [
   "openrouter/free",
@@ -70,17 +71,31 @@ function withHistory(health: AIModelHealth): AIModelHealth {
 }
 
 export function configuredModel(): string {
+  const providerId = configuredProvider();
   try {
     const settings = storeLib.getStoreValue("settings") as
       | { ai_model_id?: string }
       | undefined;
-    if (settings?.ai_model_id && settings.ai_model_id.trim()) {
-      return settings.ai_model_id.trim();
-    }
+    if (settings?.ai_model_id?.trim()) return settings.ai_model_id.trim();
   } catch {
     // Settings unreadable, so fall through to env/default.
   }
-  return process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL_ID;
+  if (providerId === "openrouter") {
+    return process.env.OPENROUTER_MODEL?.trim() || OPENROUTER_FREE_MODEL_ID;
+  }
+  return providerAdapters[providerId].defaultModel;
+}
+
+export function configuredProvider(): AIProviderId {
+  const settings = storeLib.getStoreValue("settings") as { ai_provider_id?: AIProviderId } | undefined;
+  if (settings?.ai_provider_id) return settings.ai_provider_id;
+  if (storeLib.getAIProviderApiKey("openrouter") || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER) {
+    return "openrouter";
+  }
+  if (process.env.OPENAI_API_KEY) return "openai";
+  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
+  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) return "gemini";
+  return "openrouter";
 }
 
 function apiKey(): string | undefined {
@@ -295,56 +310,30 @@ export async function callAIModel(
   systemPrompt: string,
   userPrompt: string,
 ): Promise<string> {
-  const key = apiKey();
-  if (!key) {
-    throw new Error(
-      "OPENROUTER_API_KEY is not configured. Set OPENROUTER_API_KEY or OPENROUTER, or enter an API key under Settings → AI.",
-    );
-  }
-
-  const modelId = configuredModel();
-  const response = await fetch(`${baseUrl()}/chat/completions`, {
-    method: "POST",
-    headers: requestHeaders(key),
-    body: JSON.stringify({
-      model: modelId,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: 800,
-      temperature: 0,
-    }),
+  const providerId = configuredProvider();
+  const adapter = providerAdapters[providerId];
+  const key = storeLib.getAIProviderApiKey(providerId) ?? providerEnvKey(providerId);
+  if (!key) throw new Error(`${adapter.displayName} API key is not configured.`);
+  return adapter.completeChat({
+    apiKey: key,
+    baseUrl: storeLib.getAIProviderBaseUrl(providerId),
+    model: configuredModel(),
+    systemPrompt,
+    userPrompt,
+    maxTokens: 800,
+    temperature: 0,
   });
-
-  if (!response.ok) {
-    throw new Error(
-      `OpenRouter (${modelId}) returned ${response.status} ${response.statusText}`,
-    );
-  }
-
-  const data = await response.json();
-  const generated = extractChatContent(data);
-  if (typeof generated !== "string" || !generated.trim()) {
-    throw new Error("OpenRouter returned an unexpected payload shape");
-  }
-  return generated;
 }
 
-function extractChatContent(data: unknown): string | undefined {
-  const choice = (data as { choices?: Array<{ message?: { content?: unknown } }> })
-    ?.choices?.[0];
-  const content = choice?.message?.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((part) =>
-        part && typeof part === "object" && "text" in part
-          ? String((part as { text: unknown }).text)
-          : "",
-      )
-      .filter(Boolean)
-      .join("\n");
+function providerEnvKey(providerId: AIProviderId): string | undefined {
+  switch (providerId) {
+    case "openrouter":
+      return process.env.OPENROUTER_API_KEY?.trim() || process.env.OPENROUTER?.trim() || undefined;
+    case "openai":
+      return process.env.OPENAI_API_KEY?.trim() || undefined;
+    case "anthropic":
+      return process.env.ANTHROPIC_API_KEY?.trim() || undefined;
+    case "gemini":
+      return process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim() || undefined;
   }
-  return undefined;
 }

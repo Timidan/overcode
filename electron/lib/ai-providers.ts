@@ -1,7 +1,10 @@
 import type {
+  AIChatRequest,
   AIModelCatalogEntry,
   AIProviderAdapter,
   AIProviderId,
+  AIProviderCredentials,
+  AIModelHealth,
 } from "./ai-provider-types";
 
 export const OPENROUTER_FREE_MODEL_ID = "openrouter/free";
@@ -11,6 +14,13 @@ export const providerDisplayNames: Record<AIProviderId, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
   gemini: "Gemini",
+};
+
+const defaultBaseUrls: Record<AIProviderId, string> = {
+  openrouter: "https://openrouter.ai/api/v1",
+  openai: "https://api.openai.com/v1",
+  anthropic: "https://api.anthropic.com/v1",
+  gemini: "https://generativelanguage.googleapis.com/v1beta",
 };
 
 const providerBilled = {
@@ -168,4 +178,183 @@ function longContextTags(contextLength: unknown): AIModelCatalogEntry["tags"] {
     : [];
 }
 
-export const providerAdapters: Partial<Record<AIProviderId, AIProviderAdapter>> = {};
+function cleanBaseUrl(baseUrl: string | undefined, providerId: AIProviderId): string {
+  return (baseUrl || defaultBaseUrls[providerId]).replace(/\/+$/, "");
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  return response.json().catch(() => ({}));
+}
+
+function extractOpenAIContent(data: unknown): string {
+  const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })
+    ?.choices?.[0]?.message?.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) =>
+        part && typeof part === "object" && "text" in part && typeof part.text === "string"
+          ? part.text
+          : "")
+      .join("\n");
+  }
+  return "";
+}
+
+function extractAnthropicContent(data: unknown): string {
+  return ((data as { content?: Array<{ type?: string; text?: string }> }).content ?? [])
+    .filter((part) => part.type === "text" && part.text)
+    .map((part) => part.text)
+    .join("\n");
+}
+
+function extractGeminiContent(data: unknown): string {
+  return ((data as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> })
+    .candidates?.[0]?.content?.parts ?? [])
+    .map((part) => part.text ?? "")
+    .join("\n");
+}
+
+async function openAICompatibleChat(
+  providerId: "openrouter" | "openai",
+  request: AIChatRequest,
+): Promise<string> {
+  const response = await fetch(`${cleanBaseUrl(request.baseUrl, providerId)}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${request.apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(providerId === "openrouter"
+        ? {
+            "HTTP-Referer": "https://github.com/Timidan/overcode",
+            "X-Title": "Overcode",
+          }
+        : {}),
+    },
+    body: JSON.stringify({
+      model: request.model,
+      messages: [
+        { role: "system", content: request.systemPrompt },
+        { role: "user", content: request.userPrompt },
+      ],
+      max_tokens: request.maxTokens,
+      temperature: request.temperature,
+    }),
+  });
+  if (!response.ok) throw new Error(`${providerDisplayNames[providerId]} returned ${response.status}`);
+  const text = extractOpenAIContent(await readJson(response)).trim();
+  if (!text) throw new Error(`${providerDisplayNames[providerId]} returned an empty response`);
+  return text;
+}
+
+async function anthropicChat(request: AIChatRequest): Promise<string> {
+  const response = await fetch(`${cleanBaseUrl(request.baseUrl, "anthropic")}/messages`, {
+    method: "POST",
+    headers: {
+      "x-api-key": request.apiKey,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: request.model,
+      system: request.systemPrompt,
+      messages: [{ role: "user", content: request.userPrompt }],
+      max_tokens: request.maxTokens,
+      temperature: request.temperature,
+    }),
+  });
+  if (!response.ok) throw new Error("Anthropic returned " + response.status);
+  const text = extractAnthropicContent(await readJson(response)).trim();
+  if (!text) throw new Error("Anthropic returned an empty response");
+  return text;
+}
+
+async function geminiChat(request: AIChatRequest): Promise<string> {
+  const baseUrl = cleanBaseUrl(request.baseUrl, "gemini");
+  const response = await fetch(
+    `${baseUrl}/models/${encodeURIComponent(request.model)}:generateContent?key=${encodeURIComponent(request.apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: request.systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: request.userPrompt }] }],
+        generationConfig: {
+          maxOutputTokens: request.maxTokens,
+          temperature: request.temperature,
+        },
+      }),
+    },
+  );
+  if (!response.ok) throw new Error("Gemini returned " + response.status);
+  const text = extractGeminiContent(await readJson(response)).trim();
+  if (!text) throw new Error("Gemini returned an empty response");
+  return text;
+}
+
+async function curatedListModels(providerId: AIProviderId): Promise<AIModelCatalogEntry[]> {
+  return curatedModelsForProvider(providerId);
+}
+
+async function defaultHealthCheck(
+  credentials: AIProviderCredentials,
+  modelId: string,
+): Promise<AIModelHealth> {
+  if (!credentials.apiKey) {
+    return {
+      model: modelId,
+      status: "not_configured",
+      reason: "API key is not configured",
+      checkedAt: null,
+    };
+  }
+  return {
+    model: modelId,
+    status: "unknown",
+    checkedAt: Date.now(),
+  };
+}
+
+export async function listProviderModels(providerId: AIProviderId): Promise<AIModelCatalogEntry[]> {
+  return curatedListModels(providerId);
+}
+
+export const providerAdapters: Record<AIProviderId, AIProviderAdapter> = {
+  openrouter: {
+    id: "openrouter",
+    displayName: "OpenRouter",
+    defaultBaseUrl: defaultBaseUrls.openrouter,
+    defaultModel: OPENROUTER_FREE_MODEL_ID,
+    listModels: () => curatedListModels("openrouter"),
+    healthCheck: defaultHealthCheck,
+    completeChat: (request) => openAICompatibleChat("openrouter", request),
+  },
+  openai: {
+    id: "openai",
+    displayName: "OpenAI",
+    defaultBaseUrl: defaultBaseUrls.openai,
+    defaultModel: "gpt-4.1",
+    listModels: () => curatedListModels("openai"),
+    healthCheck: defaultHealthCheck,
+    completeChat: (request) => openAICompatibleChat("openai", request),
+  },
+  anthropic: {
+    id: "anthropic",
+    displayName: "Anthropic",
+    defaultBaseUrl: defaultBaseUrls.anthropic,
+    defaultModel: "claude-sonnet-4-5",
+    listModels: () => curatedListModels("anthropic"),
+    healthCheck: defaultHealthCheck,
+    completeChat: anthropicChat,
+  },
+  gemini: {
+    id: "gemini",
+    displayName: "Gemini",
+    defaultBaseUrl: defaultBaseUrls.gemini,
+    defaultModel: "gemini-2.5-pro",
+    listModels: () => curatedListModels("gemini"),
+    healthCheck: defaultHealthCheck,
+    completeChat: geminiChat,
+  },
+};

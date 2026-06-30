@@ -3,6 +3,7 @@ import {
   curatedModelsForProvider,
   normalizeOpenRouterCatalog,
   OPENROUTER_FREE_MODEL_ID,
+  providerAdapters,
 } from "./ai-providers";
 
 const mockStoreData: Record<string, unknown> = {};
@@ -100,6 +101,59 @@ describe("AI provider model catalogs", () => {
     const fresh = curatedModelsForProvider("openrouter");
     expect(fresh[0]?.tags).not.toContain("coding");
     expect(fresh[0]?.modalities).not.toContain("audio");
+  });
+});
+
+describe("AI provider adapters", () => {
+  it("sends OpenAI chat completions with Bearer auth", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await providerAdapters.openai.completeChat({
+      apiKey: "sk-test",
+      model: "gpt-4.1-mini",
+      systemPrompt: "system",
+      userPrompt: "user",
+      maxTokens: 20,
+      temperature: 0,
+    });
+
+    expect(result).toBe("ok");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.openai.com/v1/chat/completions",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer sk-test" }),
+      }),
+    );
+  });
+
+  it("sends Anthropic messages with x-api-key auth", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ content: [{ type: "text", text: "ok" }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await providerAdapters.anthropic.completeChat({
+      apiKey: "sk-ant",
+      model: "claude-sonnet-4-5",
+      systemPrompt: "system",
+      userPrompt: "user",
+      maxTokens: 20,
+      temperature: 0,
+    });
+
+    expect(result).toBe("ok");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.anthropic.com/v1/messages",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "x-api-key": "sk-ant",
+          "anthropic-version": expect.any(String),
+        }),
+      }),
+    );
   });
 });
 

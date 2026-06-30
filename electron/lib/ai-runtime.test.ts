@@ -1,12 +1,24 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./store", () => ({
-  getStoreValue: () => undefined,
-  getOpenRouterApiKey: () => undefined,
-  getOpenRouterBaseUrl: () => undefined,
+const {
+  mockStoreValue,
+  mockGetAIProviderApiKey,
+  mockGetAIProviderBaseUrl,
+} = vi.hoisted(() => ({
+  mockStoreValue: vi.fn(),
+  mockGetAIProviderApiKey: vi.fn(),
+  mockGetAIProviderBaseUrl: vi.fn(),
 }));
 
-import { aiConfigStatus, callAIModel, configuredModel } from "./ai-runtime";
+vi.mock("./store", () => ({
+  getStoreValue: mockStoreValue,
+  getAIProviderApiKey: mockGetAIProviderApiKey,
+  getAIProviderBaseUrl: mockGetAIProviderBaseUrl,
+  getOpenRouterApiKey: () => mockGetAIProviderApiKey("openrouter"),
+  getOpenRouterBaseUrl: () => mockGetAIProviderBaseUrl("openrouter"),
+}));
+
+import { aiConfigStatus, callAIModel, configuredModel, configuredProvider } from "./ai-runtime";
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
@@ -16,16 +28,40 @@ function resetAIEnv(): void {
   delete process.env.OPENROUTER_API_KEY;
   delete process.env.OPENROUTER_BASE_URL;
   delete process.env.OPENROUTER_MODEL;
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  delete process.env.GOOGLE_API_KEY;
 }
 
 afterEach(() => {
   resetAIEnv();
   Object.assign(process.env, originalEnv);
   globalThis.fetch = originalFetch;
+  mockStoreValue.mockReset();
+  mockGetAIProviderApiKey.mockReset();
+  mockGetAIProviderBaseUrl.mockReset();
   vi.restoreAllMocks();
 });
 
 describe("OpenRouter AI runtime", () => {
+  it("defaults to OpenRouter when a stored OpenRouter key exists without an explicit active provider", () => {
+    mockStoreValue.mockImplementation((key: string) =>
+      key === "settings" ? undefined : undefined);
+    mockGetAIProviderApiKey.mockImplementation((providerId: string) =>
+      providerId === "openrouter" ? "stored-openrouter-key" : undefined);
+
+    expect(configuredProvider()).toBe("openrouter");
+  });
+
+  it("uses an explicit active provider and that provider's default model", () => {
+    mockStoreValue.mockImplementation((key: string) =>
+      key === "settings" ? { ai_provider_id: "anthropic" } : undefined);
+
+    expect(configuredProvider()).toBe("anthropic");
+    expect(configuredModel()).toBe("claude-sonnet-4-5");
+  });
+
   it("uses the free OpenRouter router by default", () => {
     resetAIEnv();
 
