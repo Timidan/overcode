@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, X, ArrowsClockwise, Warning, Eye } from "@phosphor-icons/react";
 import { Sidebar } from "../components/Sidebar";
+import { AIProviderLogo } from "../components/AIProviderLogo";
 import {
   ProviderConnectionPill,
   type Provider,
@@ -511,6 +512,15 @@ export function SettingsScreen() {
 
         <section className="settings-section">
           <div className="section-label">AI runtime</div>
+          <div className="settings-provider-strip" aria-label="AI providers">
+            <span className="settings-provider-strip-label">Providers</span>
+            <div className="settings-provider-strip-logos">
+              <AIProviderLogo providerId="openrouter" size="sm" decorative />
+              <AIProviderLogo providerId="openai" size="sm" decorative />
+              <AIProviderLogo providerId="anthropic" size="sm" decorative />
+              <AIProviderLogo providerId="gemini" size="sm" decorative />
+            </div>
+          </div>
           <div className="settings-row">
             <div className="settings-row-text">
               <div className="settings-row-title">Status</div>
@@ -743,6 +753,10 @@ export function SettingsScreen() {
               />
               Refresh
             </button>
+          </div>
+          <div className="settings-memory-brand">
+            <AIProviderLogo providerId="cognee" size="md" decorative />
+            <span>Memory retention powered by Cognee</span>
           </div>
           <div className="settings-row-hint settings-hint-block">
             Cognee memory stores structured extracts and references only. Raw source, full diffs, secrets, and credentials are not sent as memory records.

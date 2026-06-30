@@ -1,0 +1,21 @@
+.ai-provider-logo {
+  display: inline-block;
+  object-fit: contain;
+  color: var(--color-text-primary);
+  flex: 0 0 auto;
+}
+
+.ai-provider-logo.is-sm {
+  width: 18px;
+  height: 18px;
+}
+
+.ai-provider-logo.is-md {
+  width: 26px;
+  height: 26px;
+}
+
+.ai-provider-logo.is-lg {
+  width: 34px;
+  height: 34px;
+}
