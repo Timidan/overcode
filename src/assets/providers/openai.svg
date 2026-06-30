@@ -1,5 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OpenAI">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OpenAI" fill="none">
   <title>OpenAI</title>
-  <rect x="6" y="6" width="52" height="52" rx="8" fill="none" stroke="currentColor" stroke-width="2"/>
-  <text x="32" y="35" fill="currentColor" font-family="Inter, system-ui, sans-serif" font-size="16" font-weight="700" text-anchor="middle">OpenAI</text>
+  <path d="M32 7 53 19v26L32 57 11 45V19L32 7Z" stroke="currentColor" stroke-width="3" stroke-linejoin="miter"/>
+  <path d="M22 24h20M22 40h20M24 24l-5 16M40 24l5 16" stroke="currentColor" stroke-width="3" stroke-linecap="square"/>
+  <text x="32" y="37" fill="currentColor" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" font-weight="900" text-anchor="middle" dominant-baseline="middle">AI</text>
 </svg>

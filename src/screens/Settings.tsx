@@ -515,10 +515,10 @@ export function SettingsScreen() {
           <div className="settings-provider-strip" aria-label="AI providers">
             <span className="settings-provider-strip-label">Providers</span>
             <div className="settings-provider-strip-logos">
-              <AIProviderLogo providerId="openrouter" size="sm" decorative />
-              <AIProviderLogo providerId="openai" size="sm" decorative />
-              <AIProviderLogo providerId="anthropic" size="sm" decorative />
-              <AIProviderLogo providerId="gemini" size="sm" decorative />
+              <AIProviderLogo providerId="openrouter" size="sm" />
+              <AIProviderLogo providerId="openai" size="sm" />
+              <AIProviderLogo providerId="anthropic" size="sm" />
+              <AIProviderLogo providerId="gemini" size="sm" />
             </div>
           </div>
           <div className="settings-row">
