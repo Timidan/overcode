@@ -161,6 +161,28 @@
   color: var(--color-text-secondary);
 }
 
+.ai-provider-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  border: 1px solid var(--color-border-subtle);
+  padding: var(--space-2);
+}
+
+.ai-provider-advanced summary {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.ai-provider-advanced[open] summary {
+  margin-bottom: var(--space-2);
+  color: var(--color-text-primary);
+}
+
 .ai-provider-actions,
 .ai-provider-manual-row,
 .ai-provider-activation {

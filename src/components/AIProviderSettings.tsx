@@ -355,18 +355,24 @@ export function AIProviderSettings() {
             />
           </label>
 
-          <label className="ai-provider-field">
-            <span>Base URL</span>
-            <input
-              className="settings-input"
-              type="url"
-              autoComplete="off"
-              spellCheck={false}
-              value={baseUrl}
-              onChange={(event) => setBaseUrl(event.target.value)}
-              placeholder={providerDefaults[selectedProvider]}
-            />
-          </label>
+          <details className="ai-provider-advanced">
+            <summary>Advanced: custom base URL</summary>
+            <label className="ai-provider-field">
+              <span>Base URL override</span>
+              <input
+                className="settings-input"
+                type="url"
+                autoComplete="off"
+                spellCheck={false}
+                value={baseUrl}
+                onChange={(event) => setBaseUrl(event.target.value)}
+                placeholder={providerDefaults[selectedProvider]}
+              />
+            </label>
+            <div className="settings-row-hint">
+              Leave blank to use the provider default. Only change this for self-hosted gateways or compatible proxies.
+            </div>
+          </details>
 
           <div className="settings-row-hint">
             Provider credentials stay on this device. Overcode does not send provider keys into Cognee memory records.

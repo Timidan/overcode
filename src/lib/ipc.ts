@@ -814,11 +814,14 @@ export class IPC {
     const providerId = legacy ? "openrouter" : update.providerId;
     const apiKey = legacy ? update.api_key : update.apiKey;
     const baseUrl = legacy ? update.base_url : update.baseUrl;
-    return this.api.settings.saveAIProvider({
-      providerId,
-      api_key: apiKey,
-      base_url: baseUrl,
-    });
+    const payload: {
+      providerId: AIProviderId;
+      api_key?: string | null;
+      base_url?: string | null;
+    } = { providerId };
+    if (apiKey !== undefined) payload.api_key = apiKey;
+    if (baseUrl !== undefined) payload.base_url = baseUrl;
+    return this.api.settings.saveAIProvider(payload);
   }
 
   async getAIProviderCredentialStatus(): Promise<LegacyAIProviderCredentialSourceStatus>;
