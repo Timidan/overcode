@@ -34,9 +34,9 @@
 .pr-md h1 { font-size: var(--text-xl); }
 .pr-md h2 { font-size: var(--text-lg); }
 .pr-md h3 { font-size: var(--text-md); }
-.pr-md h4 { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: var(--tracking-wider); color: var(--color-text-secondary); }
+.pr-md h4 { font-size: var(--text-sm); letter-spacing: var(--tracking-wider); color: var(--color-text-secondary); }
 .pr-md h5,
-.pr-md h6 { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: var(--tracking-widest); color: var(--color-text-muted); }
+.pr-md h6 { font-size: var(--text-xs); letter-spacing: var(--tracking-widest); color: var(--color-text-muted); }
 
 .pr-md ul,
 .pr-md ol {
@@ -97,7 +97,7 @@
 .pr-md blockquote.pr-md-quote {
   margin: 0 0 var(--space-3) 0;
   padding: 4px 12px;
-  border-left: 3px solid var(--color-border-strong);
+  border-left: 3px solid var(--color-ink);
   color: var(--color-text-secondary);
   background: transparent;
 }

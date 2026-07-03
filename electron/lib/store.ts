@@ -265,6 +265,7 @@ const providerEnvKeys: Record<AIProviderId, string[]> = {
   openai: ["OPENAI_API_KEY"],
   anthropic: ["ANTHROPIC_API_KEY"],
   gemini: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+  nvidia: ["NVIDIA_API_KEY", "NIM_API_KEY", "NVAPI_KEY"],
 };
 
 const providerBaseUrlEnvKeys: Record<AIProviderId, string[]> = {
@@ -272,6 +273,7 @@ const providerBaseUrlEnvKeys: Record<AIProviderId, string[]> = {
   openai: [],
   anthropic: [],
   gemini: [],
+  nvidia: ["NVIDIA_BASE_URL", "NIM_BASE_URL"],
 };
 
 function readSecret(field: "openrouter_api_key"): string | undefined {
@@ -399,7 +401,7 @@ export function aiProviderCredentialStatus(
 ): Record<AIProviderId, AIProviderCredentialSourceStatus> {
   const providers: AIProviderId[] = providerId
     ? [providerId]
-    : ["openrouter", "openai", "anthropic", "gemini"];
+    : ["openrouter", "openai", "anthropic", "gemini", "nvidia"];
   return Object.fromEntries(
     providers.map((id) => {
       const storedKey = Boolean(getAIProviderApiKey(id));

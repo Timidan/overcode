@@ -19,41 +19,56 @@ interface StatCardProps {
   sparklinePoints?: number[];
 }
 
-function useAnimatedNumber(target: number, duration = 700): number {
-  const [value, setValue] = useState(target);
-  const fromRef = useRef(target);
-  const startRef = useRef<number | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const prefersReduced =
+function prefersReducedMotion(): boolean {
+  return (
     typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false)
+  );
+}
+
+/**
+ * Mechanical count-up for the oversized stat numerals — the signature Overcode
+ * motion. Not a smooth ease: the value ratchets through a fixed number of
+ * discrete ticks (split-flap / terminal-counter feel, no soft deceleration).
+ * Plays from 0 the first time the card appears, and re-ratchets from the last
+ * value on refresh. Honors reduced motion (jumps straight to the value).
+ */
+function useAnimatedNumber(
+  target: number,
+  { maxTicks = 22, tickMs = 26 }: { maxTicks?: number; tickMs?: number } = {},
+): number {
+  const [value, setValue] = useState(() => (prefersReducedMotion() ? target : 0));
+  const valueRef = useRef(value);
+  const timerRef = useRef<number | null>(null);
+  valueRef.current = value;
 
   useEffect(() => {
-    if (prefersReduced) {
+    if (prefersReducedMotion()) {
       setValue(target);
       return;
     }
-    fromRef.current = value;
-    startRef.current = null;
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-
-    function tick(now: number) {
-      if (startRef.current === null) startRef.current = now;
-      const elapsed = now - startRef.current;
-      const t = Math.min(1, elapsed / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const delta = target - fromRef.current;
-      setValue(Math.round(fromRef.current + delta * eased));
-      if (t < 1) {
-        rafRef.current = requestAnimationFrame(tick);
+    const from = valueRef.current;
+    const delta = target - from;
+    if (delta === 0) return;
+    // One tick per unit for small deltas; capped for big numbers so 208
+    // ratchets in ~22 discrete jumps, not 208.
+    const ticks = Math.min(Math.abs(delta), maxTicks);
+    let tick = 0;
+    if (timerRef.current) window.clearInterval(timerRef.current);
+    timerRef.current = window.setInterval(() => {
+      tick += 1;
+      // Linear progression — mechanical, no easing.
+      const next = tick >= ticks ? target : Math.round(from + (delta * tick) / ticks);
+      setValue(next);
+      if (tick >= ticks && timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
       }
-    }
-    rafRef.current = requestAnimationFrame(tick);
+    }, tickMs);
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (timerRef.current) window.clearInterval(timerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, duration]);
+  }, [target, maxTicks, tickMs]);
 
   return value;
 }

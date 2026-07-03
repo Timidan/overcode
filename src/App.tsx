@@ -1,5 +1,6 @@
 import { Component, useEffect, type ErrorInfo, type ReactNode } from "react";
 import { Dashboard } from "./screens/Dashboard";
+import { CogneeDashboard } from "./screens/CogneeDashboard";
 import { RepoDetail } from "./screens/RepoDetail";
 import { PullRequests } from "./screens/PullRequests";
 import { PRDetail } from "./screens/PRDetail";
@@ -63,6 +64,7 @@ class RouteErrorBoundary extends Component<
 }
 
 function renderScreen(screen: ReturnType<typeof useNav.getState>["screen"]) {
+  if (screen === "cognee") return <CogneeDashboard />;
   if (screen === "repo-detail") return <RepoDetail />;
   if (screen === "prs") return <PullRequests />;
   if (screen === "pr-detail") return <PRDetail />;
@@ -73,10 +75,12 @@ function renderScreen(screen: ReturnType<typeof useNav.getState>["screen"]) {
   return <Dashboard />;
 }
 
+// Numbers mirror the sidebar rail top-to-bottom so position = shortcut.
 const NUM_TO_SCREEN: Record<string, Screen> = {
   "1": "dashboard",
-  "2": "repositories",
-  "3": "prs",
+  "2": "cognee",
+  "3": "repositories",
+  "4": "prs",
   "5": "issues",
 };
 
@@ -102,7 +106,7 @@ function App() {
         toggleTheme();
         return;
       }
-      if (e.key === "4") {
+      if (e.key === ".") {
         e.preventDefault();
         toggleAI();
         return;

@@ -1,3 +1,4 @@
+import { AIProviderLogo } from "./AIProviderLogo";
 import "./WorktreeRecallCard.css";
 
 export interface WorktreeRecallArtifact {
@@ -10,21 +11,12 @@ export interface WorktreeRecallArtifact {
   url?: string;
 }
 
-export interface WorktreeRecallGraphPath {
-  from?: string;
-  to?: string;
-  kind?: string;
-  summary?: string;
-  nodes?: string[];
-}
-
 export interface WorktreeRecallResult {
   likelyIntent?: string;
   summary?: string;
   artifacts?: WorktreeRecallArtifact[];
   risks?: string[];
   decisions?: string[];
-  graphPaths?: WorktreeRecallGraphPath[];
   suggestedNextAction?: string;
 }
 
@@ -36,13 +28,19 @@ export type WorktreeRecallState =
   | { status: "empty"; message: string }
   | { status: "ready"; result: WorktreeRecallResult };
 
-export function WorktreeRecallCard({ state }: { state?: WorktreeRecallState }) {
+export function WorktreeRecallCard({
+  state,
+  onRetry,
+}: {
+  state?: WorktreeRecallState;
+  onRetry?: () => void;
+}) {
   if (!state || state.status === "idle") return null;
 
   if (state.status === "loading") {
     return (
       <div className="worktree-recall-card worktree-recall-state">
-        Recalling related worktree memory...
+        <RecallHeader detail="Searching Cognee for related repository memory." />
       </div>
     );
   }
@@ -50,7 +48,7 @@ export function WorktreeRecallCard({ state }: { state?: WorktreeRecallState }) {
   if (state.status === "disabled") {
     return (
       <div className="worktree-recall-card worktree-recall-state">
-        <span className="worktree-recall-kicker">Recall unavailable</span>
+        <RecallHeader detail="Cognee recall unavailable" />
         <span>{state.message}</span>
       </div>
     );
@@ -59,8 +57,13 @@ export function WorktreeRecallCard({ state }: { state?: WorktreeRecallState }) {
   if (state.status === "error") {
     return (
       <div className="worktree-recall-card worktree-recall-state is-error">
-        <span className="worktree-recall-kicker">Recall failed</span>
+        <RecallHeader detail="Cognee recall failed" />
         <span>{state.message}</span>
+        {onRetry && (
+          <button type="button" className="worktree-recall-retry" onClick={onRetry}>
+            Retry recall
+          </button>
+        )}
       </div>
     );
   }
@@ -68,7 +71,7 @@ export function WorktreeRecallCard({ state }: { state?: WorktreeRecallState }) {
   if (state.status === "empty") {
     return (
       <div className="worktree-recall-card worktree-recall-state">
-        <span className="worktree-recall-kicker">No memory found</span>
+        <RecallHeader detail="No Cognee memory found" />
         <span>{state.message}</span>
       </div>
     );
@@ -78,14 +81,19 @@ export function WorktreeRecallCard({ state }: { state?: WorktreeRecallState }) {
   const artifacts = result.artifacts ?? [];
   const risks = result.risks ?? [];
   const decisions = result.decisions ?? [];
-  const graphPaths = result.graphPaths ?? [];
+  const memoryCount = artifacts.length;
 
   return (
     <div className="worktree-recall-card">
-      <div className="worktree-recall-section">
-        <span className="worktree-recall-kicker">Likely intent</span>
-        <p>{result.likelyIntent || result.summary || "Memory returned context without an intent summary."}</p>
-      </div>
+      <RecallHeader
+        detail={`${memoryCount} related memor${memoryCount === 1 ? "y" : "ies"}`}
+      />
+      {(result.likelyIntent || result.summary) && (
+        <div className="worktree-recall-section">
+          <span className="worktree-recall-kicker">Likely intent</span>
+          <p>{result.likelyIntent || result.summary}</p>
+        </div>
+      )}
 
       {result.summary && result.summary !== result.likelyIntent && (
         <div className="worktree-recall-section">
@@ -134,34 +142,24 @@ export function WorktreeRecallCard({ state }: { state?: WorktreeRecallState }) {
         </div>
       )}
 
-      {graphPaths.length > 0 && (
+      {result.suggestedNextAction && (
         <div className="worktree-recall-section">
-          <span className="worktree-recall-kicker">Graph paths</span>
-          <ul className="worktree-recall-paths">
-            {graphPaths.slice(0, 6).map((path, index) => (
-              <li key={`${path.from ?? path.nodes?.[0] ?? "path"}-${index}`}>
-                <code>{formatGraphPath(path)}</code>
-                {path.summary && <small>{path.summary}</small>}
-              </li>
-            ))}
-          </ul>
+          <span className="worktree-recall-kicker">Next action</span>
+          <p>{result.suggestedNextAction}</p>
         </div>
       )}
-
-      <div className="worktree-recall-section">
-        <span className="worktree-recall-kicker">Next action</span>
-        <p>{result.suggestedNextAction || "Inspect the related artifacts before summarizing or merging this worktree."}</p>
-      </div>
     </div>
   );
 }
 
-function formatGraphPath(path: WorktreeRecallGraphPath): string {
-  if (path.nodes?.length) {
-    return path.nodes.join(" -> ");
-  }
-
-  const from = path.from ?? "memory";
-  const to = path.to ?? "worktree";
-  return path.kind ? `${from} -[${path.kind}]-> ${to}` : `${from} -> ${to}`;
+function RecallHeader({ detail }: { detail: string }) {
+  return (
+    <div className="worktree-recall-header">
+      <AIProviderLogo providerId="cognee" size="sm" decorative />
+      <div>
+        <span>Cognee memory recall</span>
+        <small>{detail}</small>
+      </div>
+    </div>
+  );
 }

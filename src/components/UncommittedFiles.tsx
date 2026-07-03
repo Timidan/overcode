@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Eye, Sparkle } from "@phosphor-icons/react";
 import { ipc } from "../lib/ipc";
 import { useAIPanel } from "../store/useAIPanel";
+import { useWorkingTree } from "../store/useWorkingTree";
 import { CodeInspector } from "./CodeInspector";
 import "./UncommittedFiles.css";
 
@@ -15,6 +16,8 @@ interface GitFile {
 
 interface Props {
   repoPath: string;
+  repoId?: string;
+  repoName?: string;
   onCommit?: () => void;
 }
 
@@ -54,12 +57,14 @@ const STATUS_LABEL: Record<GitFile["status"], string> = {
 
 const FILE_EXPLAIN_MAX_BYTES = 18_000;
 
-export function UncommittedFiles({ repoPath, onCommit }: Props) {
+export function UncommittedFiles({ repoPath, repoId, repoName, onCommit }: Props) {
   const openAIPanel = useAIPanel((s) => s.open);
+  const setDirtyPaths = useWorkingTree((s) => s.setDirtyPaths);
   const [files, setFiles] = useState<GitFile[]>([]);
   const [diff, setDiff] = useState("");
   const [inspector, setInspector] = useState<InspectorState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [explainingPath, setExplainingPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const patchesByPath = useMemo(() => buildPatchMap(diff), [diff]);
@@ -83,17 +88,19 @@ export function UncommittedFiles({ repoPath, onCommit }: Props) {
         const result = await ipc.getGitStatus(repoPath, { mode: "diff" });
         if (isCancelled()) return;
         setFiles(result.files as GitFile[]);
+        setDirtyPaths(repoPath, result.files.map((file) => file.path));
         setDiff([result.stagedDiff, result.diff].filter(Boolean).join("\n\n"));
       } catch (err) {
         if (isCancelled()) return;
         setFiles([]);
+        setDirtyPaths(repoPath, []);
         setDiff("");
         setError(err instanceof Error ? err.message : "Failed to load working tree");
       } finally {
         if (!isCancelled()) setLoading(false);
       }
     },
-    [repoPath],
+    [repoPath, setDirtyPaths],
   );
 
   function patchForFile(file: GitFile): string {
@@ -109,9 +116,21 @@ export function UncommittedFiles({ repoPath, onCommit }: Props) {
   }
 
   async function explainFile(file: GitFile) {
+    if (explainingPath) return;
+    setExplainingPath(file.path);
+    try {
+      await runExplain(file);
+    } finally {
+      setExplainingPath(null);
+    }
+  }
+
+  async function runExplain(file: GitFile) {
     const patch = patchForFile(file).trim();
     if (patch) {
       openAIPanel("code", {
+        repoId,
+        repoName,
         subject: `${STATUS_LABEL[file.status] ?? file.status} ${file.path}`,
         kind: "diff-hunk",
         content: patch,
@@ -129,6 +148,8 @@ export function UncommittedFiles({ repoPath, onCommit }: Props) {
           : { maxBytes: FILE_EXPLAIN_MAX_BYTES },
       );
       openAIPanel("code", {
+        repoId,
+        repoName,
         subject: `${STATUS_LABEL[file.status] ?? file.status} ${file.path}`,
         kind: "file",
         language: content.language,
@@ -139,6 +160,8 @@ export function UncommittedFiles({ repoPath, onCommit }: Props) {
       });
     } catch (err) {
       openAIPanel("code", {
+        repoId,
+        repoName,
         subject: `${STATUS_LABEL[file.status] ?? file.status} ${file.path}`,
         kind: "file",
         content: "",
@@ -159,7 +182,15 @@ export function UncommittedFiles({ repoPath, onCommit }: Props) {
   }, [loadStatus]);
 
   function renderBody() {
-    if (loading) return <div className="empty">Loading…</div>;
+    if (loading) {
+      return (
+        <div className="file-list-skeleton" aria-hidden="true">
+          <span className="file-list-skeleton-row" />
+          <span className="file-list-skeleton-row" />
+          <span className="file-list-skeleton-row" />
+        </div>
+      );
+    }
     if (error) {
       return (
         <div className="uncommitted-error" role="alert">
@@ -207,12 +238,13 @@ export function UncommittedFiles({ repoPath, onCommit }: Props) {
               </button>
               <button
                 type="button"
-                className="file-action-button file-action-button-ai"
+                className="file-action-button"
                 onClick={() => void explainFile(f)}
                 title={`Ask the active AI provider to explain ${f.path}`}
+                disabled={explainingPath !== null}
               >
                 <Sparkle size={12} />
-                <span>AI</span>
+                <span>{explainingPath === f.path ? "Explaining…" : "Explain"}</span>
               </button>
             </span>
           </li>
@@ -246,7 +278,7 @@ export function UncommittedFiles({ repoPath, onCommit }: Props) {
           type="button"
           title="Generate a commit message for these changes with the active AI provider"
         >
-          Commit changes
+          Draft commit message
         </button>
       )}
     </section>

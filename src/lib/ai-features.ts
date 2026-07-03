@@ -1,4 +1,5 @@
 import { ipc, type GitHubIssueDetail, type PullRequestDetail, type PullRequestFile } from "./ipc";
+import { buildCogneeMemoryPromptSection } from "./cognee-workflow-memory";
 import {
   fallbackEnvelope,
   parseAIEnvelope,
@@ -36,15 +37,16 @@ const MAX_TREE_ITEMS = 80;
 const MAX_LIST_ITEMS = 80;
 const MAX_PROMPT_CHARS = 14_000;
 const MAX_MEMORY_CONTEXT_CHARS = 4_000;
+const REPO_BRIEF_CACHE_VERSION = "brief:v5";
 
 const IMPACT_SYSTEM_PROMPT =
   "Analyze this code diff for a developer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"impact\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"intent\":\"...\",\"modules\":[{\"name\":\"...\",\"paths\":[\"...\"],\"changeType\":\"added|modified|removed|mixed\"}],\"risks\":[{\"severity\":\"low|medium|high\",\"area\":\"...\",\"reason\":\"...\",\"files\":[\"...\"]}],\"checks\":[{\"command\":\"optional command\",\"reason\":\"...\"}],\"recommendation\":\"...\"}}. No markdown fences.";
 
 const COMMIT_SYSTEM_PROMPT =
-  "Generate a conventional commit message in the format `type(scope): description` followed by a blank line and a body paragraph. Then on a new line write `---PR---` followed by a PR description paragraph. Use only the provided git diff or git status data.";
+  "Generate a conventional commit message in the format `type(scope): description` followed by a blank line and a body paragraph. Then on a new line write `---PR---` followed by a PR description paragraph. Use the provided git changes as the source of truth; optional Cognee memory may inform repo conventions and prior reviewer expectations, but must not invent changed code.";
 
 const REPO_BRIEF_SYSTEM_PROMPT =
-  "Create a concise repository onboarding brief. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"brief\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"purpose\":\"...\",\"keyModules\":[{\"name\":\"...\",\"path\":\"...\",\"role\":\"...\"}],\"recentActivity\":[{\"label\":\"...\",\"evidence\":\"...\"}],\"onboardingPath\":[\"...\"],\"notableRisks\":[\"...\"]}}. Base every claim only on the repository data. No markdown fences.";
+  "Create a concise repository onboarding brief. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"brief\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"purpose\":\"...\",\"keyModules\":[{\"name\":\"...\",\"path\":\"...\",\"role\":\"...\"}],\"recentActivity\":[{\"label\":\"...\",\"evidence\":\"...\"}],\"onboardingPath\":[\"...\"],\"notableRisks\":[\"...\"]}}. Base every claim only on the repository data and optional Cognee memory context. No markdown fences.";
 
 const REPO_BRIEF_RETRY_SYSTEM_PROMPT =
   "Create a short developer onboarding brief from the repository facts below. Return only valid JSON matching this feature=brief envelope: schemaVersion, feature, summary, confidence, warnings, data.purpose, data.keyModules, data.recentActivity, data.onboardingPath, data.notableRisks. Do not leave the answer blank. No markdown fences.";
@@ -53,10 +55,10 @@ const STASH_LABEL_SYSTEM_PROMPT =
   "Generate a one-line plain-English label for this stash. Max 60 characters. Output only the label text - no quotes, no prefix.";
 
 const STASH_EXPLAIN_SYSTEM_PROMPT =
-  "Explain this git stash for a developer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"stash_explain\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"intent\":\"...\",\"files\":[\"...\"],\"added\":[\"short bullet\"],\"removed\":[\"short bullet\"],\"risks\":[{\"severity\":\"low|medium|high\",\"text\":\"...\",\"files\":[\"...\"]}],\"suggestedActions\":[\"...\"],\"label\":\"short stash label\"}}. Use only the supplied stash message, files, and diff. No markdown fences.";
+  "Explain this git stash for a developer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"stash_explain\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"intent\":\"...\",\"files\":[\"...\"],\"added\":[\"short bullet\"],\"removed\":[\"short bullet\"],\"risks\":[{\"severity\":\"low|medium|high\",\"text\":\"...\",\"files\":[\"...\"]}],\"suggestedActions\":[\"...\"],\"label\":\"short stash label\"}}. Use the supplied stash message, files, diff, and optional Cognee memory context. No markdown fences.";
 
 const PR_REVIEW_SYSTEM_PROMPT =
-  "Review this pull request for a developer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"pr_review\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"readiness\":\"blocked|needs_review|ready\",\"changeSummary\":\"...\",\"riskMatrix\":[{\"severity\":\"low|medium|high\",\"file\":\"optional path\",\"concern\":\"...\",\"evidence\":\"...\"}],\"blockers\":[{\"source\":\"conversation|ci|diff\",\"text\":\"...\",\"url\":\"optional url\"}],\"ci\":{\"passing\":0,\"failing\":0,\"pending\":0,\"notable\":[\"...\"]},\"suggestedComment\":\"...\"}}. Base every claim on provided PR data. No markdown fences.";
+  "Review this pull request for a developer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"pr_review\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"readiness\":\"blocked|needs_review|ready\",\"changeSummary\":\"...\",\"riskMatrix\":[{\"severity\":\"low|medium|high\",\"file\":\"optional path\",\"concern\":\"...\",\"evidence\":\"...\"}],\"blockers\":[{\"source\":\"conversation|ci|diff\",\"text\":\"...\",\"url\":\"optional url\"}],\"ci\":{\"passing\":0,\"failing\":0,\"pending\":0,\"notable\":[\"...\"]},\"suggestedComment\":\"...\"}}. Base every claim on provided PR data and optional Cognee memory context. No markdown fences.";
 
 const PR_HUNK_REVIEW_SYSTEM_PROMPT =
   "Review these pull request diff hunks like a senior reviewer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"pr_hunk_review\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"overall\":\"low_risk|needs_attention|blocked\",\"hunks\":[{\"file\":\"...\",\"header\":\"@@ ...\",\"verdict\":\"safe|question|risk|needs_test\",\"note\":\"short reviewer note\",\"suggestedCheck\":\"optional command or manual check\"}],\"questions\":[\"...\"],\"tests\":[\"...\"]}}. Be concise. Use only the supplied hunks. No markdown fences.";
@@ -65,13 +67,13 @@ const PR_FILE_CHANGE_SYSTEM_PROMPT =
   "Summarize this single pull request file patch for a developer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"pr_file_change\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"added\":[\"short bullet\"],\"removed\":[\"short bullet\"],\"changedBehavior\":\"short behavior impact\",\"risk\":\"low|medium|high\",\"reviewFocus\":[\"short bullet\"],\"suggestedChecks\":[\"short command or manual check\"]}}. Explain what this file change added and removed. Use only the supplied file patch and PR context. No markdown fences.";
 
 const ISSUE_TRIAGE_SYSTEM_PROMPT =
-  "Triage this GitHub issue for a developer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"issue_triage\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"priority\":\"low|medium|high\",\"problem\":\"...\",\"likelyModules\":[{\"name\":\"...\",\"paths\":[\"...\"],\"reason\":\"...\"}],\"ambiguities\":[\"...\"],\"suggestedPlan\":[\"...\"],\"acceptanceChecks\":[\"...\"],\"suggestedBranchName\":\"...\"}}. Use only the issue text, labels, comments, linked PRs, and repository context supplied. No markdown fences.";
+  "Triage this GitHub issue for a developer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"issue_triage\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"priority\":\"low|medium|high\",\"problem\":\"...\",\"likelyModules\":[{\"name\":\"...\",\"paths\":[\"...\"],\"reason\":\"...\"}],\"ambiguities\":[\"...\"],\"suggestedPlan\":[\"...\"],\"acceptanceChecks\":[\"...\"],\"suggestedBranchName\":\"...\"}}. Use only the issue text, labels, comments, linked PRs, repository context, and optional Cognee memory context supplied. No markdown fences.";
 
 const CODE_EXPLAIN_SYSTEM_PROMPT =
-  "Explain this read-only code or diff selection for a developer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"code_explain\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"subject\":\"...\",\"purpose\":\"...\",\"keyPoints\":[\"...\"],\"risks\":[{\"severity\":\"low|medium|high\",\"text\":\"...\"}],\"suggestedChecks\":[\"...\"]}}. Use only the provided file or diff text. No markdown fences.";
+  "Explain this read-only code or diff selection for a developer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"code_explain\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"subject\":\"...\",\"purpose\":\"...\",\"keyPoints\":[\"...\"],\"risks\":[{\"severity\":\"low|medium|high\",\"text\":\"...\"}],\"suggestedChecks\":[\"...\"]}}. Use only the provided file or diff text and optional Cognee memory context. No markdown fences.";
 
 const WORKTREE_COMPARE_SYSTEM_PROMPT =
-  "Compare this local git worktree against the selected base. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"worktree_compare\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"base\":\"...\",\"target\":\"...\",\"ahead\":0,\"behind\":0,\"dirtyFiles\":0,\"intent\":\"...\",\"moduleMap\":[{\"module\":\"...\",\"files\":[\"...\"],\"risk\":\"low|medium|high\"}],\"readiness\":\"not_ready|reviewable|ready\",\"nextActions\":[\"...\"],\"prDraft\":{\"title\":\"...\",\"body\":\"...\"}}}. Use only the provided diff, commit, and status data. No markdown fences.";
+  "Compare this local git worktree against the selected base. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"worktree_compare\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"base\":\"...\",\"target\":\"...\",\"ahead\":0,\"behind\":0,\"dirtyFiles\":0,\"intent\":\"...\",\"moduleMap\":[{\"module\":\"...\",\"files\":[\"...\"],\"risk\":\"low|medium|high\"}],\"readiness\":\"not_ready|reviewable|ready\",\"nextActions\":[\"...\"],\"prDraft\":{\"title\":\"...\",\"body\":\"...\"}}}. Use the provided diff, commit, status data, and optional Cognee memory context. No markdown fences.";
 
 const STANDUP_SYSTEM_PROMPT =
   "Generate a developer daily standup from real local git and PR activity. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"standup\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"greeting\":\"Good morning/afternoon/evening/night, username\",\"headline\":\"...\",\"yesterday\":[\"...\"],\"today\":[\"...\"],\"blockers\":[\"...\"],\"notableRepos\":[{\"repo\":\"...\",\"note\":\"...\"}],\"slackDraft\":\"Slack-ready short message\"}}. Do not invent activity. If data is sparse, say so. No markdown fences.";
@@ -123,9 +125,14 @@ export interface ImpactPayload {
 }
 
 export interface CommitPayload {
+  repoId?: string;
+  repoName?: string;
   stagedDiff?: string;
   repoPath?: string;
+  branch?: string;
+  changedFiles?: string[];
   unavailableReason?: string;
+  memoryContext?: string;
 }
 
 export interface BriefPayload {
@@ -139,6 +146,7 @@ export interface BriefPayload {
   openPRs?: string[];
   changedFiles?: string[];
   unavailableReason?: string;
+  memoryContext?: string;
 }
 
 export interface WorktreeComparePayload {
@@ -168,6 +176,7 @@ export interface WorktreeComparePayload {
     isMain?: boolean;
   }>;
   unavailableReason?: string;
+  memoryContext?: string;
 }
 
 export interface IssueTriagePayload {
@@ -178,25 +187,33 @@ export interface IssueTriagePayload {
   readme?: string;
   localChangedFiles?: string[];
   unavailableReason?: string;
+  memoryContext?: string;
 }
 
 export interface CodeExplainPayload {
+  repoId?: string;
+  repoName?: string;
+  branch?: string;
   subject: string;
   language?: string;
   content: string;
   context?: string;
   kind: "file" | "diff-hunk" | "selection";
   unavailableReason?: string;
+  memoryContext?: string;
 }
 
 export interface StashExplainPayload {
   repoId: string;
+  repoName?: string;
   repoPath?: string;
+  branch?: string;
   ref: string;
   message?: string;
   diff?: string;
   files?: string[];
   unavailableReason?: string;
+  memoryContext?: string;
 }
 
 export interface StandupPayload {
@@ -229,6 +246,7 @@ export interface StandupPayload {
     behind: number;
   }>;
   unavailableReason?: string;
+  memoryContext?: string;
 }
 
 export type AIFeaturePayload =
@@ -258,6 +276,17 @@ interface StructuredCacheEntry<T> {
 }
 
 type AICache = Record<string, unknown>;
+type RepoBriefEvidenceLevel = "minimal" | "thin" | "sufficient";
+
+interface RepoBriefEvidenceReport {
+  fileTreeEntries: number;
+  readmeChars: number;
+  recentCommits: number;
+  openPRs: number;
+  changedFiles: number;
+  memoryChars: number;
+  level: RepoBriefEvidenceLevel;
+}
 
 export async function analyzeImpact(payload: ImpactPayload): Promise<string> {
   const result = await analyzeImpactStructured(payload);
@@ -287,9 +316,11 @@ export async function analyzeImpactStructured(
   const prompt = [
     `DIFF:\n${diff}`,
     `CHANGED PATHS:\n${formatList(fileTree, "No changed paths were returned.")}`,
-    payload.memoryContext?.trim()
-      ? `MEMORY CONTEXT:\n${truncateText(payload.memoryContext.trim(), MAX_MEMORY_CONTEXT_CHARS)}`
-      : "",
+    buildCogneeMemoryPromptSection(
+      payload.memoryContext?.trim()
+        ? truncateText(payload.memoryContext.trim(), MAX_MEMORY_CONTEXT_CHARS)
+        : "",
+    ),
   ].join("\n\n");
   const structured = await callStructuredAI(
     "impact",
@@ -321,7 +352,10 @@ export async function generateCommitAssistant(
 
   const response = await ipc.callAIModel(
     COMMIT_SYSTEM_PROMPT,
-    `GIT CHANGES:\n${diff}`,
+    [
+      `GIT CHANGES:\n${diff}`,
+      buildCogneeMemoryPromptSection(payload.memoryContext),
+    ].filter(Boolean).join("\n\n"),
   );
   return parseCommitAssistantResponse(response);
 }
@@ -352,38 +386,61 @@ export async function getRepoBriefStructured(
   }
 
   const cache = await getAICache();
-  const key = `brief:v2:${payload.repoId}:${hashText(prompt)}`;
+  const evidence = buildRepoBriefEvidenceReport(payload);
+  const key = `${REPO_BRIEF_CACHE_VERSION}:${payload.repoId}:${hashText(prompt)}`;
   const cached = cache[key];
 
-  if (isFreshStructuredCacheEntry<RepoBriefData>(cached)) {
+  if (
+    isFreshStructuredCacheEntry<RepoBriefData>(cached) &&
+    !isThinRepoBriefResult(cached.content, evidence)
+  ) {
     return cached.content;
   }
 
-  let resolved = await callStructuredAI(
+  const call = await callStructuredAIWithDiagnostics(
     "brief",
     REPO_BRIEF_SYSTEM_PROMPT,
     prompt,
     validateRepoBriefData,
   );
+  let resolved = call.result;
+  let failureReason = call.failureReason;
 
-  if (!resolved) {
+  if (!resolved || isThinRepoBriefResult(resolved, evidence)) {
     const retryPrompt = buildCompactRepoBriefPrompt(payload);
     if (retryPrompt) {
-      resolved = await callStructuredAI(
+      const retryCall = await callStructuredAIWithDiagnostics(
         "brief",
         REPO_BRIEF_RETRY_SYSTEM_PROMPT,
         retryPrompt,
         validateRepoBriefData,
       );
+      const retryResolved = retryCall.result;
+      if (retryResolved) resolved = retryResolved;
+      else failureReason = retryCall.failureReason ?? failureReason;
     }
   }
 
-  if (!resolved) {
+  if (resolved && isThinRepoBriefResult(resolved, evidence)) {
     resolved = fallbackEnvelope(
       "brief",
-      "The AI provider did not return structured brief data, so Overcode prepared a local brief.",
+      "The AI provider returned a shallow brief despite sufficient evidence, so Overcode prepared a local evidence-backed brief.",
       buildLocalRepoBriefData(payload),
-      ["Structured response validation failed."],
+      [
+        "AI returned a shallow brief despite sufficient evidence; Overcode used the local repository evidence instead.",
+      ],
+    );
+  }
+
+  if (!resolved) {
+    const warning = failureReason ?? "Structured response validation failed.";
+    resolved = fallbackEnvelope(
+      "brief",
+      failureReason
+        ? `The AI provider failed: ${failureReason}. Overcode prepared a local brief.`
+        : "The AI provider did not return structured brief data, so Overcode prepared a local brief.",
+      buildLocalRepoBriefData(payload),
+      [warning],
     );
   }
 
@@ -397,7 +454,7 @@ export async function getRepoBriefStructured(
 
 export async function summarizePullRequest(
   detail: PullRequestDetail,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; memoryContext?: string } = {},
 ): Promise<string> {
   const result = await summarizePullRequestStructured(detail, options);
   return [
@@ -412,9 +469,9 @@ export async function summarizePullRequest(
 
 export async function summarizePullRequestStructured(
   detail: PullRequestDetail,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; memoryContext?: string } = {},
 ): Promise<AIEnvelope<PRReviewData>> {
-  const prompt = buildPullRequestPrompt(detail);
+  const prompt = buildPullRequestPrompt(detail, options.memoryContext);
   if (!prompt) {
     const reason = "PR summary unavailable: no real pull request data was returned.";
     return fallbackEnvelope("pr_review", reason, emptyPRReviewData(), [reason]);
@@ -448,9 +505,9 @@ export async function summarizePullRequestStructured(
 
 export async function summarizePullRequestHunksStructured(
   detail: PullRequestDetail,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; memoryContext?: string } = {},
 ): Promise<AIEnvelope<PRHunkReviewData>> {
-  const prompt = buildPullRequestHunkPrompt(detail);
+  const prompt = buildPullRequestHunkPrompt(detail, options.memoryContext);
   if (!prompt) {
     const reason = "Hunk review unavailable: no patch hunks were returned for this pull request.";
     return fallbackEnvelope("pr_hunk_review", reason, emptyPRHunkReviewData(), [reason]);
@@ -485,9 +542,9 @@ export async function summarizePullRequestHunksStructured(
 export async function summarizePullRequestFileChangeStructured(
   detail: PullRequestDetail,
   file: PullRequestFile,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; memoryContext?: string } = {},
 ): Promise<AIEnvelope<PRFileChangeData>> {
-  const prompt = buildPullRequestFileChangePrompt(detail, file);
+  const prompt = buildPullRequestFileChangePrompt(detail, file, options.memoryContext);
   const cache = await getAICache();
   const key = [
     "pr-file-change:v1",
@@ -732,12 +789,30 @@ async function callStructuredAI<T>(
   userPrompt: string,
   validateData: (value: unknown) => T | null,
 ): Promise<AIEnvelope<T> | null> {
+  return (await callStructuredAIWithDiagnostics(
+    feature,
+    systemPrompt,
+    userPrompt,
+    validateData,
+  )).result;
+}
+
+async function callStructuredAIWithDiagnostics<T>(
+  feature: StructuredAIFeature,
+  systemPrompt: string,
+  userPrompt: string,
+  validateData: (value: unknown) => T | null,
+): Promise<{ result: AIEnvelope<T> | null; failureReason?: string }> {
+  let failureReason: string | undefined;
   const raw = await ipc.callAIModel(systemPrompt, userPrompt)
     .then((value) => value.trim())
-    .catch(() => "");
-  if (!raw) return null;
+    .catch((error: unknown) => {
+      failureReason = aiFailureMessage(error);
+      return "";
+    });
+  if (!raw) return { result: null, failureReason };
   const parsed = parseAIEnvelope(raw, feature, validateData);
-  if (parsed) return parsed;
+  if (parsed) return { result: parsed };
 
   const repaired = await ipc.callAIModel(
     JSON_REPAIR_SYSTEM_PROMPT,
@@ -750,12 +825,38 @@ async function callStructuredAI<T>(
     ].join("\n\n"),
   )
     .then((value) => value.trim())
-    .catch(() => "");
-  if (!repaired) return null;
-  return parseAIEnvelope(repaired, feature, validateData);
+    .catch((error: unknown) => {
+      failureReason = aiFailureMessage(error);
+      return "";
+    });
+  if (!repaired) {
+    return { result: null, failureReason: failureReason ?? "Structured response validation failed." };
+  }
+  const repairedParsed = parseAIEnvelope(repaired, feature, validateData);
+  return {
+    result: repairedParsed,
+    failureReason: repairedParsed ? undefined : "Structured response validation failed.",
+  };
 }
 
-function buildPullRequestPrompt(detail: PullRequestDetail): string | null {
+function aiFailureMessage(error: unknown): string {
+  const message = error instanceof Error
+    ? error.message.trim()
+    : typeof error === "string"
+      ? error.trim()
+      : "";
+  const remoteMatch = message.match(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?(.+)$/);
+  if (remoteMatch?.[1]?.trim()) return remoteMatch[1].trim();
+  const errorMatch = message.match(/^Error:\s+(.+)$/);
+  if (errorMatch?.[1]?.trim()) return errorMatch[1].trim();
+  if (message) return message;
+  return "AI request failed.";
+}
+
+function buildPullRequestPrompt(
+  detail: PullRequestDetail,
+  memoryContext?: string,
+): string | null {
   if (!detail) return null;
 
   const fileSummaryLines = detail.files.slice(0, MAX_PR_FILE_SUMMARIES).map((file) =>
@@ -838,12 +939,17 @@ function buildPullRequestPrompt(detail: PullRequestDetail): string | null {
     `REVIEWS:\n${formatList(reviewLines, "No reviews submitted.")}`,
     "",
     `CHECKS:\n${formatList(checkLines, "No CI checks reported.")}`,
+    "",
+    buildCogneeMemoryPromptSection(memoryContext),
   ];
 
-  return truncateText(sections.join("\n"), MAX_PR_PROMPT_CHARS);
+  return truncateText(sections.filter(Boolean).join("\n"), MAX_PR_PROMPT_CHARS);
 }
 
-function buildPullRequestHunkPrompt(detail: PullRequestDetail): string | null {
+function buildPullRequestHunkPrompt(
+  detail: PullRequestDetail,
+  memoryContext?: string,
+): string | null {
   const hunks = detail.files.flatMap((file) => extractPatchHunks(file.path, file.patch));
   if (hunks.length === 0) return null;
   const ranked = hunks
@@ -875,12 +981,15 @@ function buildPullRequestHunkPrompt(detail: PullRequestDetail): string | null {
     )}`,
     "",
     `HUNKS:\n${formatList(ranked, "No hunks supplied.")}`,
-  ].join("\n"), MAX_PR_PROMPT_CHARS);
+    "",
+    buildCogneeMemoryPromptSection(memoryContext),
+  ].filter(Boolean).join("\n"), MAX_PR_PROMPT_CHARS);
 }
 
 function buildPullRequestFileChangePrompt(
   detail: PullRequestDetail,
   file: PullRequestFile,
+  memoryContext?: string,
 ): string {
   const patch = file.patch?.trim()
     ? compactDiff(file.patch, MAX_PR_FILE_CHANGE_PATCH_CHARS)
@@ -898,6 +1007,8 @@ function buildPullRequestFileChangePrompt(
     `Diff stats: +${file.additions}/-${file.deletions}`,
     "",
     `PATCH:\n${patch}`,
+    "",
+    buildCogneeMemoryPromptSection(memoryContext),
   ].filter(Boolean);
   return truncateText(sections.join("\n"), MAX_PR_PROMPT_CHARS);
 }
@@ -995,7 +1106,9 @@ function buildIssueTriagePrompt(payload: IssueTriagePayload): string {
     `README SUMMARY:\n${summarizeReadme(payload.readme ?? "") || "Unavailable."}`,
     "",
     `LOCAL CHANGED FILES:\n${formatList(changedFiles, "No local changed files supplied.")}`,
-  ].join("\n"), MAX_PR_PROMPT_CHARS);
+    "",
+    buildCogneeMemoryPromptSection(payload.memoryContext),
+  ].filter(Boolean).join("\n"), MAX_PR_PROMPT_CHARS);
 }
 
 function buildCodeExplanationPrompt(payload: CodeExplainPayload): string {
@@ -1007,6 +1120,8 @@ function buildCodeExplanationPrompt(payload: CodeExplainPayload): string {
     payload.context ? `Context: ${payload.context}` : "",
     "",
     `CONTENT:\n${payload.kind === "diff-hunk" ? compactDiff(payload.content, MAX_DIFF_CHARS) : truncateText(payload.content, MAX_DIFF_CHARS)}`,
+    "",
+    buildCogneeMemoryPromptSection(payload.memoryContext),
   ].filter(Boolean).join("\n"), MAX_PR_PROMPT_CHARS);
 }
 
@@ -1023,7 +1138,9 @@ function buildStashExplainPrompt(payload: StashExplainPayload): string {
     `FILES:\n${formatList(files, "No file paths were returned.")}`,
     "",
     `DIFF:\n${diff || "Unavailable"}`,
-  ].join("\n"), MAX_PR_PROMPT_CHARS);
+    "",
+    buildCogneeMemoryPromptSection(payload.memoryContext),
+  ].filter(Boolean).join("\n"), MAX_PR_PROMPT_CHARS);
 }
 
 function buildStandupPrompt(payload: StandupPayload): string {
@@ -1050,7 +1167,9 @@ function buildStandupPrompt(payload: StandupPayload): string {
     `OPEN / RECENT PRS:\n${formatList(prLines, "No pull request activity returned.")}`,
     "",
     `LOCAL WORK IN PROGRESS:\n${formatList(changeLines, "No local dirty workspaces returned.")}`,
-  ].join("\n"), MAX_STANDUP_PROMPT_CHARS);
+    "",
+    buildCogneeMemoryPromptSection(payload.memoryContext),
+  ].filter(Boolean).join("\n"), MAX_STANDUP_PROMPT_CHARS);
 }
 
 function formatComment(item: { author: string; body: string; file_path?: string; line?: number }): string {
@@ -1126,11 +1245,20 @@ function buildRepoBriefPrompt(payload: BriefPayload): string | null {
 
   if (!hasRealData) return null;
 
+  const evidence = buildRepoBriefEvidenceReport(payload);
+
   return truncateText([
     "REPOSITORY:",
     `Name: ${payload.repoName?.trim() || payload.repoId}`,
     `Remote: ${payload.remoteUrl?.trim() || "Unavailable"}`,
     `Branch: ${payload.branch?.trim() || "Unavailable"}`,
+    "",
+    formatRepoBriefEvidenceReport(evidence),
+    "",
+    "QUALITY RULES:",
+    "If the evidence level is sufficient, produce concrete module roles, recent activity, onboarding steps, and risks from the supplied evidence.",
+    "Only warn about limited repository data when the evidence budget is minimal or thin.",
+    "Do not use the repository description as the whole brief when README, tree, commits, changed files, or Cognee memory are available.",
     "",
     `FILE TREE:\n${formatList(tree, "Unavailable through current IPC data.")}`,
     "",
@@ -1141,7 +1269,9 @@ function buildRepoBriefPrompt(payload: BriefPayload): string | null {
     `OPEN PRS:\n${formatList(openPRs, "No open PRs were returned or the provider is not connected.")}`,
     "",
     `CHANGED FILES:\n${formatList(changedFiles, "No uncommitted files were returned.")}`,
-  ].join("\n"), MAX_PROMPT_CHARS);
+    "",
+    buildCogneeMemoryPromptSection(payload.memoryContext),
+  ].filter(Boolean).join("\n"), MAX_PROMPT_CHARS);
 }
 
 function buildCompactRepoBriefPrompt(payload: BriefPayload): string | null {
@@ -1162,13 +1292,74 @@ function buildCompactRepoBriefPrompt(payload: BriefPayload): string | null {
     `Repo: ${payload.repoName?.trim() || payload.repoId}`,
     `Branch: ${payload.branch?.trim() || "unavailable"}`,
     `Remote: ${payload.remoteUrl?.trim() || "unavailable"}`,
+    formatRepoBriefEvidenceReport(buildRepoBriefEvidenceReport(payload)),
+    "If the evidence level is sufficient, do not answer with a limited-data warning. Use the supplied files, README/package notes, commits, changed files, and Cognee memory.",
     `Files: ${tree.join(", ") || "unavailable"}`,
     `README/package notes: ${readme || "unavailable"}`,
     `Recent commits: ${recentCommits.join(" | ") || "none returned"}`,
     `Changed files: ${changedFiles.join(", ") || "none"}`,
+    buildCogneeMemoryPromptSection(payload.memoryContext),
     "",
-    "Write 4 markdown sections: Purpose, Key modules, Recent activity, Worth knowing.",
+    "Return only valid JSON. Use schemaVersion=1, feature=\"brief\", summary, confidence, warnings, and data fields: data.purpose, data.keyModules, data.recentActivity, data.onboardingPath, data.notableRisks. No markdown.",
+  ].filter(Boolean).join("\n");
+}
+
+function buildRepoBriefEvidenceReport(payload: BriefPayload): RepoBriefEvidenceReport {
+  const fileTreeEntries = payload.tree?.filter((item) => item.trim()).length ?? 0;
+  const readmeChars = payload.readme?.trim().length ?? 0;
+  const recentCommits = payload.recentCommits?.filter((item) => item.trim()).length ?? 0;
+  const openPRs = payload.openPRs?.filter((item) => item.trim()).length ?? 0;
+  const changedFiles = payload.changedFiles?.filter((item) => item.trim()).length ?? 0;
+  const memoryChars = payload.memoryContext?.trim().length ?? 0;
+
+  const score = [
+    fileTreeEntries >= 3,
+    readmeChars >= 120,
+    recentCommits >= 2,
+    openPRs > 0,
+    changedFiles > 0,
+    memoryChars >= 80,
+  ].filter(Boolean).length;
+
+  return {
+    fileTreeEntries,
+    readmeChars,
+    recentCommits,
+    openPRs,
+    changedFiles,
+    memoryChars,
+    level: score >= 2 ? "sufficient" : score === 1 ? "thin" : "minimal",
+  };
+}
+
+function formatRepoBriefEvidenceReport(evidence: RepoBriefEvidenceReport): string {
+  return [
+    "EVIDENCE BUDGET:",
+    `Evidence level: ${evidence.level}`,
+    `File tree entries: ${evidence.fileTreeEntries}`,
+    `README/package characters: ${evidence.readmeChars}`,
+    `Recent commits: ${evidence.recentCommits}`,
+    `Open PRs: ${evidence.openPRs}`,
+    `Changed files: ${evidence.changedFiles}`,
+    `Cognee memory characters: ${evidence.memoryChars}`,
   ].join("\n");
+}
+
+function isThinRepoBriefResult(
+  result: AIEnvelope<RepoBriefData>,
+  evidence: RepoBriefEvidenceReport,
+): boolean {
+  if (evidence.level !== "sufficient") return false;
+  const warningText = result.warnings.join(" ").toLowerCase();
+  const claimsLimitedData =
+    warningText.includes("limited repository data") ||
+    warningText.includes("inferred from description") ||
+    warningText.includes("insufficient repository data");
+  const sparseStructuredData =
+    result.data.keyModules.length < 2 ||
+    result.data.onboardingPath.length < 2 ||
+    result.data.recentActivity.length < 1;
+  return claimsLimitedData || sparseStructuredData;
 }
 
 function emptyImpactData(): ImpactData {
@@ -1298,7 +1489,6 @@ function buildLocalImpactData(diff: string, fileTree: string[]): ImpactData {
 }
 
 function buildLocalRepoBriefData(payload: BriefPayload): RepoBriefData {
-  const tree = summarizeBriefTree(payload.tree?.filter(Boolean) ?? []);
   const recentCommits = limitList(
     payload.recentCommits?.filter(Boolean) ?? [],
     8,
@@ -1307,6 +1497,10 @@ function buildLocalRepoBriefData(payload: BriefPayload): RepoBriefData {
     payload.changedFiles?.filter(Boolean) ?? [],
     12,
   );
+  const tree = summarizeBriefTree([
+    ...(payload.tree?.filter(Boolean) ?? []),
+    ...changedFiles.filter((item) => !item.startsWith("[truncated ")),
+  ]);
   const readme = summarizeReadme(payload.readme ?? "");
 
   const purpose = readme
@@ -1318,7 +1512,7 @@ function buildLocalRepoBriefData(payload: BriefPayload): RepoBriefData {
     keyModules: tree.slice(0, 12).map((item) => ({
       name: item.replace(/\/$/, ""),
       path: item,
-      role: "Visible from the repository tree.",
+      role: localRepoBriefRole(item),
     })),
     recentActivity: recentCommits.map((item) => ({
       label: item,
@@ -1641,7 +1835,9 @@ function buildWorktreeComparePrompt(payload: WorktreeComparePayload): string {
       ),
       "No worktrees returned.",
     )}`,
-  ].join("\n"), MAX_PR_PROMPT_CHARS);
+    "",
+    buildCogneeMemoryPromptSection(payload.memoryContext),
+  ].filter(Boolean).join("\n"), MAX_PR_PROMPT_CHARS);
 }
 
 function buildLocalWorktreeCompareData(payload: WorktreeComparePayload): WorktreeCompareData {
@@ -1755,13 +1951,16 @@ function summarizeReadme(value: string): string {
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
-    .filter((line) => !/^(name|version|scripts|dependencies|devDependencies):/i.test(line));
+    .filter((line) => !/^(name|version|description|scripts|dependencies|devDependencies):/i.test(line));
   const heading = lines.find((line) => /^#\s+/.test(line));
   const prose = lines.find(
     (line) =>
       !line.startsWith("#") &&
       !line.startsWith("[") &&
       !line.startsWith("!") &&
+      !/^<\/?(p|img|picture|source|h1|h2|h3|strong|em|div|span)\b/i.test(line) &&
+      !/<img\b/i.test(line) &&
+      !/shields\.io|badge/i.test(line) &&
       line.length > 30,
   );
   return truncateText([heading, prose].filter(Boolean).join(" "), 700);
@@ -1859,7 +2058,12 @@ function summarizeBriefTree(items: string[]): string[] {
   const topLevel = Array.from(
     new Set(
       items
-        .map((item) => item.split("/").filter(Boolean)[0])
+        .map((item) => {
+          const parts = item.split("/").filter(Boolean);
+          const first = parts[0];
+          if (!first || first === ".git") return "";
+          return parts.length === 1 && /\.[a-z0-9]+$/i.test(first) ? "" : first;
+        })
         .filter((item): item is string => Boolean(item) && item !== ".git"),
     ),
   )
@@ -1874,6 +2078,26 @@ function summarizeBriefTree(items: string[]): string[] {
     Array.from(new Set([...topLevel, ...importantPaths])),
     MAX_TREE_ITEMS,
   );
+}
+
+function localRepoBriefRole(path: string): string {
+  const normalized = path.replace(/\/+$/, "").toLowerCase();
+  if (normalized === "src") return "React renderer, state, and AI workflow UI.";
+  if (normalized === "electron") {
+    return "Electron main process, IPC handlers, Git worker, AI provider adapters, and Cognee adapter.";
+  }
+  if (normalized === "docs") return "Project planning, architecture, and submission documentation.";
+  if (normalized === ".github") return "GitHub workflows and repository automation.";
+  if (normalized === "public") return "Static brand and renderer assets.";
+  if (normalized === "release") return "Release packaging resources.";
+  if (normalized.includes("src/components/ai")) return "AI workflow components and result rendering.";
+  if (normalized.includes("src/lib/ai-features")) return "Structured AI prompt builders, validation fallback, and cache behavior.";
+  if (normalized.includes("src/lib/ipc")) return "Renderer bridge wrapper for Electron IPC.";
+  if (normalized.includes("electron/lib/ai-runtime")) return "Provider runtime selection, model calls, and structured checks.";
+  if (normalized.includes("electron/ipc-handlers")) return "Main-process IPC boundary for Git, AI, settings, and memory.";
+  if (normalized === "readme.md") return "Top-level product, architecture, and setup overview.";
+  if (normalized === "package.json") return "Application metadata, dependencies, and developer scripts.";
+  return "Repository evidence from the local file tree.";
 }
 
 function isImportantBriefPath(path: string): boolean {

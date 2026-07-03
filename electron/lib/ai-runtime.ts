@@ -11,19 +11,22 @@ const supportedProviderIds: AIProviderId[] = [
   "openai",
   "anthropic",
   "gemini",
+  "nvidia",
 ];
 const providerRequiredEnv = {
   openrouter: ["OPENROUTER_API_KEY"] as const,
   openai: ["OPENAI_API_KEY"] as const,
   anthropic: ["ANTHROPIC_API_KEY"] as const,
   gemini: ["GEMINI_API_KEY"] as const,
+  nvidia: ["NVIDIA_API_KEY"] as const,
 } as const;
 
 export type RequiredAIEnv =
   | "OPENROUTER_API_KEY"
   | "OPENAI_API_KEY"
   | "ANTHROPIC_API_KEY"
-  | "GEMINI_API_KEY";
+  | "GEMINI_API_KEY"
+  | "NVIDIA_API_KEY";
 export type AIEnvStatus = "configured" | "missing";
 export type AIModelHealthStatus =
   | "available"
@@ -53,6 +56,48 @@ export interface AIStatus {
   env: Partial<Record<RequiredAIEnv, AIEnvStatus>>;
   health: AIModelHealth[];
 }
+
+export type AIModelStructuredCheckStatus = "passed" | "failed" | "not_configured";
+
+export interface AIModelStructuredCheckResult {
+  providerId: AIProviderId;
+  model: string;
+  status: AIModelStructuredCheckStatus;
+  reason?: string;
+  checkedAt: number;
+  latencyMs?: number;
+  generatedLength: number;
+  parsedJson: boolean;
+  schemaValid: boolean;
+  rawSample?: string;
+}
+
+export interface StructuredAIModelCheckOptions {
+  providerId?: AIProviderId;
+  modelId?: string;
+  timeoutMs?: number;
+}
+
+const STRUCTURED_CHECK_TIMEOUT_MS = 25_000;
+const STRUCTURED_CHECK_SYSTEM_PROMPT =
+  "Create a concise repository onboarding brief. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"brief\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"purpose\":\"...\",\"keyModules\":[{\"name\":\"...\",\"path\":\"...\",\"role\":\"...\"}],\"recentActivity\":[{\"label\":\"...\",\"evidence\":\"...\"}],\"onboardingPath\":[\"...\"],\"notableRisks\":[\"...\"]}}. No markdown fences. No reasoning text.";
+const STRUCTURED_CHECK_USER_PROMPT = [
+  "REPOSITORY:",
+  "Name: overcode",
+  "Description: Desktop developer workspace hub for Git, pull requests, BYOK AI providers, and Cognee-backed repository memory.",
+  "",
+  "FILE TREE:",
+  "src/ - React renderer and structured AI result views",
+  "electron/ - Electron main process, IPC handlers, and provider runtime",
+  "scripts/ - launch and smoke-check helpers",
+  "",
+  "RECENT ACTIVITY:",
+  "Added Cognee memory dashboard.",
+  "Added BYOK AI provider selection.",
+  "",
+  "COGNEE MEMORY CONTEXT:",
+  "No recalled context for this check.",
+].join("\n");
 
 const healthCache = new Map<string, AIModelHealth>();
 const healthHistory = new Map<string, AIModelHealthHistoryEntry[]>();
@@ -132,9 +177,14 @@ function providerBaseUrl(providerId: AIProviderId): string | undefined {
   } catch {
     // Store unreachable, so fall through to env/default.
   }
-  return providerId === "openrouter" && process.env.OPENROUTER_BASE_URL?.trim()
-    ? process.env.OPENROUTER_BASE_URL.trim().replace(/\/+$/, "")
-    : undefined;
+  if (providerId === "openrouter" && process.env.OPENROUTER_BASE_URL?.trim()) {
+    return process.env.OPENROUTER_BASE_URL.trim().replace(/\/+$/, "");
+  }
+  if (providerId === "nvidia") {
+    const baseUrl = process.env.NVIDIA_BASE_URL?.trim() || process.env.NIM_BASE_URL?.trim();
+    return baseUrl ? baseUrl.replace(/\/+$/, "") : undefined;
+  }
+  return undefined;
 }
 
 function envStatus(providerId: AIProviderId): {
@@ -240,16 +290,191 @@ export async function callAIModel(
   });
 }
 
+export async function runStructuredAIModelCheck(
+  options: StructuredAIModelCheckOptions = {},
+): Promise<AIModelStructuredCheckResult> {
+  const providerId = options.providerId ?? configuredProvider();
+  const adapter = providerAdapters[providerId];
+  const model = (options.modelId?.trim() || modelForProvider(providerId)).trim();
+  const checkedAt = Date.now();
+  const key = providerApiKey(providerId);
+
+  if (!key) {
+    return {
+      providerId,
+      model,
+      status: "not_configured",
+      reason: `${adapter.displayName} API key is not configured.`,
+      checkedAt,
+      generatedLength: 0,
+      parsedJson: false,
+      schemaValid: false,
+    };
+  }
+
+  const timeoutMs = normalizedTimeout(options.timeoutMs);
+  const controller = new AbortController();
+  const startedAt = Date.now();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const raw = await adapter.completeChat({
+      apiKey: key,
+      baseUrl: providerBaseUrl(providerId),
+      model,
+      systemPrompt: STRUCTURED_CHECK_SYSTEM_PROMPT,
+      userPrompt: STRUCTURED_CHECK_USER_PROMPT,
+      maxTokens: 900,
+      temperature: 0,
+      signal: controller.signal,
+    });
+    const parsed = parseJsonObject(raw);
+    const parsedJson = parsed !== null;
+    const schemaValid = parsedJson && isStructuredBriefEnvelope(parsed);
+    const reason = schemaValid
+      ? undefined
+      : parsedJson
+        ? "Model returned JSON that did not match Overcode's structured brief schema."
+        : "Model returned text without a parseable JSON object.";
+
+    return {
+      providerId,
+      model,
+      status: schemaValid ? "passed" : "failed",
+      reason,
+      checkedAt,
+      latencyMs: Date.now() - startedAt,
+      generatedLength: raw.trim().length,
+      parsedJson,
+      schemaValid,
+      rawSample: sampleRaw(raw),
+    };
+  } catch (error) {
+    const timedOut = controller.signal.aborted;
+    return {
+      providerId,
+      model,
+      status: "failed",
+      reason: timedOut
+        ? `Timed out after ${timeoutMs} ms.`
+        : error instanceof Error
+          ? error.message
+          : "Structured check failed.",
+      checkedAt,
+      latencyMs: Date.now() - startedAt,
+      generatedLength: 0,
+      parsedJson: false,
+      schemaValid: false,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function providerDefaultModel(providerId: AIProviderId): string {
   return providerId === "openrouter"
     ? OPENROUTER_FREE_MODEL_ID
     : providerAdapters[providerId].defaultModel;
 }
 
+function modelForProvider(providerId: AIProviderId): string {
+  return providerId === configuredProvider()
+    ? configuredModel()
+    : providerDefaultModel(providerId);
+}
+
+function normalizedTimeout(timeoutMs: number | undefined): number {
+  return typeof timeoutMs === "number" &&
+    Number.isInteger(timeoutMs) &&
+    timeoutMs >= 1_000 &&
+    timeoutMs <= 120_000
+    ? timeoutMs
+    : STRUCTURED_CHECK_TIMEOUT_MS;
+}
+
+function sampleRaw(raw: string): string | undefined {
+  const sample = raw.trim().replace(/\s+/g, " ").slice(0, 260);
+  return sample || undefined;
+}
+
+function parseJsonObject(raw: string): unknown | null {
+  const json = extractJsonObject(raw);
+  if (!json) return null;
+  try {
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function extractJsonObject(raw: string): string | null {
+  const withoutFences = raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+  const first = withoutFences.indexOf("{");
+  if (first === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = first; index < withoutFences.length; index += 1) {
+    const char = withoutFences[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === "\"") {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return withoutFences.slice(first, index + 1);
+    }
+  }
+  return null;
+}
+
+function isStructuredBriefEnvelope(value: unknown): boolean {
+  const object = asRecord(value);
+  const data = asRecord(object?.data);
+  return Boolean(
+    object &&
+      object.schemaVersion === 1 &&
+      object.feature === "brief" &&
+      typeof object.summary === "string" &&
+      isConfidence(object.confidence) &&
+      Array.isArray(object.warnings) &&
+      data &&
+      typeof data.purpose === "string" &&
+      Array.isArray(data.keyModules) &&
+      Array.isArray(data.recentActivity) &&
+      Array.isArray(data.onboardingPath) &&
+      Array.isArray(data.notableRisks),
+  );
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function isConfidence(value: unknown): boolean {
+  return value === "low" || value === "medium" || value === "high";
+}
+
 function isModelCompatibleWithProvider(modelId: string, providerId: AIProviderId): boolean {
   const normalized = modelId.trim().toLowerCase();
   if (!normalized) return false;
   if (providerId === "openrouter") return true;
+  if (providerId === "nvidia") return true;
 
   if (normalized.includes("/")) return false;
 
@@ -277,5 +502,10 @@ function providerEnvKey(providerId: AIProviderId): string | undefined {
       return process.env.ANTHROPIC_API_KEY?.trim() || undefined;
     case "gemini":
       return process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim() || undefined;
+    case "nvidia":
+      return process.env.NVIDIA_API_KEY?.trim() ||
+        process.env.NIM_API_KEY?.trim() ||
+        process.env.NVAPI_KEY?.trim() ||
+        undefined;
   }
 }

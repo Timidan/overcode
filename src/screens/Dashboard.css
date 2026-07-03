@@ -13,7 +13,7 @@
   color: var(--color-text-secondary);
 }
 
-.generate-commit-button {
+.dashboard-button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -22,22 +22,39 @@
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-wider);
   padding: 6px 12px;
-  background: var(--color-text-primary);
-  border: 1px solid var(--color-text-primary);
+  background: transparent;
+  border: 1px solid var(--color-ink);
   border-radius: 0;
-  color: var(--color-text-inverted);
+  color: var(--color-text-primary);
   cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 
-.generate-commit-button:hover:not(:disabled) {
-  background: transparent;
-  color: var(--color-text-primary);
+.dashboard-button:hover:not(:disabled) {
+  background: var(--color-text-primary);
+  color: var(--color-text-inverted);
 }
 
-.generate-commit-button:disabled {
+.dashboard-button:focus-visible {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 2px;
+}
+
+.dashboard-button:disabled {
   opacity: 0.5;
   cursor: progress;
+}
+
+/* Solid fill is reserved for the screen's one primary action. */
+.dashboard-button.is-primary {
+  background: var(--color-text-primary);
+  border-color: var(--color-text-primary);
+  color: var(--color-text-inverted);
+}
+
+.dashboard-button.is-primary:hover:not(:disabled) {
+  background: transparent;
+  color: var(--color-text-primary);
 }
 
 .dashboard-container {
@@ -72,11 +89,12 @@
 
 .brand-logo {
   display: block;
-  height: 140px;
+  height: 36px;
   width: auto;
 }
 
 .stat-cards {
+  animation: overcode-rise var(--duration-enter) var(--ease-standard) both;
   display: flex;
   gap: 0;
   border: 1px solid var(--color-ink);
@@ -131,39 +149,51 @@
   max-width: 440px;
 }
 
-/* Cold-start panel: shown during the very first scan after launch so judges
-   don't see 0/0/0/0 stat cards followed by an empty feed for a beat. Replaced
+/* Cold-start panel: shown during the very first scan after launch so the
+   real layout never flashes 0/0/0/0 stat cards as if they were data. Replaced
    by the full dashboard once `refresh()` resolves. */
 .dashboard-cold-start {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
+  align-items: stretch;
+  gap: var(--space-4);
   padding: var(--space-6) var(--space-5);
   border: 1px solid var(--color-ink);
   background: transparent;
 }
 
-.dashboard-cold-start-pulse {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.dashboard-skeleton-cards {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--color-border-default);
 }
 
-.dashboard-cold-start-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-full);
-  background: var(--color-accent-amber);
-  animation: dashboard-cold-pulse 1.2s ease-in-out infinite;
+.dashboard-skeleton-card {
+  flex: 1;
+  height: 88px;
+  background: var(--color-bg-elevated);
+  border-right: 1px solid var(--color-border-default);
+  animation: overcode-skeleton-pulse 1.2s var(--ease-standard) infinite alternate;
 }
 
-.dashboard-cold-start-dot:nth-child(2) { animation-delay: 0.18s; }
-.dashboard-cold-start-dot:nth-child(3) { animation-delay: 0.36s; }
+.dashboard-skeleton-card:last-child {
+  border-right: none;
+}
 
-@keyframes dashboard-cold-pulse {
-  0%, 100% { opacity: 0.25; transform: translateY(0); }
-  40%      { opacity: 1;    transform: translateY(-2px); }
+.dashboard-skeleton-feed {
+  display: block;
+  height: 120px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  animation: overcode-skeleton-pulse 1.2s var(--ease-standard) infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-skeleton-card,
+  .dashboard-skeleton-feed {
+    animation: none;
+    opacity: 0.5;
+  }
 }
 
 .dashboard-cold-start-title {
@@ -180,8 +210,4 @@
   color: var(--color-text-secondary);
   line-height: 1.6;
   max-width: 560px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dashboard-cold-start-dot { animation: none; opacity: 1; }
 }

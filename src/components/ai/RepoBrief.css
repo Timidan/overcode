@@ -16,13 +16,13 @@
   height: 3px;
   border-radius: var(--radius-full);
   background: var(--color-accent-cyan);
-  animation: ai-dot-pulse 1.4s ease-in-out infinite;
+  animation: overcode-ai-dot-pulse 1.4s ease-in-out infinite;
 }
 
 .brief-output {
   background: var(--color-bg-app);
   border: 1px solid var(--color-border-default);
-  border-left: 3px solid var(--color-accent-cyan);
+  border-left: 3px solid var(--color-ink);
   border-radius: var(--radius-md);
   padding: var(--space-4);
   font-family: var(--font-mono);

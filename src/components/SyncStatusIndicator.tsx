@@ -35,13 +35,16 @@ export function SyncStatusIndicator({ activity = [], dirtyCount = 0 }: Props) {
   const max = Math.max(1, ...buckets);
   const label =
     state === "alert"
-      ? `${dirtyCount} dirty`
+      ? `${dirtyCount} uncommitted file${dirtyCount === 1 ? "" : "s"}`
       : state === "busy"
-        ? `${total} commit${total === 1 ? "" : "s"} today`
-        : "quiet";
+        ? `${total} commit${total === 1 ? "" : "s"}, last 24h`
+        : "no activity, last 24h";
 
   return (
-    <div className={`sync-status sync-status-${state}`}>
+    <div
+      className={`sync-status sync-status-${state}`}
+      title="Commit activity across your workspaces in the last 24 hours"
+    >
       <span className="sync-bars" aria-hidden="true">
         {buckets.map((value, i) => {
           const heightPct = state === "quiet" ? 30 : Math.max(15, (value / max) * 100);

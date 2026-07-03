@@ -741,7 +741,6 @@
 .pr-file-ai-list > span {
   font-weight: var(--weight-black);
   letter-spacing: var(--tracking-widest);
-  text-transform: uppercase;
   color: var(--color-text-secondary);
 }
 
@@ -1045,4 +1044,29 @@
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-widest);
   color: var(--color-text-secondary);
+}
+
+.pr-post-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-ink);
+}
+
+.pr-post-confirm-body {
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-elevated);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.pr-post-confirm-actions {
+  display: flex;
+  gap: var(--space-2);
 }

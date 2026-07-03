@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   curatedModelsForProvider,
+  normalizeNvidiaCatalog,
   normalizeOpenRouterCatalog,
   OPENROUTER_FREE_MODEL_ID,
   providerAdapters,
+  readOpenRouterKeyStatus,
 } from "./ai-providers";
 
 const mockStoreData: Record<string, unknown> = {};
@@ -91,6 +93,13 @@ describe("AI provider model catalogs", () => {
     expect(curatedModelsForProvider("openai").length).toBeGreaterThan(0);
     expect(curatedModelsForProvider("anthropic").length).toBeGreaterThan(0);
     expect(curatedModelsForProvider("gemini").length).toBeGreaterThan(0);
+    const nvidiaModels = curatedModelsForProvider("nvidia");
+    expect(nvidiaModels.map((m) => m.id)).toContain("meta/llama-4-maverick-17b-128e-instruct");
+    expect(nvidiaModels[0]).toEqual(expect.objectContaining({
+      providerId: "nvidia",
+      free: false,
+      tags: expect.arrayContaining(["paid", "recommended"]),
+    }));
   });
 
   it("returns curated entries with cloned array fields", () => {
@@ -101,6 +110,37 @@ describe("AI provider model catalogs", () => {
     const fresh = curatedModelsForProvider("openrouter");
     expect(fresh[0]?.tags).not.toContain("coding");
     expect(fresh[0]?.modalities).not.toContain("audio");
+  });
+
+  it("normalizes NVIDIA NIM model catalogs without marking trial capacity as free", () => {
+    const result = normalizeNvidiaCatalog({
+      data: [
+        {
+          id: "meta/llama-4-maverick-17b-128e-instruct",
+          root: "meta/llama-4-maverick-17b-128e-instruct",
+        },
+        {
+          id: "qwen/qwen3-next-80b-a3b-instruct",
+        },
+      ],
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        providerId: "nvidia",
+        id: "meta/llama-4-maverick-17b-128e-instruct",
+        name: "Meta: Llama 4 Maverick",
+        free: false,
+        source: "live",
+        tags: expect.arrayContaining(["paid", "recommended", "long_context"]),
+      }),
+      expect.objectContaining({
+        providerId: "nvidia",
+        id: "qwen/qwen3-next-80b-a3b-instruct",
+        name: "Qwen: Qwen3 Next 80B",
+        tags: expect.arrayContaining(["paid", "coding", "recommended"]),
+      }),
+    ]);
   });
 });
 
@@ -153,6 +193,41 @@ describe("AI provider adapters", () => {
     }));
   });
 
+  it("reads OpenRouter key status without making a model request", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({
+        data: {
+          is_free_tier: true,
+          limit: null,
+          limit_remaining: null,
+          usage: 0,
+          usage_daily: 0,
+        },
+      }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await readOpenRouterKeyStatus({
+      apiKey: "sk-openrouter",
+      baseUrl: "https://router.example/api/v1/",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://router.example/api/v1/key",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: "application/json",
+          Authorization: "Bearer sk-openrouter",
+        }),
+      }),
+    );
+    expect(result).toEqual(expect.objectContaining({
+      plan: "free",
+      isFreeTier: true,
+      freeModelDailyLimit: 50,
+      freeModelNote: "Free-tier OpenRouter keys are capped at 50 free-model requests per day. Add 10 credits to unlock 1000 free-model requests per day.",
+    }));
+  });
+
   it("sends OpenAI chat completions with Bearer auth", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { status: 200 }));
@@ -174,6 +249,108 @@ describe("AI provider adapters", () => {
         method: "POST",
         headers: expect.objectContaining({ Authorization: "Bearer sk-test" }),
       }),
+    );
+  });
+
+  it("loads NVIDIA NIM models from its OpenAI-compatible catalog", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({
+        data: [
+          { id: "meta/llama-4-maverick-17b-128e-instruct" },
+          { id: "mistralai/mistral-large-3-675b-instruct-2512" },
+        ],
+      }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await providerAdapters.nvidia.listModels({
+      apiKey: "nvapi-test",
+      baseUrl: "https://nim.example/v1/",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://nim.example/v1/models",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: "application/json",
+          Authorization: "Bearer nvapi-test",
+        }),
+      }),
+    );
+    expect(result.map((model) => model.id)).toEqual([
+      "meta/llama-4-maverick-17b-128e-instruct",
+      "mistralai/mistral-large-3-675b-instruct-2512",
+    ]);
+    expect(result[0]).toEqual(expect.objectContaining({
+      providerId: "nvidia",
+      source: "live",
+      free: false,
+      tags: expect.arrayContaining(["paid", "recommended"]),
+    }));
+  });
+
+  it("shows curated NVIDIA NIM models before credentials are configured", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await providerAdapters.nvidia.listModels({});
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result[0]).toEqual(expect.objectContaining({
+      providerId: "nvidia",
+      id: "meta/llama-4-maverick-17b-128e-instruct",
+      source: "curated",
+      tags: expect.arrayContaining(["paid", "recommended"]),
+    }));
+  });
+
+  it("sends NVIDIA NIM chat completions with Bearer auth", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "nim ok" } }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await providerAdapters.nvidia.completeChat({
+      apiKey: "nvapi-test",
+      model: "meta/llama-4-maverick-17b-128e-instruct",
+      systemPrompt: "system",
+      userPrompt: "user",
+      maxTokens: 20,
+      temperature: 0,
+    });
+
+    expect(result).toBe("nim ok");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://integrate.api.nvidia.com/v1/chat/completions",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Accept: "application/json",
+          Authorization: "Bearer nvapi-test",
+        }),
+      }),
+    );
+  });
+
+  it("includes OpenRouter error details when a free model is quota-blocked", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({
+        error: {
+          message: "Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day",
+        },
+      }), {
+        status: 429,
+        headers: { "Content-Type": "application/json" },
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(providerAdapters.openrouter.completeChat({
+      apiKey: "sk-openrouter",
+      model: "openrouter/free",
+      systemPrompt: "system",
+      userPrompt: "user",
+      maxTokens: 20,
+      temperature: 0,
+    })).rejects.toThrow(
+      "OpenRouter returned 429: Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day",
     );
   });
 
@@ -247,6 +424,11 @@ describe("AI provider credential storage", () => {
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.GEMINI_API_KEY;
     delete process.env.GOOGLE_API_KEY;
+    delete process.env.NVIDIA_API_KEY;
+    delete process.env.NIM_API_KEY;
+    delete process.env.NVAPI_KEY;
+    delete process.env.NVIDIA_BASE_URL;
+    delete process.env.NIM_BASE_URL;
   });
 
   it("stores provider credentials by provider id", async () => {
@@ -412,6 +594,8 @@ describe("AI provider credential storage", () => {
     process.env.OPENROUTER_BASE_URL = "https://openrouter.example/api/v1";
     process.env.OPENAI_API_KEY = "env-openai-key";
     process.env.GOOGLE_API_KEY = "env-gemini-key";
+    process.env.NIM_API_KEY = "env-nvidia-key";
+    process.env.NVIDIA_BASE_URL = "https://nim.example/v1";
 
     const store = await import("./store") as typeof import("./store") & {
       saveAIProviderCredentials(update: {
@@ -435,6 +619,7 @@ describe("AI provider credential storage", () => {
       openai: { api_key: "env", base_url: "default" },
       anthropic: { api_key: "stored", base_url: "default" },
       gemini: { api_key: "env", base_url: "default" },
+      nvidia: { api_key: "env", base_url: "env" },
     });
   });
 });

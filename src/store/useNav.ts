@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 export type Screen =
   | "dashboard"
+  | "cognee"
   | "repo-detail"
   | "prs"
   | "pr-detail"

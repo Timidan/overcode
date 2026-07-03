@@ -8,7 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { ArrowLeft, Code, GitBranch, Sparkle } from "@phosphor-icons/react";
+import { ArrowLeft, Code, Sparkle } from "@phosphor-icons/react";
 import { Sidebar } from "../components/Sidebar";
 import { CommitGraph } from "../components/CommitGraph";
 import { DivergenceIndicator } from "../components/DivergenceIndicator";
@@ -20,6 +20,8 @@ import { BranchBadge } from "../components/BranchBadge";
 import { useNav } from "../store/useNav";
 import { useAIPanel } from "../store/useAIPanel";
 import { ipc } from "../lib/ipc";
+import { extractCogneeMemoryHighlight } from "../lib/cognee-workflow-memory";
+import { recallCogneeWorkflowMemory } from "../lib/cognee-workflow-runtime";
 import {
   loadRepositoryById,
   type WorkspaceRepository,
@@ -39,7 +41,10 @@ export function RepoDetail() {
   const { repoId, navigate } = useNav();
   const openAIPanel = useAIPanel((s) => s.open);
   const [repo, setRepo] = useState<WorkspaceRepository | null>(null);
+  const [repoMissing, setRepoMissing] = useState(false);
   const [branch, setBranch] = useState<string>("main");
+  const [memoryLine, setMemoryLine] = useState<string | null>(null);
+  const [memoryDismissed, setMemoryDismissed] = useState(false);
   const [aiBusy, setAiBusy] = useState<"impact" | "commit" | "brief" | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [columnSizes, setColumnSizes] = useState<ColumnSizes>(DEFAULT_COLUMN_SIZES);
@@ -65,17 +70,29 @@ export function RepoDetail() {
 
   useEffect(() => {
     let cancelled = false;
+    // Full reset so a previous repo never bleeds into the next one.
+    setRepoMissing(false);
+    setRepo(null);
+    setBranch("main");
+    setMemoryLine(null);
+    setMemoryDismissed(false);
     async function load() {
-      if (!repoId) return;
-      const found = await loadRepositoryById(repoId);
-      if (!cancelled && found) {
-        setRepo(found);
-        try {
-          const status = await ipc.getGitStatus(found.local_path, { mode: "lite" });
-          if (!cancelled) setBranch(status.branch);
-        } catch {
-          // Non-git workspace candidates can still open; keep the default branch label.
-        }
+      if (!repoId) {
+        setRepoMissing(true);
+        return;
+      }
+      const found = await loadRepositoryById(repoId).catch(() => null);
+      if (cancelled) return;
+      if (!found) {
+        setRepoMissing(true);
+        return;
+      }
+      setRepo(found);
+      try {
+        const status = await ipc.getGitStatus(found.local_path, { mode: "lite" });
+        if (!cancelled) setBranch(status.branch);
+      } catch {
+        // Non-git workspace candidates can still open; keep the default branch label.
       }
     }
     load();
@@ -83,6 +100,34 @@ export function RepoDetail() {
       cancelled = true;
     };
   }, [repoId]);
+
+  // One quiet recall for this repo; empty/disabled/error memory renders nothing.
+  useEffect(() => {
+    if (!repo) return;
+    let cancelled = false;
+    // Branch is deliberately omitted: this is a once-per-repo recall and a
+    // stale branch filter would hide valid memory.
+    recallCogneeWorkflowMemory(
+      {
+        source: "repo detail",
+        repoId: repo.id,
+        repoName: repo.name,
+        subject: "recent analysis, risks, and decisions",
+        limit: 3,
+      },
+      undefined,
+      { retryOnEmpty: true },
+    ).then((memory) => {
+      if (cancelled || !memory) return;
+      const line = extractCogneeMemoryHighlight(memory.context);
+      if (line) setMemoryLine(line.length > 160 ? `${line.slice(0, 157)}...` : line);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Recall once per repo open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repo?.id]);
 
   async function openImpactAnalysis() {
     if (!repo) return;
@@ -92,6 +137,9 @@ export function RepoDetail() {
       const status = await ipc.getGitStatus(repo.local_path, { mode: "diff" });
       const diff = [status.stagedDiff, status.diff].filter(Boolean).join("\n\n");
       openAIPanel("impact", {
+        repoId: repo.id,
+        repoName: repo.name,
+        branch: status.branch,
         diff: diff || status.files.map((file) => `${file.status} ${file.path}`).join("\n"),
         fileTree: status.files.map((file) => file.path),
         unavailableReason:
@@ -101,27 +149,6 @@ export function RepoDetail() {
       });
     } catch (error) {
       setAiError(error instanceof Error ? error.message : "Could not prepare impact analysis");
-    } finally {
-      setAiBusy(null);
-    }
-  }
-
-  async function openCommitAssistant() {
-    if (!repo) return;
-    setAiBusy("commit");
-    setAiError(null);
-    try {
-      const status = await ipc.getGitStatus(repo.local_path, { mode: "diff" });
-      openAIPanel("commit", {
-        repoPath: repo.local_path,
-        stagedDiff: [status.stagedDiff, status.diff].filter(Boolean).join("\n\n"),
-        unavailableReason:
-          status.files.length === 0
-            ? "Commit assistant unavailable: this workspace has no uncommitted changes."
-            : undefined,
-      });
-    } catch (error) {
-      setAiError(error instanceof Error ? error.message : "Could not prepare commit assistant");
     } finally {
       setAiBusy(null);
     }
@@ -226,12 +253,37 @@ export function RepoDetail() {
     setSidecarSizes((current) => resizePair(current, index, delta, MIN_SIDECAR_SIZE));
   }
 
+  if (repoMissing) {
+    return (
+      <div className="repo-detail-container">
+        <Sidebar />
+        <main className="repo-detail-main">
+          <div className="repo-detail-missing">
+            <div className="repo-detail-missing-title">Repository not found</div>
+            <p>This workspace may have been removed or renamed.</p>
+            <button
+              type="button"
+              className="back-button repo-detail-missing-back"
+              onClick={() => navigate("dashboard")}
+            >
+              <ArrowLeft size={14} /> Back to dashboard
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   if (!repo) {
     return (
       <div className="repo-detail-container">
         <Sidebar />
         <main className="repo-detail-main">
-          <div className="repo-detail-loading">Loading repository…</div>
+          <div className="repo-detail-skeleton" aria-hidden="true">
+            <span className="repo-detail-skeleton-row" />
+            <span className="repo-detail-skeleton-row" />
+            <span className="repo-detail-skeleton-row is-tall" />
+          </div>
         </main>
       </div>
     );
@@ -256,13 +308,24 @@ export function RepoDetail() {
           <span className="repo-detail-platform">{repo.platform}</span>
         </header>
 
-        <section className="repo-ai-actions" aria-label="AI actions for this workspace">
-          <div>
-            <div className="section-label">AI for this workspace</div>
-            <p className="repo-ai-hint">
-              The active AI provider uses this repo's real local status, diffs, file tree, README, and commit log.
-            </p>
+        {memoryLine && !memoryDismissed && (
+          <div className="repo-memory-strip" role="note">
+            <span className="repo-memory-strip-label">From memory</span>
+            <span className="repo-memory-strip-text">{memoryLine}</span>
+            <button
+              type="button"
+              className="repo-memory-strip-dismiss"
+              onClick={() => setMemoryDismissed(true)}
+              aria-label="Dismiss memory note"
+              title="Dismiss"
+            >
+              ×
+            </button>
           </div>
+        )}
+
+        <section className="repo-ai-actions" aria-label="AI actions for this workspace">
+          <div className="section-label">AI for this workspace</div>
           <div className="repo-ai-buttons">
             <button
               type="button"
@@ -273,16 +336,6 @@ export function RepoDetail() {
             >
               <Sparkle size={13} />
               {aiBusy === "impact" ? "Preparing..." : "Analyze impact"}
-            </button>
-            <button
-              type="button"
-              className="repo-ai-button"
-              onClick={openCommitAssistant}
-              disabled={aiBusy !== null}
-              title="Draft a commit message from local changes"
-            >
-              <GitBranch size={13} />
-              {aiBusy === "commit" ? "Preparing..." : "Draft commit"}
             </button>
             <button
               type="button"
@@ -324,7 +377,11 @@ export function RepoDetail() {
             </div>
             <div className="repo-pane repo-pane-grow">
               <div className="repo-pane-body">
-                <UncommittedFiles repoPath={repo.local_path} />
+                <UncommittedFiles
+                  repoPath={repo.local_path}
+                  repoId={repo.id}
+                  repoName={repo.name}
+                />
               </div>
             </div>
           </section>
@@ -339,10 +396,10 @@ export function RepoDetail() {
             onKeyDown={(event) => handleColumnResizeKey(1, event)}
           />
 
-          <aside className="repo-detail-column repo-detail-column-sidecars">
-            <div className="repo-detail-column-head">
-              <span className="section-label">Sidecars</span>
-            </div>
+          <aside
+            className="repo-detail-column repo-detail-column-sidecars"
+            aria-label="Branch state, stashes, worktrees, and environment"
+          >
             <div className="repo-sidecar-stack" ref={sidecarStackRef} style={sidecarStyle}>
               <div className="repo-pane">
                 <div className="repo-pane-body">
@@ -364,7 +421,7 @@ export function RepoDetail() {
               />
               <div className="repo-pane">
                 <div className="repo-pane-body">
-                  <StashList repoId={repo.id} repoPath={repo.local_path} />
+                  <StashList repoId={repo.id} repoName={repo.name} repoPath={repo.local_path} />
                 </div>
               </div>
               <div

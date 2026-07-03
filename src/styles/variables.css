@@ -123,6 +123,8 @@
   --duration-hover: 160ms;
   --duration-state: 200ms;
   --duration-enter: 280ms;
+  /* Exits are faster than enters — the thing is leaving, don't make it linger. */
+  --duration-exit: 140ms;
   --duration-breath: 1800ms;
 
   /* ----- ELEVATION · brutalist = no shadows ----- */
@@ -225,7 +227,6 @@
   font-size: var(--text-xs);
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-widest);
-  text-transform: uppercase;
   color: var(--color-text-secondary);
 }
 

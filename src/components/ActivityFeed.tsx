@@ -55,6 +55,19 @@ export function ActivityFeed({
     [filter, items, repositoriesById],
   );
 
+  if (filteredItems.length === 0) {
+    return (
+      <div className="activity-feed">
+        <FilterTabs activeFilter={filter} onFilterChange={setFilter} />
+        <div className="activity-feed-empty">
+          {filter === "ALL"
+            ? "No recent activity yet."
+            : "No activity matches this filter."}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="activity-feed">
       <FilterTabs activeFilter={filter} onFilterChange={setFilter} />

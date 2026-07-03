@@ -1,6 +1,7 @@
 import anthropicLogo from "../assets/providers/anthropic.png";
 import cogneeLogo from "../assets/providers/cognee.png";
 import geminiLogo from "../assets/providers/gemini.svg";
+import nvidiaLogo from "../assets/providers/nvidia.svg";
 import openaiLogo from "../assets/providers/openai.svg";
 import openrouterLogo from "../assets/providers/openrouter.png";
 import type { AIProviderId } from "../lib/ipc";
@@ -14,6 +15,7 @@ const labels: Record<LogoId, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
   gemini: "Gemini",
+  nvidia: "NVIDIA NIM",
   cognee: "Cognee",
 };
 
@@ -22,6 +24,7 @@ const logoSources: Record<LogoId, string> = {
   openai: openaiLogo,
   anthropic: anthropicLogo,
   gemini: geminiLogo,
+  nvidia: nvidiaLogo,
   cognee: cogneeLogo,
 };
 

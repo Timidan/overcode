@@ -23,7 +23,7 @@ const FILTERS: Array<{ key: Filter; label: string }> = [
   { key: "all", label: "All" },
   { key: "open", label: "Open" },
   { key: "closed", label: "Closed" },
-  { key: "mentions", label: "Mentions you" },
+  { key: "mentions", label: "Assigned to you" },
 ];
 
 const PROVIDER_TABS: Array<{ key: IssueProvider; label: string }> = [
@@ -81,6 +81,8 @@ export function GitHubIssues() {
   const [search, setSearch] = useState("");
   const [authedGitHub, setAuthedGitHub] = useState(false);
   const [authedGitLab, setAuthedGitLab] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [authReloadKey, setAuthReloadKey] = useState(0);
   const [me, setMe] = useState<string | null>(null);
   const [meGitLab, setMeGitLab] = useState<string | null>(null);
 
@@ -121,7 +123,7 @@ export function GitHubIssues() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authReloadKey]);
 
   // GitLab can't fan out to a unified inbox the way GitHub's /issues does:
   // GitLab requires a project id. When the GitLab tab is active without a
@@ -246,15 +248,24 @@ export function GitHubIssues() {
   }, [issueProvider, githubRepos, gitlabProjects]);
 
   const activeAuthed = issueProvider === "github" ? authedGitHub : authedGitLab;
-  const subtitle =
-    issueProvider === "github"
-      ? "GitHub issues across your account, with optional repo focus."
-      : "GitLab issues across your projects, with optional project focus.";
-  const emptyMessage = !activeAuthed
-    ? `Connect ${issueProvider === "github" ? "GitHub" : "GitLab"} to see issues`
-    : issueRepo
-      ? `No issues for this ${issueProvider === "github" ? "repository" : "project"}`
-      : `No ${issueProvider === "github" ? "GitHub" : "GitLab"} issues in your unified inbox`;
+  const providerLabel = issueProvider === "github" ? "GitHub" : "GitLab";
+  const filteredOut =
+    issues.length > 0 && (filter !== "all" || search.trim().length > 0);
+
+  async function connectProvider() {
+    setConnecting(true);
+    setError(null);
+    try {
+      await ipc.connectAuth(issueProvider);
+      // Re-run the full auth + repos/projects load; the issue fetch effect
+      // keys off the auth flags and follows automatically.
+      setAuthReloadKey((key) => key + 1);
+    } catch (err) {
+      setError(errorMessage(err, "Connection failed"));
+    } finally {
+      setConnecting(false);
+    }
+  }
 
   function retryFetch() {
     const cacheKey = issueListCacheKey(issueProvider, issueRepo, gitlabProjects);
@@ -277,10 +288,7 @@ export function GitHubIssues() {
       <Sidebar />
       <main className="issues-screen-main motion-rise">
         <header className="issues-screen-header">
-          <div className="issues-screen-titleblock">
-            <h1 className="issues-screen-title">Issues</h1>
-            <span className="issues-screen-subtitle">{subtitle}</span>
-          </div>
+          <h1 className="issues-screen-title">Issues</h1>
           <div className="issues-screen-meta">
             <div
               className="issues-provider-tabs"
@@ -354,7 +362,7 @@ export function GitHubIssues() {
                 disabled={f.key === "mentions" && !activeMe}
                 title={
                   f.key === "mentions" && !activeMe
-                    ? `Connect ${issueProvider === "github" ? "GitHub" : "GitLab"} to enable mentions filter`
+                    ? `Connect ${issueProvider === "github" ? "GitHub" : "GitLab"} to filter by assignee`
                     : undefined
                 }
               >
@@ -370,7 +378,7 @@ export function GitHubIssues() {
             <input
               type="text"
               className="issues-search-input"
-              placeholder="Search title"
+              placeholder="Search title, #, author"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               spellCheck={false}
@@ -402,16 +410,54 @@ export function GitHubIssues() {
         )}
 
         {!loading && !error && visibleIssues.length === 0 && (
-          <div className="issues-empty">{emptyMessage}</div>
+          <div className="issues-empty">
+            {!activeAuthed ? (
+              <>
+                <span>Connect {providerLabel} to see issues.</span>
+                <button
+                  type="button"
+                  className="issues-error-retry"
+                  onClick={() => void connectProvider()}
+                  disabled={connecting}
+                >
+                  {connecting ? "Connecting…" : `Connect ${providerLabel}`}
+                </button>
+              </>
+            ) : filteredOut ? (
+              <>
+                <span>
+                  No {filter === "all" ? "" : `${filter} `}issues match
+                  {search.trim() ? ` "${search.trim()}"` : " the active filter"}.
+                </span>
+                <button
+                  type="button"
+                  className="issues-error-retry"
+                  onClick={() => {
+                    setFilter("all");
+                    setSearch("");
+                  }}
+                >
+                  Clear filters
+                </button>
+              </>
+            ) : issueRepo ? (
+              <span>
+                No issues for this {issueProvider === "github" ? "repository" : "project"}.
+              </span>
+            ) : (
+              <span>No open {providerLabel} issues right now.</span>
+            )}
+          </div>
         )}
 
         {!loading && !error && visibleIssues.length > 0 && (
           <div className="issues-list">
-            {visibleIssues.map((issue) => (
+            {visibleIssues.map((issue, index) => (
               <IssueCard
                 key={`${issueProvider}:${issue.repoFullName}:${issue.number}`}
                 issue={issue}
                 provider={issueProvider}
+                staggerIndex={index}
                 onOpen={() =>
                   openIssueDetail({
                     repoFullName: issue.repoFullName,
@@ -442,10 +488,12 @@ function IssueCard({
   issue,
   provider,
   onOpen,
+  staggerIndex = 0,
 }: {
   issue: GitHubIssue;
   provider: IssueProvider;
   onOpen: () => void;
+  staggerIndex?: number;
 }) {
   const accentClass = accentClassFor(issue);
   // GitLab issues are addressed by `!<iid>` in MRs and `#<iid>` in issues,
@@ -454,7 +502,8 @@ function IssueCard({
   return (
     <button
       type="button"
-      className={`issue-card ${accentClass}`}
+      className={`issue-card ${accentClass} motion-rise-stagger`}
+      style={{ "--stagger-index": Math.min(staggerIndex, 8) } as React.CSSProperties}
       onClick={onOpen}
       aria-label={`${provider === "gitlab" ? "GitLab" : "GitHub"} issue ${numberPrefix}${issue.number}: ${issue.title}`}
     >
@@ -526,10 +575,10 @@ function IssueCard({
 
 function accentClassFor(issue: GitHubIssue): string {
   if (issue.state === "closed") return "issue-card-accent-closed";
+  // Amber is reserved for genuinely critical labels; a plain "bug" backlog
+  // should not turn the grid amber.
   if (
-    issue.labels.some((label) =>
-      /bug|needs-review|critical|sev|p0|p1|security/i.test(label.name),
-    )
+    issue.labels.some((label) => /critical|security|p0/i.test(label.name))
   ) {
     return "issue-card-accent-amber";
   }

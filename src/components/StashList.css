@@ -37,6 +37,17 @@
   background: transparent;
   border: none;
   border-radius: 0;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.stash-item:hover {
+  background: var(--color-bg-elevated);
+}
+
+.stash-item:focus-visible {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: -2px;
 }
 
 .stash-ref {
@@ -95,16 +106,6 @@
   color: var(--color-text-inverted);
 }
 
-.stash-button-secondary {
-  color: var(--color-accent-amber);
-  border-color: var(--color-accent-amber);
-}
-
-.stash-button-secondary:hover {
-  background: var(--color-accent-amber);
-  color: var(--color-text-inverted);
-}
-
 .stash-button:disabled,
 .stash-button:disabled:hover {
   color: var(--color-text-muted);
@@ -145,11 +146,22 @@
   letter-spacing: var(--tracking-wide);
 }
 
-.stash-detail-head span:last-child {
+.stash-detail-head span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Unprompted note when a stash intersects the current working tree. */
+.stash-overlap-note {
+  color: var(--color-accent-amber);
+  flex-shrink: 0;
+}
+
+.stash-detail-explain {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .stash-detail-state {

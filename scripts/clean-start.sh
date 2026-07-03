@@ -4,7 +4,7 @@
 # Wipes Vite + renderer-bundle caches (the things that cause stale UI),
 # then launches either:
 #   • dev (default) — vite + vite-plugin-electron (boots the Electron window)
-#   • dev:browser    — vite + IPC bridge stub at 127.0.0.1:5173 (no Electron)
+#   • dev:browser    — vite + IPC bridge stub on the next available local port (no Electron)
 #
 # IMPORTANT: We never wipe dist-electron. The Electron launcher reads
 # package.json's `main` (dist-electron/main.js) when starting; if the file
@@ -20,7 +20,7 @@
 # parent environment.
 #
 # Flags:
-#   --browser           Use dev:browser mode (no Electron, runs at :5173).
+#   --browser           Use dev:browser mode (no Electron, local Vite URL printed on start).
 #   --reset-user-data   Also wipe ~/.config/overcode (auth tokens, settings).
 
 set -euo pipefail
@@ -41,7 +41,7 @@ for arg in "$@"; do
 Usage: scripts/clean-start.sh [--browser] [--reset-user-data]
 
   --browser           Skip Electron, run \`npm run dev:browser\` instead.
-                      Renderer at http://127.0.0.1:5173 with IPC stubs.
+                      Renderer URL is printed on start with IPC stubs.
   --reset-user-data   Wipe ~/.config/overcode (auth tokens, electron-store).
 
 Always:
@@ -68,6 +68,7 @@ unset ELECTRON_RUN_AS_NODE
 
 echo "→ killing running Overcode electron + vite processes"
 pkill -f "${ROOT}/node_modules/electron/dist/electron" 2>/dev/null || true
+pkill -f "${ROOT}/node_modules/.bin/vite" 2>/dev/null || true
 pkill -f "${ROOT}/node_modules/vite/bin/vite.js" 2>/dev/null || true
 pkill -f "scripts/dev-browser.mjs" 2>/dev/null || true
 sleep 0.5
@@ -98,7 +99,7 @@ EOF
 fi
 
 if [[ "${USE_BROWSER}" -eq 1 ]]; then
-  echo "→ launching npm run dev:browser (renderer at http://127.0.0.1:5173)"
+  echo "→ launching npm run dev:browser"
   exec npm run dev:browser
 fi
 

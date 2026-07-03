@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowsLeftRight, Copy, ArrowClockwise, ArrowCounterClockwise } from "@phosphor-icons/react";
+import { ArrowsLeftRight, Copy, ArrowClockwise } from "@phosphor-icons/react";
 import { useAIPanel } from "../../store/useAIPanel";
 import {
   ipc,
+  type MemoryRememberResult,
   type WorktreeSummaryInput,
 } from "../../lib/ipc";
 import {
@@ -13,8 +14,11 @@ import type {
   AIEnvelope,
   WorktreeCompareData,
 } from "../../lib/ai-structured";
+import { recallCogneeWorkflowMemory } from "../../lib/cognee-workflow-runtime";
 import { WorktreeCompareSummary } from "./AIResultViews";
 import { BrutalistSelect } from "../BrutalistSelect";
+import { AIProviderLogo } from "../AIProviderLogo";
+import { buildWorktreeCompareMemoryInput } from "./worktree-memory";
 import "./WorktreeCompare.css";
 
 interface Props {
@@ -22,6 +26,14 @@ interface Props {
 }
 
 type View = "picker" | "loading" | "result" | "error";
+type RememberState =
+  | { status: "idle" }
+  | { status: "saving" }
+  | { status: "saved"; message: string; savedId: string; savedDataset: string }
+  | { status: "forgetting"; message: string; savedId: string; savedDataset: string }
+  | { status: "forgotten"; message: string }
+  | { status: "skipped"; message: string }
+  | { status: "error"; message: string };
 
 const COMMON_TARGETS = ["origin/main", "origin/master", "main", "master", "develop", "trunk"];
 
@@ -37,6 +49,9 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [source, setSource] = useState<string>("");
   const [target, setTarget] = useState<string>("");
+  const [lastPayload, setLastPayload] = useState<WorktreeComparePayload | null>(null);
+  const [memoryUsed, setMemoryUsed] = useState<string | null>(null);
+  const [rememberState, setRememberState] = useState<RememberState>({ status: "idle" });
   const initialRunRef = useRef(false);
 
   // Hydrate pickers from incoming payload. Source = worktree branch, target = base.
@@ -76,6 +91,9 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
       setError(null);
       setCopyState("idle");
       setContent(null);
+      setLastPayload(null);
+      setRememberState({ status: "idle" });
+      setMemoryUsed(null);
       try {
         let payload: WorktreeComparePayload = {
           ...incoming,
@@ -91,8 +109,22 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
           );
           payload = payloadFromSummaryInput(incoming, fresh);
         }
-        const result = await summarizeWorktreeCompare(payload, options);
+        const memory = await recallCogneeWorkflowMemory({
+          source: "worktree compare",
+          repoId: payload.repoId,
+          repoName: payload.repoName,
+          branch: payload.branch ?? payload.target,
+          paths: payload.changedFiles,
+          tags: ["worktree", "compare"],
+        });
+        const result = await summarizeWorktreeCompare(
+          memory?.context ? { ...payload, memoryContext: memory.context } : payload,
+          options,
+        );
+        setLastPayload(payload);
         setContent(result);
+        // Disclose that recalled memory shaped this result; silence otherwise.
+        setMemoryUsed(memory ? memory.summary : null);
         setView("result");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to compare worktree");
@@ -122,12 +154,61 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
     }
   }, [content]);
 
-  const reset = useCallback(() => {
-    setContent(null);
-    setError(null);
-    setCopyState("idle");
-    setView("picker");
-  }, []);
+  const rememberWithCognee = useCallback(async () => {
+    if (!content || !lastPayload) return;
+    setRememberState({ status: "saving" });
+    try {
+      const input = buildWorktreeCompareMemoryInput(lastPayload, content);
+      const result = await ipc.rememberMemory(input) as MemoryRememberResult;
+      if (result.ok) {
+        setRememberState({
+          status: "saved",
+          message: `Saved ${result.stored} worktree memory record${result.stored === 1 ? "" : "s"} to Cognee.`,
+          savedId: input.documents[0]?.id ?? "",
+          savedDataset: input.datasetName ?? "overcode_memory",
+        });
+        return;
+      }
+      setRememberState({
+        status: result.skipped ? "skipped" : "error",
+        message: result.reason || result.error || "Cognee did not accept the memory record.",
+      });
+    } catch (err) {
+      setRememberState({
+        status: "error",
+        message: err instanceof Error ? err.message : "Failed to save Cognee memory.",
+      });
+    }
+  }, [content, lastPayload]);
+
+  const forgetSavedMemory = useCallback(async () => {
+    if (rememberState.status !== "saved" || !rememberState.savedId) return;
+    const { savedId, savedDataset } = rememberState;
+    setRememberState({ status: "forgetting", message: "", savedId, savedDataset });
+    try {
+      const result = await ipc.forgetMemory({ id: savedId, datasetName: savedDataset });
+      if (result.forgotten) {
+        setRememberState({
+          status: "forgotten",
+          message: "Memory removed from Cognee. Future recalls will not return it.",
+        });
+        return;
+      }
+      setRememberState({
+        status: "saved",
+        message: result.reason || result.error || "Cognee did not forget the memory.",
+        savedId,
+        savedDataset,
+      });
+    } catch (err) {
+      setRememberState({
+        status: "saved",
+        message: err instanceof Error ? err.message : "Failed to forget Cognee memory.",
+        savedId,
+        savedDataset,
+      });
+    }
+  }, [rememberState]);
 
   const canCompare = Boolean(incoming?.repoId && source && target);
 
@@ -213,7 +294,45 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
 
       {view === "result" && content && (
         <div className="wt-result motion-rise">
+          {memoryUsed && (
+            <div className="wt-memory-used" role="note" title="Recalled repository memory was included in the AI prompt for this comparison">
+              From memory: {memoryUsed} informed this analysis.
+            </div>
+          )}
           <WorktreeCompareSummary result={content} />
+          <section className={`wt-cognee-memory is-${rememberState.status}`}>
+            <div className="wt-cognee-memory-head">
+              <AIProviderLogo providerId="cognee" size="sm" decorative />
+              <span>Cognee memory</span>
+            </div>
+            <button
+              type="button"
+              className="wt-action wt-cognee-action"
+              onClick={() => void rememberWithCognee()}
+              disabled={rememberState.status === "saving" || rememberState.status === "forgetting"}
+              title="Save this comparison as repository memory for future recall"
+            >
+              <span>{rememberState.status === "saving" ? "Remembering..." : "Remember with Cognee"}</span>
+            </button>
+            {(rememberState.status === "saved" || rememberState.status === "forgetting") && (
+              <button
+                type="button"
+                className="wt-action wt-cognee-action"
+                onClick={() => void forgetSavedMemory()}
+                disabled={rememberState.status === "forgetting"}
+                title="Forget this saved memory in Cognee"
+              >
+                <span>
+                  {rememberState.status === "forgetting" ? "Forgetting..." : "Forget this memory"}
+                </span>
+              </button>
+            )}
+            {rememberState.status !== "idle" &&
+              rememberState.status !== "saving" &&
+              rememberState.message && (
+                <div className="wt-cognee-message">{rememberState.message}</div>
+              )}
+          </section>
           <footer className="wt-actions">
             <button type="button" className="wt-action" onClick={() => void copyAll()} title="Copy AI output to clipboard">
               <Copy size={13} />
@@ -227,10 +346,6 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
             >
               <ArrowClockwise size={13} />
               <span>Re-run</span>
-            </button>
-            <button type="button" className="wt-action" onClick={reset} title="Back to picker">
-              <ArrowCounterClockwise size={13} />
-              <span>Reset</span>
             </button>
           </footer>
           {copyState === "error" && (

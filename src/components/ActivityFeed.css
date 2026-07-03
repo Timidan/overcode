@@ -8,3 +8,14 @@
   flex: 1;
   height: 400px;
 }
+
+.activity-feed-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 160px;
+  border: 1px dashed var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}

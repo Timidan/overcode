@@ -19,7 +19,7 @@ function prefersReducedMotion(): boolean {
 /** Set the data-theme attribute on <html>. The legacy
  *  `theme-transitioning` class is kept as a fallback for browsers
  *  that don't support the View Transitions API (Electron is Chromium
- *  so it should — this is defensive only). */
+ *  so it should; this is defensive only). */
 function applyThemeAttribute(theme: Theme) {
   if (typeof document === "undefined") return;
   document.documentElement.setAttribute("data-theme", theme);

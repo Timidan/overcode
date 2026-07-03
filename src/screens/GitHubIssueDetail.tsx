@@ -4,7 +4,6 @@ import {
   ArrowSquareOut,
   GithubLogo,
   GitlabLogo,
-  Sparkle,
   GitPullRequest,
 } from "@phosphor-icons/react";
 import { Sidebar } from "../components/Sidebar";
@@ -369,19 +368,6 @@ export function GitHubIssueDetail() {
                 )}
               </SidebarSection>
 
-              <button
-                type="button"
-                className="issue-triage-cta"
-                onClick={startTriage}
-                disabled={triageStarting}
-                title="Open AI triage for this issue"
-              >
-                <Sparkle size={13} weight="fill" />
-                <span>
-                  {triageStarting ? "Opening…" : "AI triage"}
-                </span>
-              </button>
-
               <IssueIntelligencePanel
                 context={localContext}
                 contextLoading={localContextLoading}
@@ -390,6 +376,8 @@ export function GitHubIssueDetail() {
                 error={inlineSummaryError}
                 onSummarize={() => void runInlineSummary(false)}
                 onRefresh={() => void runInlineSummary(true)}
+                onTriage={startTriage}
+                triageStarting={triageStarting}
               />
             </aside>
           </section>
@@ -407,6 +395,8 @@ function IssueIntelligencePanel({
   error,
   onSummarize,
   onRefresh,
+  onTriage,
+  triageStarting,
 }: {
   context: IssueLocalContext | null;
   contextLoading: boolean;
@@ -415,6 +405,8 @@ function IssueIntelligencePanel({
   error: string | null;
   onSummarize: () => void;
   onRefresh: () => void;
+  onTriage: () => void;
+  triageStarting: boolean;
 }) {
   const candidate = context?.mapping.candidate;
   const status = context?.status;
@@ -426,7 +418,6 @@ function IssueIntelligencePanel({
       ) : candidate ? (
         <div className="issue-intel-facts">
           <span title={candidate.local_path}>Local: {candidate.name}</span>
-          <span>{status?.fileTree.length ?? 0} files indexed</span>
           <span>{status?.files.length ?? 0} local changes</span>
         </div>
       ) : (
@@ -439,8 +430,18 @@ function IssueIntelligencePanel({
           className="issue-intel-action"
           onClick={summary ? onRefresh : onSummarize}
           disabled={loading}
+          title="One-paragraph priority summary, shown inline in this panel"
         >
-          {loading ? "Summarizing…" : summary ? "Refresh AI" : "AI summary"}
+          {loading ? "Summarizing…" : summary ? "Refresh summary" : "Summarize issue"}
+        </button>
+        <button
+          type="button"
+          className="issue-intel-triage-link"
+          onClick={onTriage}
+          disabled={triageStarting}
+          title="Full triage workspace: severity, modules, and a suggested plan"
+        >
+          {triageStarting ? "Opening…" : "Open triage panel"}
         </button>
       </div>
 

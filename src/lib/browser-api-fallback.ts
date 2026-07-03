@@ -1,13 +1,14 @@
 import type { API } from "../../electron/preload";
 import type {
   AIModelCatalogEntry,
+  AIModelStructuredCheckResult,
   AIProviderCredentialSourceStatus,
   AIProviderId,
   AIProviderStatus,
 } from "./ipc";
 
 const STORE_KEY = "overcode:browser-api-fallback";
-const PROVIDERS: AIProviderId[] = ["openrouter", "openai", "anthropic", "gemini"];
+const PROVIDERS: AIProviderId[] = ["openrouter", "openai", "anthropic", "gemini", "nvidia"];
 const CURATED_MODELS: Record<AIProviderId, AIModelCatalogEntry[]> = {
   openrouter: [
     {
@@ -94,6 +95,35 @@ const CURATED_MODELS: Record<AIProviderId, AIModelCatalogEntry[]> = {
       contextLength: 1048576,
       modalities: ["text", "image"],
       tags: ["paid", "coding", "vision"],
+      source: "curated",
+    },
+  ],
+  nvidia: [
+    {
+      providerId: "nvidia",
+      id: "meta/llama-4-maverick-17b-128e-instruct",
+      name: "Meta: Llama 4 Maverick",
+      free: false,
+      modalities: ["text"],
+      tags: ["paid", "recommended", "long_context"],
+      source: "curated",
+    },
+    {
+      providerId: "nvidia",
+      id: "qwen/qwen3-next-80b-a3b-instruct",
+      name: "Qwen: Qwen3 Next 80B",
+      free: false,
+      modalities: ["text"],
+      tags: ["paid", "coding", "recommended", "long_context"],
+      source: "curated",
+    },
+    {
+      providerId: "nvidia",
+      id: "mistralai/mistral-large-3-675b-instruct-2512",
+      name: "Mistral: Large 3",
+      free: false,
+      modalities: ["text"],
+      tags: ["paid", "recommended", "long_context"],
       source: "curated",
     },
   ],
@@ -328,6 +358,28 @@ export function installBrowserApiFallback(): void {
       complete: (systemPrompt, userPrompt) =>
         bridge("/api/ai/complete", { systemPrompt, userPrompt }),
       providers: async () => browserProviderStatuses(),
+      structuredCheck: async (providerId, modelId) => {
+        const data = readStore();
+        const checkedProvider = PROVIDERS.includes(providerId as AIProviderId)
+          ? (providerId as AIProviderId)
+          : (data.ai_provider_id as AIProviderId | undefined) ?? "openrouter";
+        const model = typeof modelId === "string" && modelId.trim()
+          ? modelId.trim()
+          : typeof data.ai_model_id === "string" && data.ai_model_id.trim()
+            ? data.ai_model_id.trim()
+            : CURATED_MODELS[checkedProvider]?.[0]?.id ?? "openrouter/free";
+        const fallback: AIModelStructuredCheckResult = {
+          providerId: checkedProvider,
+          model,
+          status: "not_configured",
+          reason: "Structured checks require the Electron app runtime.",
+          checkedAt: Date.now(),
+          generatedLength: 0,
+          parsedJson: false,
+          schemaValid: false,
+        };
+        return bridgeOr("/api/ai/structured-check", { providerId: checkedProvider, modelId: model }, fallback);
+      },
       models: async (providerId) => CURATED_MODELS[providerId as AIProviderId] ?? [],
       setActiveProvider: async (providerId, modelId) => {
         const data = readStore();
@@ -391,6 +443,13 @@ export function installBrowserApiFallback(): void {
         requestTimeoutMs: 8_000,
         reason: "Electron preload unavailable in browser mode",
       }),
+      usage: async () => ({
+        ok: false,
+        skipped: true,
+        reason: "Cognee memory is only available in the Electron app runtime.",
+        storageUsedInBytes: 0,
+        storageLimitInBytes: 0,
+      }),
     },
     store: {
       get: async (key) => {
@@ -426,7 +485,7 @@ export function installBrowserApiFallback(): void {
           base_url?: string | null;
         };
         if (typeof payload.providerId !== "string" || !PROVIDERS.includes(payload.providerId as AIProviderId)) {
-          throw new Error("Provider id must be one of: openrouter, openai, anthropic, gemini.");
+          throw new Error("Provider id must be one of: openrouter, openai, anthropic, gemini, nvidia.");
         }
         writeProviderStatus(payload.providerId as AIProviderId, payload);
       },

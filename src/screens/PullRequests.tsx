@@ -24,6 +24,8 @@ export function PullRequests() {
   const [busy, setBusy] = useState<Provider | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -48,7 +50,7 @@ export function PullRequests() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   async function connect(provider: Provider) {
     setBusy(provider);
@@ -56,7 +58,8 @@ export function PullRequests() {
       await ipc.connectAuth(provider);
       const status = await ipc.getAuthStatus();
       setAuth(status);
-      window.location.reload();
+      // Refetch in place; a full window reload loses navigation state.
+      setReloadKey((key) => key + 1);
     } catch (error) {
       setError(errorMessage(error, "Connection failed"));
     } finally {
@@ -105,7 +108,13 @@ export function PullRequests() {
 
         {error && <div className="pr-screen-error">{error}</div>}
 
-        {loading && <div className="pr-screen-empty">Loading pull requests…</div>}
+        {loading && (
+          <div className="pr-screen-skel" aria-busy="true" aria-hidden="true">
+            <span className="pr-screen-skel-row" />
+            <span className="pr-screen-skel-row" />
+            <span className="pr-screen-skel-row" />
+          </div>
+        )}
 
         {!loading && prs.length === 0 && (
           <div className="pr-screen-empty">
@@ -116,8 +125,8 @@ export function PullRequests() {
         )}
 
         <div className="pr-screen-list">
-          {prs.map((pr) => (
-            <PRCard key={pr.id} pr={pr} />
+          {prs.map((pr, index) => (
+            <PRCard key={pr.id} pr={pr} staggerIndex={index} />
           ))}
         </div>
       </main>

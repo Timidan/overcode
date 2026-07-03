@@ -19,7 +19,13 @@ vi.mock("./store", () => ({
   getOpenRouterBaseUrl: () => mockGetAIProviderBaseUrl("openrouter"),
 }));
 
-import { aiConfigStatus, callAIModel, configuredModel, configuredProvider } from "./ai-runtime";
+import {
+  aiConfigStatus,
+  callAIModel,
+  configuredModel,
+  configuredProvider,
+  runStructuredAIModelCheck,
+} from "./ai-runtime";
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
@@ -33,6 +39,11 @@ function resetAIEnv(): void {
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.GEMINI_API_KEY;
   delete process.env.GOOGLE_API_KEY;
+  delete process.env.NVIDIA_API_KEY;
+  delete process.env.NIM_API_KEY;
+  delete process.env.NVAPI_KEY;
+  delete process.env.NVIDIA_BASE_URL;
+  delete process.env.NIM_BASE_URL;
 }
 
 afterEach(() => {
@@ -61,6 +72,47 @@ describe("OpenRouter AI runtime", () => {
 
     expect(configuredProvider()).toBe("anthropic");
     expect(configuredModel()).toBe("claude-sonnet-4-5");
+  });
+
+  it("uses NVIDIA NIM as an explicit active provider with a tested default model", () => {
+    mockStoreValue.mockImplementation((key: string) =>
+      key === "settings" ? { ai_provider_id: "nvidia" } : undefined);
+
+    expect(configuredProvider()).toBe("nvidia");
+    expect(configuredModel()).toBe("meta/llama-4-maverick-17b-128e-instruct");
+  });
+
+  it("accepts NVIDIA NIM env aliases and base URL overrides", async () => {
+    resetAIEnv();
+    process.env.NIM_API_KEY = "nim-key";
+    process.env.NVIDIA_BASE_URL = "https://nim.example/v1/";
+    mockStoreValue.mockImplementation((key: string) =>
+      key === "settings" ? { ai_provider_id: "nvidia" } : undefined);
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: "nim result" } }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const status = await aiConfigStatus();
+    const result = await callAIModel("system instructions", "user prompt");
+
+    expect(status).toMatchObject({
+      configured: true,
+      model: "meta/llama-4-maverick-17b-128e-instruct",
+      missing: [],
+      env: { NVIDIA_API_KEY: "configured" },
+    });
+    expect(result).toBe("nim result");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://nim.example/v1/chat/completions",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer nim-key",
+        }),
+      }),
+    );
   });
 
   it("ignores an invalid persisted provider id and falls back to available credentials", async () => {
@@ -252,5 +304,112 @@ describe("OpenRouter AI runtime", () => {
         }),
       }),
     );
+  });
+
+  it("passes a selected model when it returns valid Overcode structured JSON", async () => {
+    resetAIEnv();
+    process.env.OPENROUTER = "test-key";
+    mockStoreValue.mockImplementation((key: string) =>
+      key === "settings" ? { ai_provider_id: "openrouter" } : undefined);
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: JSON.stringify({
+                  schemaVersion: 1,
+                  feature: "brief",
+                  summary: "Probe passed.",
+                  confidence: "high",
+                  warnings: [],
+                  data: {
+                    purpose: "Validate structured responses.",
+                    keyModules: [{ name: "AI runtime", path: "electron/lib", role: "Runs probes." }],
+                    recentActivity: [{ label: "Probe", evidence: "Structured check returned JSON." }],
+                    onboardingPath: ["Open settings"],
+                    notableRisks: [],
+                  },
+                }),
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ));
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const result = await runStructuredAIModelCheck({
+      providerId: "openrouter",
+      modelId: "nvidia/nemotron-3-ultra-550b-a55b:free",
+    });
+
+    expect(result).toMatchObject({
+      providerId: "openrouter",
+      model: "nvidia/nemotron-3-ultra-550b-a55b:free",
+      status: "passed",
+      parsedJson: true,
+      schemaValid: true,
+      generatedLength: expect.any(Number),
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://openrouter.ai/api/v1/chat/completions",
+      expect.objectContaining({
+        body: expect.stringContaining("nvidia/nemotron-3-ultra-550b-a55b:free"),
+      }),
+    );
+  });
+
+  it("fails the structured check when a provider returns prose instead of JSON", async () => {
+    resetAIEnv();
+    process.env.OPENROUTER = "test-key";
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ finish_reason: "stop", message: { content: "I should return JSON, but here is prose." } }],
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ));
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const result = await runStructuredAIModelCheck({
+      providerId: "openrouter",
+      modelId: "nvidia/nemotron-3-super-120b-a12b:free",
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      parsedJson: false,
+      schemaValid: false,
+      reason: "Model returned text without a parseable JSON object.",
+    });
+  });
+
+  it("reports not_configured when the selected provider has no API key", async () => {
+    resetAIEnv();
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const result = await runStructuredAIModelCheck({
+      providerId: "openai",
+      modelId: "gpt-4.1-mini",
+    });
+
+    expect(result).toMatchObject({
+      providerId: "openai",
+      model: "gpt-4.1-mini",
+      status: "not_configured",
+      reason: "OpenAI API key is not configured.",
+      parsedJson: false,
+      schemaValid: false,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

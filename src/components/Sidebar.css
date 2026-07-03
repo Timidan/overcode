@@ -61,22 +61,13 @@
   border-bottom-color: var(--color-ink);
 }
 
-.sidebar-icon-ai {
-  color: var(--color-accent-amber);
+.sidebar-icon-cognee .ai-provider-logo {
+  width: 20px;
+  height: 20px;
 }
 
-.sidebar-icon-ai:not(.active) {
-  opacity: 0.9;
-}
-
-.sidebar-icon-ai.active {
-  background: var(--color-accent-amber);
-  color: var(--color-text-inverted);
-  border-bottom-color: var(--color-ink);
-}
-
-.sidebar-icon-ai.active::before {
-  background: var(--color-text-inverted);
+.sidebar-icon-cognee.active .ai-provider-logo-mark {
+  filter: none;
 }
 
 .sidebar-repos {
@@ -88,11 +79,9 @@
   gap: 0;
   max-height: calc(100vh - 260px);
   overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.sidebar-repos::-webkit-scrollbar {
-  display: none;
+  /* Visible when the list overflows, so hidden repos are discoverable. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
 }
 
 .sidebar-repo {
@@ -112,12 +101,6 @@
     color var(--duration-hover) var(--ease-standard);
 }
 
-.sidebar-repo svg {
-  position: absolute;
-  inset: auto 5px 3px auto;
-  opacity: 0.35;
-}
-
 .sidebar-repo::before {
   content: "";
   position: absolute;
@@ -125,7 +108,7 @@
   top: 0;
   bottom: 0;
   width: 3px;
-  background: var(--color-accent-amber);
+  background: var(--color-text-primary);
   transform: scaleY(0);
   transform-origin: center;
   opacity: 0;
@@ -167,19 +150,38 @@
   width: 6px;
   height: 6px;
   border-radius: var(--radius-full);
-  background: var(--color-text-muted);
   z-index: 2;
   pointer-events: none;
 }
 
-.sidebar-repo-status-clean { background: var(--color-accent-green); }
 .sidebar-repo-status-dirty { background: var(--color-accent-amber); }
 .sidebar-repo-status-conflict { background: var(--color-accent-red); }
-.sidebar-repo-status-unknown { background: var(--color-text-muted); }
 
-.sidebar-repo.active .sidebar-repo-status-unknown {
-  background: var(--color-text-inverted);
-  opacity: 0.4;
+.sidebar-repo-skeleton {
+  display: block;
+  height: 38px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-elevated);
+  animation: overcode-skeleton-pulse 1.2s var(--ease-standard) infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-repo-skeleton {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+.sidebar-repos-error {
+  display: grid;
+  place-items: center;
+  height: 38px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-black);
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border-subtle);
+  cursor: help;
 }
 
 .theme-toggle {

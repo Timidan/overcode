@@ -187,6 +187,22 @@ async function rendererSmoke(scanPaths, appRoot) {
     ]);
   }
 
+  async function waitForViewport(timeoutMs = 5_000) {
+    const started = Date.now();
+    let viewport;
+    do {
+      viewport = {
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        outerWidth: window.outerWidth,
+        outerHeight: window.outerHeight,
+      };
+      if (viewport.innerWidth > 0 && viewport.innerHeight > 0) return viewport;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } while (Date.now() - started < timeoutMs);
+    return viewport;
+  }
+
   const started = Date.now();
   while (!window.api && Date.now() - started < 10_000) {
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -218,6 +234,7 @@ async function rendererSmoke(scanPaths, appRoot) {
 
   return {
     hasApi: true,
+    viewport: await waitForViewport(),
     apiKeys: Object.keys(window.api).sort(),
     auth,
     ai: "health" in ai
@@ -266,6 +283,17 @@ function validateSmokeResult(result) {
   if (!result?.apiKeys?.includes("git")) failures.push("git API missing");
   if (!result?.apiKeys?.includes("ai")) failures.push("ai API missing");
   if (!result?.store?.hasProbe) failures.push("store get/set failed");
+  if (result?.viewport) {
+    const { innerWidth, innerHeight, outerWidth, outerHeight } = result.viewport;
+    if (outerWidth >= 1200 && innerWidth < 1200) {
+      failures.push(`renderer viewport too narrow (${innerWidth}px inside ${outerWidth}px window)`);
+    }
+    if (outerHeight >= 800 && innerHeight < 760) {
+      failures.push(`renderer viewport too short (${innerHeight}px inside ${outerHeight}px window)`);
+    }
+  } else {
+    failures.push("renderer viewport metrics missing");
+  }
   if (!result?.repos || result.repos.count < 1) failures.push("workspace scan returned no repos");
   if (!result?.firstStatus) failures.push("git status was not exercised");
   if (result?.firstStatus && !result.firstStatus.hasDiffFields) {

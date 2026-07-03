@@ -48,15 +48,15 @@
 }
 
 .environment-low {
-  border-left-color: var(--color-accent-blue);
+  border-left-color: var(--color-ink);
 }
 
 .environment-medium {
-  border-left-color: var(--color-accent-amber);
+  border-left-color: var(--color-ink);
 }
 
 .environment-high {
-  border-left-color: var(--color-accent-red);
+  border-left-color: var(--color-ink);
 }
 
 .environment-secret {
@@ -178,15 +178,15 @@
 }
 
 .validation-low {
-  border-left-color: var(--color-text-muted);
+  border-left-color: var(--color-ink);
 }
 
 .validation-medium {
-  border-left-color: var(--color-accent-blue);
+  border-left-color: var(--color-ink);
 }
 
 .validation-high {
-  border-left-color: var(--color-accent-green);
+  border-left-color: var(--color-ink);
 }
 
 .validation-command-head {

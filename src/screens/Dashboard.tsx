@@ -30,9 +30,9 @@ export function Dashboard() {
   const [hasRepos, setHasRepos] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState(false);
   const [feedVersion, setFeedVersion] = useState(0);
-  // `firstLoad` is true until the very first scan resolves. Used to gate the
-  // stat-cards / feed render so judges don't see a 0/0/0/0 flicker on cold
-  // boot — they see an explicit "scanning workspaces" state instead.
+  // `firstLoad` is true until the very first scan resolves, gating the
+  // stat-cards / feed render behind a skeleton so a 0/0/0/0 flash never
+  // renders as real data.
   const [firstLoad, setFirstLoad] = useState(true);
 
   async function refresh() {
@@ -73,16 +73,17 @@ export function Dashboard() {
 
         {firstLoad ? (
           <section className="dashboard-cold-start" aria-live="polite" aria-busy="true">
-            <div className="dashboard-cold-start-pulse">
-              <span className="dashboard-cold-start-dot" />
-              <span className="dashboard-cold-start-dot" />
-              <span className="dashboard-cold-start-dot" />
-            </div>
-            <div className="dashboard-cold-start-title">Scanning local workspaces</div>
+            <div className="dashboard-cold-start-title">Scanning your workspaces</div>
             <div className="dashboard-cold-start-hint">
-              Reading real git status, divergence, stashes, and recent activity across every
-              repository on disk. This usually takes a couple of seconds.
+              Status, divergence, stashes, and recent activity.
             </div>
+            <div className="dashboard-skeleton-cards" aria-hidden="true">
+              <span className="dashboard-skeleton-card" />
+              <span className="dashboard-skeleton-card" />
+              <span className="dashboard-skeleton-card" />
+              <span className="dashboard-skeleton-card" />
+            </div>
+            <span className="dashboard-skeleton-feed" aria-hidden="true" />
           </section>
         ) : (
           <>
@@ -94,7 +95,7 @@ export function Dashboard() {
                 icon={Code}
                 accent="blue"
                 number={stats.commits}
-                label="Commits synced"
+                label="Commits, last 24h"
                 onClick={() => navigate("repositories")}
                 title="Open repositories to drill into commits"
                 sparklinePoints={stats.byDay?.commits}
@@ -103,7 +104,7 @@ export function Dashboard() {
                 icon={GitBranch}
                 accent="green"
                 number={stats.prs}
-                label="Pull requests updated"
+                label="PRs updated, last 24h"
                 onClick={() => navigate("prs")}
                 title="Open pull requests"
                 sparklinePoints={stats.byDay?.prs}
@@ -112,7 +113,7 @@ export function Dashboard() {
                 icon={Folder}
                 accent="purple"
                 number={stats.repos}
-                label="Repositories updated"
+                label="Repos active, last 24h"
                 onClick={() => navigate("repositories")}
                 title="Open repositories"
                 sparklinePoints={stats.byDay?.repos}
@@ -121,7 +122,7 @@ export function Dashboard() {
                 icon={Monitor}
                 accent="amber"
                 number={stats.localChanges}
-                label="Local changes detected"
+                label="Uncommitted files"
                 onClick={openLocalChanges}
                 title="Show all local changes across the workspace"
                 sparklinePoints={stats.byDay?.localChanges}
@@ -135,7 +136,7 @@ export function Dashboard() {
                 <span className="section-label">Recent updates</span>
                 <button
                   type="button"
-                  className="generate-commit-button"
+                  className="dashboard-button"
                   title="Re-scan repositories and rebuild the feed"
                   onClick={refresh}
                   disabled={refreshing}
@@ -152,15 +153,15 @@ export function Dashboard() {
                 <div className="dashboard-empty">
                   <div className="dashboard-empty-title">No workspaces yet</div>
                   <div className="dashboard-empty-hint">
-                    Overcode reads real Git data. Add a workspace directory and scan to populate the feed.
+                    Add a workspace folder to populate the dashboard.
                   </div>
                   <button
                     type="button"
-                    className="generate-commit-button"
+                    className="dashboard-button is-primary"
                     title="Open the Repositories screen"
                     onClick={() => navigate("repositories")}
                   >
-                    Open Repositories
+                    Open repositories
                   </button>
                 </div>
               ) : (

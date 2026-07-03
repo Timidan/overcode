@@ -1,0 +1,152 @@
+.memory-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-ink) 50%, transparent);
+  z-index: 899;
+  animation: memory-backdrop-in var(--duration-state) var(--ease-standard);
+}
+
+.memory-modal-backdrop.is-closing {
+  animation: memory-backdrop-out var(--duration-exit) var(--ease-standard) forwards;
+}
+
+@keyframes memory-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes memory-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.memory-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(640px, 92vw);
+  max-height: min(70vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-ink);
+  z-index: 900;
+  animation: memory-modal-in 160ms var(--ease-standard);
+}
+
+/* Exit: reverse of the enter, faster (leaving shouldn't linger). */
+.memory-modal.is-closing {
+  animation: memory-modal-out var(--duration-exit) var(--ease-standard) forwards;
+}
+
+@keyframes memory-modal-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes memory-modal-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .memory-modal,
+  .memory-modal.is-closing,
+  .memory-modal-backdrop,
+  .memory-modal-backdrop.is-closing {
+    animation: none;
+  }
+}
+
+.memory-modal-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-ink);
+}
+
+.memory-modal-titleblock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.memory-modal-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-black);
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-text-primary);
+}
+
+.memory-modal-titleblock small {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.memory-modal-close {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  border-radius: 0;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.memory-modal-close:hover {
+  background: var(--color-text-primary);
+  color: var(--color-text-inverted);
+}
+
+.memory-modal-close:focus-visible {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 2px;
+}
+
+.memory-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.memory-modal-body p {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.memory-modal-footer {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}

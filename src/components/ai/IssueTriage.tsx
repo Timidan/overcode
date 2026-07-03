@@ -18,6 +18,10 @@ import type {
   IssueTriageData,
   Severity,
 } from "../../lib/ai-structured";
+import {
+  recallCogneeWorkflowMemory,
+  rememberCogneeWorkflowSummary,
+} from "../../lib/cognee-workflow-runtime";
 import { AISummaryCard } from "./AIResultViews";
 import "./IssueTriage.css";
 
@@ -49,9 +53,65 @@ export function IssueTriage({ payload: explicitPayload }: Props) {
       setApplied(false);
       setCopyState("idle");
       try {
-        const result = await summarizeGitHubIssueStructured(incoming, options);
+        const memory = await recallCogneeWorkflowMemory({
+          source: "issue triage",
+          repoName: incoming.repoName,
+          paths: incoming.localChangedFiles,
+          issueNumber: incoming.issue.number,
+          subject: incoming.issue.title,
+          tags: incoming.issue.labels.map((label) => label.name),
+        });
+        const result = await summarizeGitHubIssueStructured(
+          memory?.context ? { ...incoming, memoryContext: memory.context } : incoming,
+          options,
+        );
         setContent(result);
         setView("result");
+        const likelyModulePaths = result.data.likelyModules.flatMap((module) => module.paths);
+        void rememberCogneeWorkflowSummary({
+          source: "issue triage",
+          repoName: incoming.repoName,
+          issueNumber: incoming.issue.number,
+          subject: incoming.issue.title,
+          paths: likelyModulePaths,
+          title: `Issue triage for ${incoming.repoName ?? "repository"} #${incoming.issue.number}`,
+          summary: [
+            result.summary,
+            result.data.problem,
+            result.data.suggestedPlan.slice(0, 4).join(" | "),
+          ].filter(Boolean).join(" "),
+          tags: ["issue", "triage", ...incoming.issue.labels.map((label) => label.name)],
+          data: {
+            priority: result.data.priority,
+            likely_module_count: result.data.likelyModules.length,
+            acceptance_check_count: result.data.acceptanceChecks.length,
+            confidence: result.confidence,
+          },
+        });
+        if (result.data.acceptanceChecks.length > 0) {
+          void rememberCogneeWorkflowSummary({
+            source: "testing memory",
+            repoName: incoming.repoName,
+            issueNumber: incoming.issue.number,
+            subject: incoming.issue.title,
+            paths: likelyModulePaths,
+            title: `Testing memory for ${incoming.repoName ?? "repository"} #${incoming.issue.number}`,
+            summary: [
+              `Acceptance checks from issue triage for #${incoming.issue.number}.`,
+              result.data.acceptanceChecks.slice(0, 6).join(" | "),
+            ].filter(Boolean).join(" "),
+            tags: [
+              "testing",
+              "issue",
+              "triage",
+              ...incoming.issue.labels.map((label) => label.name),
+            ],
+            data: {
+              acceptance_check_count: result.data.acceptanceChecks.length,
+              confidence: result.confidence,
+            },
+          });
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to triage issue");
         setView("error");

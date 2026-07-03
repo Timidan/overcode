@@ -99,7 +99,7 @@ function AIMemoryUsed({
 
   return (
     <section className="ai-memory-used">
-      <div className="ai-section-label">Memory used</div>
+      <div className="ai-section-label">Cognee memory used</div>
       {memoryUsed.summary && <p>{memoryUsed.summary}</p>}
       {graphRows.length > 0 && (
         <div className="ai-memory-paths">

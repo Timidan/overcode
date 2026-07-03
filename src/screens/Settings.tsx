@@ -12,6 +12,11 @@ import {
   ipc,
   type MemoryStatus,
 } from "../lib/ipc";
+import {
+  COGNEE_MEMORY_LEDGER_CHANGED_EVENT,
+  loadCogneeMemoryLedger,
+  type CogneeMemoryLedgerSnapshot,
+} from "../lib/cognee-memory-ledger";
 import "./Settings.css";
 
 interface SettingsShape {
@@ -44,12 +49,14 @@ const MEMORY_DATASET_NAME = "overcode_memory";
 const MEMORY_IMPROVE_FEEDBACK =
   "Refine Overcode workspace memory for recurring risks, decisions, modules, and conventions.";
 
+// One status vocabulary shared with the AI provider cards:
+// Available / Unreachable / Not configured / Off.
 function memoryStatusLabel(status: MemoryStatus | null): string {
-  if (!status) return "Unknown";
-  if (!status.enabled) return "Disabled";
+  if (!status) return "Unreachable";
   if (!status.configured) return "Not configured";
-  if (!status.endpointVerified) return "Endpoint unverified";
-  return "Enabled";
+  if (!status.enabled) return "Off";
+  if (!status.endpointVerified) return "Unreachable";
+  return "Available";
 }
 
 function memoryStatusClass(status: MemoryStatus | null): string {
@@ -78,6 +85,21 @@ export function SettingsScreen() {
   const [memoryStatus, setMemoryStatus] = useState<MemoryStatus | null>(null);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memoryAction, setMemoryAction] = useState<"improve" | "forget" | null>(null);
+  const [confirmingForget, setConfirmingForget] = useState(false);
+  const [ledger, setLedger] = useState<CogneeMemoryLedgerSnapshot>(() =>
+    loadCogneeMemoryLedger(),
+  );
+  const memoryDigest = buildMemoryDigest(ledger);
+
+  useEffect(() => {
+    function refreshLedger() {
+      setLedger(loadCogneeMemoryLedger());
+    }
+    window.addEventListener(COGNEE_MEMORY_LEDGER_CHANGED_EVENT, refreshLedger);
+    return () => {
+      window.removeEventListener(COGNEE_MEMORY_LEDGER_CHANGED_EVENT, refreshLedger);
+    };
+  }, []);
   const [memoryError, setMemoryError] = useState<string | null>(null);
 
   async function refresh() {
@@ -193,9 +215,9 @@ export function SettingsScreen() {
       });
       if (!result.ok || result.skipped) {
         const detail = result.error ?? result.reason ?? "Memory improve was skipped.";
-        setMessage(`Memory improve not applied: ${detail}`);
+        setMemoryError(`Memory improve not applied: ${detail}`);
       } else {
-        setMessage("Repo memory improvement requested.");
+        setMessage("Memory refinement requested. Cognee re-links related memories in the background; recalls surface fewer duplicates once it completes.");
       }
       await refreshMemoryStatus();
     } catch (e) {
@@ -212,7 +234,7 @@ export function SettingsScreen() {
       const result = await ipc.forgetMemory({ datasetName: MEMORY_DATASET_NAME });
       if (!result.ok || result.skipped || !result.forgotten) {
         const detail = result.error ?? result.reason ?? "Memory forget was skipped.";
-        setMessage(`Repo memory not cleared: ${detail}`);
+        setMemoryError(`Repo memory not cleared: ${detail}`);
       } else {
         setMessage("Configured Overcode memory dataset cleared.");
       }
@@ -235,7 +257,13 @@ export function SettingsScreen() {
         </header>
 
         {message && (
-          <div className="settings-toast" onClick={() => setMessage(null)}>
+          <div
+            className="settings-toast"
+            role="status"
+            aria-live="polite"
+            onClick={() => setMessage(null)}
+            title="Dismiss"
+          >
             {message}
           </div>
         )}
@@ -334,7 +362,7 @@ export function SettingsScreen() {
         <AIProviderSettings />
 
         <section className="settings-section">
-          <div className="section-label">AI governance</div>
+          <div className="section-label">AI activity</div>
           <div className="settings-governance-grid">
             <div className="settings-governance-card">
               <span>Cached AI outputs</span>
@@ -378,7 +406,7 @@ export function SettingsScreen() {
 
         <section className="settings-section">
           <div className="settings-section-header">
-            <div className="section-label">Workspace memory governance</div>
+            <div className="section-label">Workspace memory (Cognee)</div>
             <button
               type="button"
               className="settings-button settings-button-quiet"
@@ -400,6 +428,11 @@ export function SettingsScreen() {
           <div className="settings-row-hint settings-hint-block">
             Cognee memory stores structured extracts and references only. Raw source, full diffs, secrets, and credentials are not sent as memory records.
           </div>
+          {memoryDigest && (
+            <div className="settings-memory-digest" aria-label="Recent memory activity">
+              {memoryDigest}
+            </div>
+          )}
           <div className="settings-memory-grid">
             <div className="settings-memory-field">
               <span>Status</span>
@@ -411,19 +444,24 @@ export function SettingsScreen() {
               <span>Endpoint</span>
               <code>{memoryStatus?.endpoint ?? "Not set"}</code>
             </div>
-            <div className="settings-memory-field">
-              <span>Auth mode</span>
-              <strong>{memoryStatus?.auth === "api-key" ? "API key" : "None"}</strong>
-            </div>
-            <div className="settings-memory-field">
-              <span>Timeout</span>
-              <strong>
-                {typeof memoryStatus?.requestTimeoutMs === "number"
-                  ? `${memoryStatus.requestTimeoutMs}ms`
-                  : "Unknown"}
-              </strong>
-            </div>
           </div>
+          <details className="settings-memory-advanced">
+            <summary>Connection details</summary>
+            <div className="settings-memory-grid">
+              <div className="settings-memory-field">
+                <span>Auth mode</span>
+                <strong>{memoryStatus?.auth === "api-key" ? "API key" : "None"}</strong>
+              </div>
+              <div className="settings-memory-field">
+                <span>Timeout</span>
+                <strong>
+                  {typeof memoryStatus?.requestTimeoutMs === "number"
+                    ? `${memoryStatus.requestTimeoutMs}ms`
+                    : "Unknown"}
+                </strong>
+              </div>
+            </div>
+          </details>
           {memoryStatus && (!memoryStatus.configured || memoryStatus.missing.length > 0) && (
             <div className="settings-warning">
               <Warning size={12} />
@@ -445,7 +483,7 @@ export function SettingsScreen() {
               className="settings-button"
               title="Ask Cognee to refine the Overcode memory dataset"
               onClick={improveMemory}
-              disabled={memoryAction !== null}
+              disabled={memoryAction !== null || confirmingForget}
             >
               {memoryAction === "improve" ? "Improving..." : "Improve repo memory"}
             </button>
@@ -453,15 +491,41 @@ export function SettingsScreen() {
               type="button"
               className="settings-button settings-button-danger"
               title="Clear the configured Overcode memory dataset"
-              onClick={forgetMemory}
-              disabled={memoryAction !== null}
+              onClick={() => setConfirmingForget(true)}
+              disabled={memoryAction !== null || confirmingForget}
             >
               {memoryAction === "forget" ? "Clearing..." : "Forget repo memory"}
             </button>
           </div>
           <div className="settings-row-hint">
-            Forget clears the configured <code>{MEMORY_DATASET_NAME}</code> dataset used by Overcode workspace memory.
+            Improve re-links related memories so recalls surface fewer duplicates. Forget
+            clears the <code>{MEMORY_DATASET_NAME}</code> dataset used by workspace memory.
           </div>
+          {confirmingForget && (
+            <div className="settings-forget-confirm" role="alertdialog" aria-label="Confirm forget">
+              <span>{forgetConsequence(ledger)}</span>
+              <div className="settings-forget-confirm-actions">
+                <button
+                  type="button"
+                  className="settings-button settings-button-danger"
+                  disabled={memoryAction !== null}
+                  onClick={() => {
+                    setConfirmingForget(false);
+                    void forgetMemory();
+                  }}
+                >
+                  Forget dataset
+                </button>
+                <button
+                  type="button"
+                  className="settings-button settings-button-quiet"
+                  onClick={() => setConfirmingForget(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="settings-section">
@@ -502,9 +566,10 @@ export function SettingsScreen() {
               />
             </span>
             <div className="settings-row-text">
-              <div className="settings-row-title">Overcode</div>
+              <div className="settings-row-title">Overcode v0.1.0</div>
               <div className="settings-row-hint">
-                Preparing for Cognee-backed repository memory, with BYOK AI providers available for workspace operations.
+                Local-first dashboard for Git workspaces. Memory by Cognee; AI runs on your
+                own provider keys.
               </div>
             </div>
           </div>
@@ -543,6 +608,39 @@ function isAIAuditEntry(value: unknown): value is AIAuditEntry {
     typeof item.durationMs === "number" &&
     typeof item.timestamp === "number"
   );
+}
+
+function buildMemoryDigest(ledger: CogneeMemoryLedgerSnapshot): string | null {
+  const { summary } = ledger;
+  if (summary.totalEvents === 0) return null;
+  const last = summary.lastEvent;
+  const lastPart = last ? ` · last: ${last.source}, ${relativeAge(last.startedAt)}` : "";
+  return `Recorded on this device: ${summary.remembered} remember call${
+    summary.remembered === 1 ? "" : "s"
+  } · ${summary.recalled} recall${summary.recalled === 1 ? "" : "s"}${lastPart}`;
+}
+
+function forgetConsequence(ledger: CogneeMemoryLedgerSnapshot): string {
+  const dataset = ledger.breakdownByDataset.find(
+    (entry) => entry.datasetName === MEMORY_DATASET_NAME,
+  );
+  const records = dataset?.records ?? 0;
+  const last = ledger.summary.lastEvent;
+  const lastPart = last ? ` Last used by ${last.source} ${relativeAge(last.startedAt)}.` : "";
+  return `${MEMORY_DATASET_NAME} holds ${records} locally recorded record${
+    records === 1 ? "" : "s"
+  }.${lastPart} Forgetting clears the dataset on the Cognee server.`;
+}
+
+function relativeAge(iso: string): string {
+  const timestamp = Date.parse(iso);
+  if (Number.isNaN(timestamp)) return "recently";
+  const minutes = Math.max(0, Math.round((Date.now() - timestamp) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
 }
 
 function summarizeCacheKeys(keys: string[]): Array<[string, number]> {

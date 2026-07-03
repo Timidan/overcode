@@ -5,6 +5,10 @@ import {
   type BriefPayload,
 } from "../../lib/ai-features";
 import type { AIEnvelope, RepoBriefData } from "../../lib/ai-structured";
+import {
+  recallCogneeWorkflowMemory,
+  rememberCogneeWorkflowSummary,
+} from "../../lib/cognee-workflow-runtime";
 import { RepoBriefResult } from "./AIResultViews";
 import "./RepoBrief.css";
 
@@ -30,7 +34,39 @@ export function RepoBrief({ payload: explicitPayload }: Props) {
       setContent(null);
 
       try {
-        setContent(await getRepoBriefStructured(data));
+        const memory = await recallCogneeWorkflowMemory({
+          source: "repo brief",
+          repoId: data.repoId,
+          repoName: data.repoName,
+          branch: data.branch,
+          paths: [...(data.changedFiles ?? []), ...(data.tree ?? [])].slice(0, 16),
+          tags: ["onboarding", "repo"],
+        });
+        const result = await getRepoBriefStructured(
+          memory?.context ? { ...data, memoryContext: memory.context } : data,
+        );
+        setContent(result);
+        void rememberCogneeWorkflowSummary({
+          source: "repo brief",
+          repoId: data.repoId,
+          repoName: data.repoName,
+          branch: data.branch,
+          paths: result.data.keyModules.map((module) => module.path).filter(Boolean),
+          title: `Repo brief for ${data.repoName ?? data.repoId}`,
+          summary: [
+            result.summary,
+            result.data.purpose,
+            result.data.notableRisks.length
+              ? `Risks: ${result.data.notableRisks.slice(0, 4).join(" | ")}`
+              : "",
+          ].filter(Boolean).join(" "),
+          tags: ["repo", "onboarding"],
+          data: {
+            key_module_count: result.data.keyModules.length,
+            risk_count: result.data.notableRisks.length,
+            confidence: result.confidence,
+          },
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to generate brief");
       } finally {

@@ -1,6 +1,6 @@
+import { useState } from "react";
 import { Monitor, GithubLogo, GitlabLogo } from "@phosphor-icons/react";
 import { BranchBadge } from "./BranchBadge";
-import { StatusDot } from "./StatusDot";
 import { useAIPanel } from "../store/useAIPanel";
 import { useNav } from "../store/useNav";
 import {
@@ -165,6 +165,7 @@ function timeAgo(timestamp: number): string {
 export function ActivityItem({ item, repository }: ActivityItemProps) {
   const { open } = useAIPanel();
   const navigate = useNav((s) => s.navigate);
+  const [briefing, setBriefing] = useState(false);
   const repoLabel = repository?.name ?? metadataString(item.metadata, "repo") ?? "unknown";
   const platform = repository?.platform ?? metadataPlatform(item.metadata);
 
@@ -175,6 +176,8 @@ export function ActivityItem({ item, repository }: ActivityItemProps) {
   async function handleAnalyzeImpact() {
     if (!repository?.local_path) {
       open("impact", {
+        repoId: repository?.id ?? item.repo_id,
+        repoName: repoLabel,
         diff: IMPACT_NO_LOCAL_PATH,
         fileTree: [],
         unavailableReason: IMPACT_NO_LOCAL_PATH,
@@ -184,6 +187,8 @@ export function ActivityItem({ item, repository }: ActivityItemProps) {
     const hash = typeof item.metadata?.hash === "string" ? item.metadata.hash : null;
     if (!hash) {
       open("impact", {
+        repoId: repository.id,
+        repoName: repository.name,
         diff: IMPACT_NO_HASH,
         fileTree: [],
         unavailableReason: IMPACT_NO_HASH,
@@ -193,16 +198,25 @@ export function ActivityItem({ item, repository }: ActivityItemProps) {
     const diff = await ipc.showCommit(repository.local_path, hash).catch(() => "");
     if (!diff.trim()) {
       open("impact", {
+        repoId: repository.id,
+        repoName: repository.name,
         diff: IMPACT_NO_DIFF,
         fileTree: [],
         unavailableReason: IMPACT_NO_DIFF,
       });
       return;
     }
-    open("impact", { diff, fileTree: extractDiffPaths(diff) });
+    open("impact", {
+      repoId: repository.id,
+      repoName: repository.name,
+      branch: typeof item.metadata?.branch === "string" ? item.metadata.branch : undefined,
+      diff,
+      fileTree: extractDiffPaths(diff),
+    });
   }
 
   async function handleGetBriefed() {
+    if (briefing) return;
     if (!repository?.local_path) {
       open("brief", {
         repoId: repository?.id ?? item.repo_id,
@@ -212,6 +226,16 @@ export function ActivityItem({ item, repository }: ActivityItemProps) {
       return;
     }
 
+    setBriefing(true);
+    try {
+      await runBrief(repository);
+    } finally {
+      setBriefing(false);
+    }
+  }
+
+  async function runBrief(repository: Repository) {
+    if (!repository.local_path) return;
     const [status, log, openPRs] = await Promise.all([
       ipc.getGitStatus(repository.local_path).catch(() => null),
       ipc.getGitLog(repository.local_path, 20).catch(() => []),
@@ -257,12 +281,15 @@ export function ActivityItem({ item, repository }: ActivityItemProps) {
 
   const branch = typeof item.metadata?.branch === "string" ? item.metadata.branch : null;
   const showImpact = item.type === "commit" || item.type === "push";
-  const impactUnavailableTitle = !repository?.local_path
+  const impactUnavailable =
+    !repository?.local_path || typeof item.metadata?.hash !== "string";
+  const briefUnavailable = !repository?.local_path;
+  const impactTitle = !repository?.local_path
     ? IMPACT_NO_LOCAL_PATH
     : typeof item.metadata?.hash !== "string"
       ? IMPACT_NO_HASH
       : "Analyze this change with the active AI provider";
-  const briefUnavailableTitle = !repository?.local_path
+  const briefTitle = !repository?.local_path
     ? BRIEF_NO_LOCAL_PATH
     : "Generate an onboarding brief for this repository";
 
@@ -290,28 +317,32 @@ export function ActivityItem({ item, repository }: ActivityItemProps) {
       </div>
 
       <div className="activity-item-actions">
+        {/* Unavailable actions stay clickable (they open an explanation panel)
+            and keyboard-focusable; aria-disabled + styling signal the state. */}
         {showImpact && (
           <button
             type="button"
             className="activity-item-button"
-            title={impactUnavailableTitle}
+            title={impactTitle}
             onClick={handleAnalyzeImpact}
+            aria-disabled={impactUnavailable}
           >
-            Analyze Impact
+            Analyze impact
           </button>
         )}
         <button
           type="button"
           className="activity-item-button"
-          title={briefUnavailableTitle}
+          title={briefTitle}
           onClick={handleGetBriefed}
+          aria-disabled={briefUnavailable || briefing}
+          disabled={briefing}
         >
-          Get Briefed
+          {briefing ? "Briefing…" : "Repo brief"}
         </button>
       </div>
 
       <div className="activity-item-time">{timeAgo(item.timestamp)}</div>
-      <StatusDot type={item.type} />
     </div>
   );
 }

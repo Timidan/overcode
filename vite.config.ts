@@ -4,6 +4,14 @@ import electron from "vite-plugin-electron";
 import renderer from "vite-plugin-electron-renderer";
 import react from "@vitejs/plugin-react";
 
+function readPort(value: string | undefined, fallback: number): number {
+  const port = Number(value);
+  return Number.isInteger(port) && port > 0 && port < 65536 ? port : fallback;
+}
+
+const DEV_SERVER_HOST = process.env.OVERCODE_DEV_HOST || "127.0.0.1";
+const DEV_SERVER_PORT = readPort(process.env.OVERCODE_DEV_PORT, 5173);
+
 // Single `electron()` call with an array of entries.
 // Calling `electron()` twice (as the previous config did) spawns two
 // separate Electron processes during dev, and the second exiting kills the
@@ -17,6 +25,11 @@ import react from "@vitejs/plugin-react";
 // Electron launch of its own.
 
 export default defineConfig({
+  server: {
+    host: DEV_SERVER_HOST,
+    port: DEV_SERVER_PORT,
+    strictPort: false,
+  },
   plugins: [
     react(),
     electron([

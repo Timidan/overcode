@@ -6,6 +6,10 @@ import {
 } from "../../lib/ai-features";
 import { buildStandupPayload, type StandupRange } from "../../lib/standup-data";
 import type { AIEnvelope, StandupData } from "../../lib/ai-structured";
+import {
+  recallCogneeWorkflowMemory,
+  rememberCogneeWorkflowSummary,
+} from "../../lib/cognee-workflow-runtime";
 import { StandupSummary } from "./AIResultViews";
 import "./DailyStandup.css";
 
@@ -33,9 +37,40 @@ export function DailyStandup({ payload }: { payload?: StandupPayload | null }) {
       try {
         const nextPayload = payload ?? await buildStandupPayload(range);
         setLastPayload(nextPayload);
-        const result = await summarizeDailyStandupStructured(nextPayload, { force });
+        const memory = await recallCogneeWorkflowMemory({
+          source: "daily standup",
+          repoId: "workspace",
+          repoName: "workspace",
+          subject: nextPayload.rangeLabel,
+          tags: ["standup", "workspace"],
+        });
+        const result = await summarizeDailyStandupStructured(
+          memory?.context ? { ...nextPayload, memoryContext: memory.context } : nextPayload,
+          { force },
+        );
         setContent(result);
         setView("result");
+        void rememberCogneeWorkflowSummary({
+          source: "daily standup",
+          repoId: "workspace",
+          repoName: "workspace",
+          title: `Daily standup for ${nextPayload.rangeLabel}`,
+          summary: [
+            result.summary,
+            result.data.headline,
+            result.data.blockers.length
+              ? `Blockers: ${result.data.blockers.slice(0, 4).join(" | ")}`
+              : "",
+          ].filter(Boolean).join(" "),
+          tags: ["standup", "workspace"],
+          data: {
+            commit_count: nextPayload.commits.length,
+            pr_count: nextPayload.pullRequests.length,
+            dirty_workspace_count: nextPayload.localChanges.length,
+            blocker_count: result.data.blockers.length,
+            confidence: result.confidence,
+          },
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not generate standup");
         setView("error");

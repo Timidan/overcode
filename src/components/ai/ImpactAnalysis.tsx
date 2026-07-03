@@ -5,6 +5,8 @@ import {
   type ImpactPayload,
 } from "../../lib/ai-features";
 import type { AIEnvelope, ImpactData } from "../../lib/ai-structured";
+import { COGNEE_WORKSPACE_DATASET } from "../../lib/cognee-workflow-memory";
+import { rememberCogneeWorkflowSummary } from "../../lib/cognee-workflow-runtime";
 import { ipc } from "../../lib/ipc";
 import { ImpactResult } from "./AIResultViews";
 import "./ImpactAnalysis.css";
@@ -34,6 +36,7 @@ interface OptionalMemoryIPC {
     filters?: Record<string, string | number | boolean | null>;
   }) => Promise<MemoryRecallResult>;
   rememberMemory?: (input: {
+    datasetName?: string;
     documents: Array<{
       id: string;
       kind: "summary" | "fact" | "note";
@@ -85,6 +88,7 @@ export function ImpactAnalysis({ payload: explicitPayload }: Props) {
         }
         setResponse(result);
         void rememberImpactResult(dataWithMemory, result);
+        void rememberImpactTestingMemory(dataWithMemory, result);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Analysis failed");
       } finally {
@@ -201,6 +205,7 @@ async function rememberImpactResult(
 
   try {
     await memoryIpc.rememberMemory({
+      datasetName: COGNEE_WORKSPACE_DATASET,
       documents: [
         {
           id,
@@ -214,6 +219,7 @@ async function rememberImpactResult(
           ].filter(Boolean).join(" "),
           tags: ["impact", "ai-output", ...changedPaths],
           metadata: {
+            source: "impact analysis",
             repo: payload.repoId ?? payload.repoName ?? null,
             branch: payload.branch ?? null,
             changed_paths: changedPaths.join(","),
@@ -226,6 +232,40 @@ async function rememberImpactResult(
   } catch (error) {
     console.warn("[impact-memory-remember-failed]", error);
   }
+}
+
+async function rememberImpactTestingMemory(
+  payload: ImpactPayload,
+  result: AIEnvelope<ImpactData>,
+) {
+  if (payload.unavailableReason || result.data.checks.length === 0) {
+    return;
+  }
+
+  const changedPaths = boundedPaths(payload.fileTree).slice(0, MAX_REMEMBER_PATHS);
+  const repo = payload.repoName?.trim() || payload.repoId?.trim() || "current repository";
+  await rememberCogneeWorkflowSummary({
+    source: "testing memory",
+    repoId: payload.repoId,
+    repoName: payload.repoName,
+    branch: payload.branch,
+    paths: changedPaths,
+    subject: result.data.intent || repo,
+    title: `Testing memory for ${repo}`,
+    summary: [
+      "Suggested checks from impact analysis.",
+      result.data.checks.slice(0, 6).map(formatImpactCheck).join(" | "),
+    ].filter(Boolean).join(" "),
+    tags: ["testing", "impact"],
+    data: {
+      check_count: result.data.checks.length,
+      confidence: result.confidence,
+    },
+  });
+}
+
+function formatImpactCheck(check: ImpactData["checks"][number]): string {
+  return [check.command, check.reason].filter(Boolean).join(" - ");
 }
 
 function boundedPaths(paths?: string[]): string[] {

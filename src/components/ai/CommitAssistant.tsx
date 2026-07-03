@@ -5,6 +5,10 @@ import {
   generateCommitAssistant,
   type CommitPayload,
 } from "../../lib/ai-features";
+import {
+  recallCogneeWorkflowMemory,
+  rememberCogneeWorkflowSummary,
+} from "../../lib/cognee-workflow-runtime";
 import "./CommitAssistant.css";
 
 interface Props {
@@ -34,9 +38,32 @@ export function CommitAssistant({ payload: explicitPayload }: Props) {
       setCopyError(null);
 
       try {
-        const result = await generateCommitAssistant(data);
+        const memory = await recallCogneeWorkflowMemory({
+          source: "commit assistant",
+          repoId: data.repoId,
+          repoName: data.repoName ?? data.repoPath,
+          branch: data.branch,
+          paths: data.changedFiles,
+          tags: ["commit", "convention"],
+        });
+        const result = await generateCommitAssistant(
+          memory?.context ? { ...data, memoryContext: memory.context } : data,
+        );
         setCommitMessage(result.commitMessage);
         setPrDescription(result.prDescription);
+        void rememberCogneeWorkflowSummary({
+          source: "commit assistant",
+          repoId: data.repoId,
+          repoName: data.repoName ?? data.repoPath,
+          branch: data.branch,
+          paths: data.changedFiles,
+          title: `Commit assistant for ${data.repoName ?? data.repoPath ?? "workspace"}`,
+          summary: [
+            result.commitMessage,
+            result.prDescription,
+          ].filter(Boolean).join(" "),
+          tags: ["commit", "draft"],
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to generate commit message");
       } finally {

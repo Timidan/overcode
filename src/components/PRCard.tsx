@@ -1,16 +1,14 @@
-import { useState } from "react";
 import {
-  ChatCircle,
   ArrowSquareOut,
   GithubLogo,
   GitlabLogo,
   GitBranch,
 } from "@phosphor-icons/react";
 import {
-  commentOnCollaborationItem,
   type PRCardData,
   type PRStatus,
 } from "../lib/collaboration";
+import type { CSSProperties } from "react";
 import type { PullRequestCheckSummary } from "../lib/ipc";
 import { useNav } from "../store/useNav";
 import "./PRCard.css";
@@ -19,6 +17,8 @@ export type { PRCardData, PRStatus } from "../lib/collaboration";
 
 interface Props {
   pr: PRCardData;
+  /** Position in the list, used only for the first-load entrance stagger. */
+  staggerIndex?: number;
 }
 
 type CheckBucket = "passing" | "failing" | "pending";
@@ -133,13 +133,10 @@ function localMappingTitle(pr: PRCardData): string | undefined {
   return "No pinned local workspace matches this remote repository";
 }
 
-export function PRCard({ pr }: Props) {
+export function PRCard({ pr, staggerIndex = 0 }: Props) {
   const openPRDetail = useNav((s) => s.openPRDetail);
-  const [commenting, setCommenting] = useState(false);
-  const [comment, setComment] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const mappingLabel = localMappingLabel(pr);
+  const staggerStyle = { "--stagger-index": Math.min(staggerIndex, 8) } as CSSProperties;
 
   function openDetail() {
     openPRDetail({
@@ -153,23 +150,8 @@ export function PRCard({ pr }: Props) {
     });
   }
 
-  async function submitComment() {
-    if (!comment.trim()) return;
-    setPosting(true);
-    setError(null);
-    try {
-      await commentOnCollaborationItem(pr, comment);
-      setComment("");
-      setCommenting(false);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Failed to post comment");
-    } finally {
-      setPosting(false);
-    }
-  }
-
   return (
-    <article className={`pr-tile pr-status-${pr.status}`}>
+    <article className={`pr-tile pr-status-${pr.status} motion-rise-stagger`} style={staggerStyle}>
       <button
         type="button"
         className="pr-tile-surface"
@@ -232,15 +214,6 @@ export function PRCard({ pr }: Props) {
           <span className="pr-tile-time">{timeAgo(pr.updated_at)}</span>
         </div>
         <div className="pr-tile-actions">
-          <button
-            type="button"
-            className={`pr-tile-icon-button${commenting ? " is-active" : ""}`}
-            title={commenting ? "Cancel comment" : "Leave a comment"}
-            onClick={() => setCommenting((v) => !v)}
-            aria-pressed={commenting}
-          >
-            <ChatCircle size={14} />
-          </button>
           <a
             className="pr-tile-icon-button"
             title="Open in browser"
@@ -252,39 +225,6 @@ export function PRCard({ pr }: Props) {
           </a>
         </div>
       </footer>
-
-      {commenting && (
-        <div className="pr-tile-comment-form">
-          <textarea
-            className="pr-comment-input"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Leave a comment…"
-            rows={3}
-          />
-          {error && <div className="pr-comment-error">{error}</div>}
-          <div className="pr-comment-actions">
-            <button
-              type="button"
-              className="pr-button"
-              disabled={posting}
-              onClick={submitComment}
-            >
-              {posting ? "Posting…" : "Submit"}
-            </button>
-            <button
-              type="button"
-              className="pr-button pr-button-secondary"
-              onClick={() => {
-                setCommenting(false);
-                setError(null);
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </article>
   );
 }

@@ -100,14 +100,9 @@
 .pr-lozenge-draft              { color: var(--color-text-muted); }
 .pr-lozenge-closed             { color: var(--color-accent-red); }
 
-/* Drive the left rail color from lozenge state (only the strongest of the lozenges)
-   via a class on the tile itself. Defaults to ink if no status. */
-.pr-tile.pr-status-open               { border-left-color: var(--color-accent-blue); }
-.pr-tile.pr-status-approved           { border-left-color: var(--color-accent-green); }
+/* State is carried by the foreground lozenge alone; the rail stays ink except
+   for genuinely critical state. */
 .pr-tile.pr-status-changes-requested  { border-left-color: var(--color-accent-amber); }
-.pr-tile.pr-status-merged             { border-left-color: var(--color-accent-purple); }
-.pr-tile.pr-status-draft              { border-left-color: var(--color-text-muted); }
-.pr-tile.pr-status-closed             { border-left-color: var(--color-accent-red); }
 
 .pr-tile-title {
   margin: 0;
@@ -312,82 +307,4 @@
 .pr-tile-icon-button:focus-visible {
   outline: 2px solid var(--color-accent-amber);
   outline-offset: 1px;
-}
-
-.pr-tile-icon-button.is-active {
-  background: var(--color-accent-amber);
-  color: var(--color-text-inverted);
-  border-color: var(--color-accent-amber);
-}
-
-.pr-tile-comment-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border-top: 1px solid var(--color-ink);
-  background: var(--color-bg-app);
-}
-
-.pr-comment-input {
-  width: 100%;
-  background: var(--color-bg-app);
-  border: 1px solid var(--color-ink);
-  border-radius: 0;
-  padding: var(--space-2) var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  color: var(--color-text-primary);
-  resize: vertical;
-}
-
-.pr-comment-input:focus {
-  outline: none;
-  border-color: var(--color-accent-amber);
-}
-
-.pr-comment-actions {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.pr-button {
-  padding: 6px var(--space-3);
-  background: var(--color-text-primary);
-  border: 1px solid var(--color-text-primary);
-  border-radius: 0;
-  color: var(--color-text-inverted);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-wider);
-  cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
-}
-
-.pr-button:hover:not(:disabled) {
-  background: transparent;
-  color: var(--color-text-primary);
-}
-
-.pr-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pr-button-secondary {
-  background: transparent;
-  color: var(--color-text-primary);
-  border-color: var(--color-ink);
-}
-
-.pr-button-secondary:hover:not(:disabled) {
-  background: var(--color-text-primary);
-  color: var(--color-text-inverted);
-}
-
-.pr-comment-error {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--color-accent-red);
 }

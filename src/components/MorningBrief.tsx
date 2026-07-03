@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Sparkle } from "@phosphor-icons/react";
 import { ipc } from "../lib/ipc";
+import { extractCogneeMemoryHighlights } from "../lib/cognee-workflow-memory";
+import { recallCogneeWorkflowMemory } from "../lib/cognee-workflow-runtime";
+import { AIProviderLogo } from "./AIProviderLogo";
+import { MemoryRecallModal } from "./MemoryRecallModal";
 import { useAIPanel } from "../store/useAIPanel";
 import type { DashboardStats, WorkspaceRepository } from "../lib/workspace-data";
 import "./MorningBrief.css";
@@ -44,14 +48,14 @@ function deriveQuickUpdates(
 
   if (stats.prs > 0) {
     updates.push({
-      text: `${pluralize(stats.prs, "pull request")} updated recently`,
+      text: `${pluralize(stats.prs, "pull request")} updated in the last 24h`,
       emphasis: stats.prs > 5 ? "attention" : "neutral",
     });
   }
 
   if (stats.commits > 0) {
     updates.push({
-      text: `${pluralize(stats.commits, "commit")} in the last day`,
+      text: `${pluralize(stats.commits, "commit")} in the last 24h`,
       emphasis: "neutral",
     });
   }
@@ -70,6 +74,52 @@ export function MorningBrief({ stats, repositories }: Props) {
   const openAIPanel = useAIPanel((s) => s.open);
   const [username, setUsername] = useState<string | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());
+  const [memory, setMemory] = useState<{
+    subject: string;
+    highlights: string[];
+    itemCount: number;
+  } | null>(null);
+  const [memoryDismissed, setMemoryDismissed] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
+  const memoryRecallStarted = useRef(false);
+
+  // One quiet memory line, recalled once per mount for the busiest repo.
+  // Empty, disabled, or failed recall renders nothing at all.
+  //
+  // Deliberately no cancelled-flag cleanup: under StrictMode the double
+  // effect invocation would discard the only recall the run-once ref allows,
+  // so the line could never render in dev. A late setState after a true
+  // unmount is a no-op in React 18.
+  useEffect(() => {
+    if (memoryRecallStarted.current || repositories.length === 0) return;
+    memoryRecallStarted.current = true;
+    const target = repositories.reduce((busiest, repo) =>
+      (repo.dirty_count ?? 0) > (busiest.dirty_count ?? 0) ? repo : busiest,
+    );
+    void recallCogneeWorkflowMemory(
+      {
+        source: "morning brief",
+        repoId: target.id,
+        repoName: target.name,
+        subject: "recent work, risks, and decisions",
+        limit: 3,
+      },
+      undefined,
+      // The brief fires the coldest recall of the session; one retry covers
+      // Cognee Cloud's empty-first-response warmup.
+      { retryOnEmpty: true },
+    ).then((recalled) => {
+      if (!recalled) return;
+      const highlights = extractCogneeMemoryHighlights(recalled.context);
+      if (highlights.length > 0) {
+        setMemory({
+          subject: target.name,
+          highlights,
+          itemCount: recalled.itemCount,
+        });
+      }
+    });
+  }, [repositories]);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,7 +195,41 @@ export function MorningBrief({ stats, repositories }: Props) {
             {update.text}
           </li>
         ))}
+        {memory && !memoryDismissed && (
+          <li className="morning-brief-update morning-brief-update-memory">
+            <AIProviderLogo providerId="cognee" size="sm" decorative />
+            <button
+              type="button"
+              className="morning-brief-memory-teaser"
+              onClick={() => setMemoryOpen(true)}
+              title={`Open the full Cognee memory for ${memory.subject}`}
+            >
+              From memory: {truncateLine(memory.highlights[0], 120)}
+            </button>
+            <button
+              type="button"
+              className="morning-brief-dismiss"
+              onClick={() => setMemoryDismissed(true)}
+              aria-label="Dismiss memory line"
+              title="Dismiss"
+            >
+              ×
+            </button>
+          </li>
+        )}
       </ul>
+      {memory && memoryOpen && (
+        <MemoryRecallModal
+          subject={memory.subject}
+          highlights={memory.highlights}
+          itemCount={memory.itemCount}
+          onClose={() => setMemoryOpen(false)}
+        />
+      )}
     </section>
   );
+}
+
+function truncateLine(value: string, maxChars: number): string {
+  return value.length > maxChars ? `${value.slice(0, maxChars - 3)}...` : value;
 }

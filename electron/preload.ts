@@ -83,6 +83,8 @@ const api = {
       ipcRenderer.invoke("ai:complete", systemPrompt, userPrompt),
     status: () => ipcRenderer.invoke("ai:status"),
     providers: () => ipcRenderer.invoke("ai:providers"),
+    structuredCheck: (providerId?: string, modelId?: string) =>
+      ipcRenderer.invoke("ai:structured-check", { providerId, modelId }),
     models: (providerId: string, options?: { force?: boolean }) =>
       ipcRenderer.invoke("ai:models", { providerId, options }),
     setActiveProvider: (providerId: string, modelId?: string) =>
@@ -97,6 +99,7 @@ const api = {
       ipcRenderer.invoke("memory:improve", payload),
     forget: (payload: unknown) => ipcRenderer.invoke("memory:forget", payload),
     status: () => ipcRenderer.invoke("memory:status"),
+    usage: () => ipcRenderer.invoke("memory:usage"),
   },
 
   store: {

@@ -1,22 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowsClockwise, Check, Warning, X } from "@phosphor-icons/react";
 import { AIProviderLogo } from "./AIProviderLogo";
+import { ACTIVE_MODEL_CHANGED_EVENT } from "./active-model-badge";
+import { getVisibleModelTags, summarizeModelCatalog } from "./ai-provider-model-browser";
 import {
   ipc,
   type AIModelCatalogEntry,
+  type AIModelStructuredCheckResult,
   type AIProviderCredentialSourceStatus,
   type AIProviderId,
   type AIProviderStatus,
 } from "../lib/ipc";
 import "./AIProviderSettings.css";
 
-const providerOrder: AIProviderId[] = ["openrouter", "openai", "anthropic", "gemini"];
+const providerOrder: AIProviderId[] = ["openrouter", "openai", "anthropic", "gemini", "nvidia"];
 
 const providerNames: Record<AIProviderId, string> = {
   openrouter: "OpenRouter",
   openai: "OpenAI",
   anthropic: "Anthropic",
   gemini: "Gemini",
+  nvidia: "NVIDIA NIM",
 };
 
 const providerDefaults: Record<AIProviderId, string> = {
@@ -24,18 +28,33 @@ const providerDefaults: Record<AIProviderId, string> = {
   openai: "https://api.openai.com/v1",
   anthropic: "https://api.anthropic.com/v1",
   gemini: "https://generativelanguage.googleapis.com/v1beta",
+  nvidia: "https://integrate.api.nvidia.com/v1",
+};
+
+// Native model names differ per provider; a templated "<provider>/model-id"
+// placeholder teaches the wrong format for everyone but OpenRouter.
+const manualModelExamples: Record<AIProviderId, string> = {
+  openrouter: "vendor/model:free",
+  openai: "gpt-4.1-mini",
+  anthropic: "claude-sonnet-4-5",
+  gemini: "gemini-2.5-flash",
+  nvidia: "meta/llama-4-maverick-17b-128e-instruct",
 };
 
 type Filter = "recommended" | "free" | "paid" | "coding" | "long_context" | "vision" | "all";
 type SourceState = Partial<Record<AIProviderId, AIProviderCredentialSourceStatus>>;
 type SettingsShape = { ai_model_id?: string };
 
+function notifyActiveModelChanged(): void {
+  window.dispatchEvent(new Event(ACTIVE_MODEL_CHANGED_EVENT));
+}
+
 export function AIProviderSettings() {
   const [providers, setProviders] = useState<AIProviderStatus[]>([]);
   const [credentialSources, setCredentialSources] = useState<SourceState>({});
   const [selectedProvider, setSelectedProvider] = useState<AIProviderId>("openrouter");
   const [models, setModels] = useState<AIModelCatalogEntry[]>([]);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>("recommended");
   const [query, setQuery] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -46,7 +65,9 @@ export function AIProviderSettings() {
   const [loadingModels, setLoadingModels] = useState(false);
   const [savingCredentials, setSavingCredentials] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [checkingStructured, setCheckingStructured] = useState(false);
   const [clearingCredentials, setClearingCredentials] = useState(false);
+  const [structuredCheck, setStructuredCheck] = useState<AIModelStructuredCheckResult | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +82,7 @@ export function AIProviderSettings() {
     () => filterModels(models, filter, query),
     [filter, models, query],
   );
+  const catalogSummary = summarizeModelCatalog(models.length, visibleModels.length);
 
   const readStoredModel = useCallback(async (): Promise<string> => {
     const stored = await ipc.getFromStore("settings").catch(() => null);
@@ -87,6 +109,12 @@ export function AIProviderSettings() {
     try {
       const rows = await ipc.listAIModels(providerId);
       setModels(rows);
+      // "Recommended" is the calmest default, but only when the catalog tags it.
+      setFilter((current) =>
+        current === "recommended" && !rows.some((row) => row.tags.includes("recommended"))
+          ? "all"
+          : current,
+      );
       const nextModel = chooseModel(rows, preferredModel);
       setSelectedModel(nextModel);
       setManualModel(nextModel && !rows.some((row) => row.id === nextModel) ? nextModel : "");
@@ -136,6 +164,7 @@ export function AIProviderSettings() {
     setQuery("");
     setFilter("all");
     setMessage(null);
+    setStructuredCheck(null);
     await refresh(providerId);
   }
 
@@ -158,6 +187,7 @@ export function AIProviderSettings() {
       setApiKey("");
       setBaseUrl("");
       setMessage(`${providerNames[selectedProvider]} credentials saved.`);
+      notifyActiveModelChanged();
       await refresh(selectedProvider);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save credentials.");
@@ -181,6 +211,7 @@ export function AIProviderSettings() {
       setMessage(
         `${providerNames[selectedProvider]} stored credentials cleared. Environment-variable fallback still applies if present.`,
       );
+      notifyActiveModelChanged();
       await refresh(selectedProvider);
     } catch (clearError) {
       setError(clearError instanceof Error ? clearError.message : "Failed to clear credentials.");
@@ -194,6 +225,7 @@ export function AIProviderSettings() {
     setManualModel("");
     setPaidAcknowledged(false);
     setMessage(null);
+    setStructuredCheck(null);
   }
 
   function handleApplyManualModel(): void {
@@ -205,6 +237,7 @@ export function AIProviderSettings() {
     setSelectedModel(value);
     setPaidAcknowledged(false);
     setError(null);
+    setStructuredCheck(null);
     setMessage("Manual model selected. Activation is still required.");
   }
 
@@ -225,11 +258,42 @@ export function AIProviderSettings() {
     try {
       await ipc.setActiveAIProvider(selectedProvider, modelId);
       setMessage(`${providerNames[selectedProvider]} is now active on ${modelId}.`);
+      notifyActiveModelChanged();
       await refresh(selectedProvider);
     } catch (activateError) {
       setError(activateError instanceof Error ? activateError.message : "Failed to activate provider.");
     } finally {
       setActivating(false);
+    }
+  }
+
+  async function handleStructuredCheck(): Promise<void> {
+    const modelId = selectedModel.trim();
+    if (!modelId) {
+      setError("Choose or enter a model before running a structured check.");
+      return;
+    }
+    if (requiresBillingAck && !paidAcknowledged) {
+      setError("Acknowledge provider billing before checking a paid or unknown-pricing model.");
+      return;
+    }
+
+    setCheckingStructured(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await ipc.runStructuredAIModelCheck(selectedProvider, modelId);
+      setStructuredCheck(result);
+      notifyActiveModelChanged();
+      setMessage(
+        result.status === "passed"
+          ? `Structured check passed on ${result.model}.`
+          : `Structured check ${result.status.replace("_", " ")} on ${result.model}.`,
+      );
+    } catch (checkError) {
+      setError(checkError instanceof Error ? checkError.message : "Structured check failed.");
+    } finally {
+      setCheckingStructured(false);
     }
   }
 
@@ -239,12 +303,14 @@ export function AIProviderSettings() {
         <div>
           <div className="section-label">AI providers</div>
           <div className="settings-row-hint">
-            Bring your own key, choose a provider, and activate the model Overcode uses. Catalog data loads from provider indexes where available; status checks stay passive here.
+            Bring your own key, choose a provider, and activate the model Overcode uses.
+            Provider account checks do not consume model quota; model calls only happen
+            when you activate a model or run a structured check.
           </div>
         </div>
         <button
           type="button"
-          className="settings-button"
+          className="settings-button settings-button-quiet"
           onClick={() => void refresh(selectedProvider)}
           disabled={loadingProviders || loadingModels || savingCredentials || activating}
           title="Refresh provider status and catalog"
@@ -287,15 +353,18 @@ export function AIProviderSettings() {
                 <span className="ai-provider-card-name">{providerNames[providerId]}</span>
               </div>
               <div className="ai-provider-card-state-row">
-                <span className={`ai-provider-status-pill ${healthClass(provider?.health)}`}>
+                {/* One pill per card; color only signals bad health. The full
+                    health detail lives in the panel's status tiles. */}
+                <span
+                  className={`ai-provider-status-pill${
+                    provider?.health === "unavailable" ? " is-unavailable" : ""
+                  }`}
+                >
                   {provider?.active
                     ? "Active"
                     : provider?.configured
                       ? "Configured"
                       : "Not configured"}
-                </span>
-                <span className={`ai-provider-status-pill ${healthClass(provider?.health)}`}>
-                  {healthLabel(provider?.health)}
                 </span>
               </div>
               <div className="ai-provider-card-meta">
@@ -336,7 +405,18 @@ export function AIProviderSettings() {
               value={healthLabel(selectedProviderStatus?.health)}
               tone={healthClass(selectedProviderStatus?.health)}
             />
+            <StatusTile
+              label="Plan"
+              value={accountLabel(selectedProviderStatus)}
+              tone={accountTone(selectedProviderStatus)}
+            />
           </div>
+
+          {selectedProviderStatus?.account?.freeModelNote && (
+            <div className="ai-provider-account-note">
+              {selectedProviderStatus.account.freeModelNote}
+            </div>
+          )}
 
           <label className="ai-provider-field">
             <span>API key</span>
@@ -426,9 +506,9 @@ export function AIProviderSettings() {
           </div>
 
           <div className="settings-row-hint">
-            {models.length.toLocaleString()} models loaded. Free and paid labels come from {
+            {catalogSummary}. Free and paid labels come from {
               selectedProvider === "openrouter" ? "OpenRouter catalog metadata" : "local catalog metadata"
-            }. Use filters to narrow the list.
+            }. Free means zero listed price, not guaranteed live availability.
           </div>
 
           <div className="ai-provider-model-list" role="listbox" aria-label={`${providerNames[selectedProvider]} models`}>
@@ -437,12 +517,13 @@ export function AIProviderSettings() {
             ) : visibleModels.length === 0 ? (
               <div className="settings-empty">
                 {models.length === 0
-                  ? "No catalog models available for this provider yet."
+                  ? `Save an API key to load ${providerNames[selectedProvider]}'s catalog, or enter a model ID manually below.`
                   : "No models match the current filter."}
               </div>
             ) : (
               visibleModels.map((model) => {
                 const selected = model.id === selectedModel;
+                const { visibleTags, hiddenTagCount } = getVisibleModelTags(model.tags);
                 return (
                   <button
                     key={model.id}
@@ -466,12 +547,17 @@ export function AIProviderSettings() {
                       )}
                       <span>{sourceLabel(model.source)}</span>
                     </div>
-                    <div className="ai-provider-tag-row">
-                      {model.tags.map((tag) => (
+                    <div className="ai-provider-tag-row" aria-label={model.tags.map(filterLabel).join(", ")}>
+                      {visibleTags.map((tag) => (
                         <span key={tag} className="ai-provider-tag">
                           {filterLabel(tag)}
                         </span>
                       ))}
+                      {hiddenTagCount > 0 && (
+                        <span className="ai-provider-tag ai-provider-tag-more">
+                          +{hiddenTagCount}
+                        </span>
+                      )}
                     </div>
                   </button>
                 );
@@ -479,24 +565,27 @@ export function AIProviderSettings() {
             )}
           </div>
 
-          <div className="ai-provider-manual-row">
-            <input
-              className="settings-input"
-              type="text"
-              spellCheck={false}
-              value={manualModel}
-              onChange={(event) => setManualModel(event.target.value)}
-              placeholder={`${selectedProvider}/model-id or provider-native model name`}
-            />
-            <button
-              type="button"
-              className="settings-button"
-              onClick={handleApplyManualModel}
-              disabled={loadingModels}
-            >
-              Use manual model
-            </button>
-          </div>
+          <details className="ai-provider-manual-details">
+            <summary>Enter a model ID manually</summary>
+            <div className="ai-provider-manual-row">
+              <input
+                className="settings-input"
+                type="text"
+                spellCheck={false}
+                value={manualModel}
+                onChange={(event) => setManualModel(event.target.value)}
+                placeholder={manualModelExamples[selectedProvider]}
+              />
+              <button
+                type="button"
+                className="settings-button settings-button-quiet"
+                onClick={handleApplyManualModel}
+                disabled={loadingModels}
+              >
+                Use manual model
+              </button>
+            </div>
+          </details>
 
           <div className="ai-provider-selection-summary">
             <div className="settings-row-text">
@@ -535,6 +624,65 @@ export function AIProviderSettings() {
                 {activating ? "Activating..." : "Activate provider"}
               </button>
             </div>
+          </div>
+
+          <div className="ai-provider-structured-check">
+            <div className="ai-provider-structured-check-top">
+              <div className="settings-row-text">
+                <div className="settings-row-title">Structured output</div>
+                <div className="settings-row-hint">
+                  {structuredCheck
+                    ? structuredCheckSummary(structuredCheck)
+                    : "Not run for the selected model."}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="settings-button settings-button-quiet"
+                onClick={() => void handleStructuredCheck()}
+                disabled={
+                  checkingStructured ||
+                  loadingModels ||
+                  !selectedModel ||
+                  (requiresBillingAck && !paidAcknowledged)
+                }
+              >
+                <ArrowsClockwise
+                  size={12}
+                  className={checkingStructured ? "motion-spin" : undefined}
+                />
+                {checkingStructured ? "Checking..." : "Run check"}
+              </button>
+            </div>
+
+            <div className="ai-provider-structured-grid">
+              <StatusTile
+                label="Result"
+                value={structuredStatusLabel(structuredCheck)}
+                tone={structuredStatusTone(structuredCheck)}
+              />
+              <StatusTile
+                label="Latency"
+                value={formatLatency(structuredCheck?.latencyMs)}
+                tone="is-unknown"
+              />
+              <StatusTile
+                label="JSON"
+                value={structuredCheck?.parsedJson ? "Parsed" : "Not parsed"}
+                tone={structuredCheck?.parsedJson ? "is-available" : "is-unknown"}
+              />
+              <StatusTile
+                label="Schema"
+                value={structuredCheck?.schemaValid ? "Valid" : "Unchecked"}
+                tone={structuredCheck?.schemaValid ? "is-available" : "is-unknown"}
+              />
+            </div>
+
+            {structuredCheck?.rawSample && (
+              <div className="ai-provider-structured-sample">
+                {structuredCheck.rawSample}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -624,17 +772,19 @@ function filterLabel(filter: Filter | AIModelCatalogEntry["tags"][number]): stri
   }
 }
 
+// Shared status vocabulary with the memory section:
+// Available / Unreachable / Not configured.
 function healthLabel(status?: AIProviderStatus["health"]): string {
   switch (status) {
     case "available":
       return "Available";
     case "unavailable":
-      return "Unavailable";
+      return "Unreachable";
     case "not_configured":
       return "Not configured";
     case "unknown":
     default:
-      return "Unknown";
+      return "Not checked";
   }
 }
 
@@ -650,6 +800,24 @@ function healthClass(status?: AIProviderStatus["health"]): string {
     default:
       return "is-unknown";
   }
+}
+
+function accountLabel(status?: AIProviderStatus): string {
+  if (!status?.configured) return "No key";
+  switch (status.account?.plan) {
+    case "free":
+      return "Free tier";
+    case "paid":
+      return "Paid tier";
+    case "unknown":
+    default:
+      return "Unknown";
+  }
+}
+
+function accountTone(status?: AIProviderStatus): string {
+  if (!status?.configured) return "is-not-configured";
+  return status.account?.plan === "paid" ? "is-available" : "is-unknown";
 }
 
 function credentialLabel(source?: AIProviderCredentialSourceStatus["api_key"]): string {
@@ -700,6 +868,45 @@ function sourceLabel(source: AIModelCatalogEntry["source"]): string {
     case "manual":
       return "Manual";
   }
+}
+
+function structuredStatusLabel(result: AIModelStructuredCheckResult | null): string {
+  switch (result?.status) {
+    case "passed":
+      return "Passed";
+    case "failed":
+      return "Failed";
+    case "not_configured":
+      return "No key";
+    default:
+      return "Not run";
+  }
+}
+
+function structuredStatusTone(result: AIModelStructuredCheckResult | null): string {
+  switch (result?.status) {
+    case "passed":
+      return "is-available";
+    case "failed":
+      return "is-unavailable";
+    case "not_configured":
+      return "is-not-configured";
+    default:
+      return "is-unknown";
+  }
+}
+
+function structuredCheckSummary(result: AIModelStructuredCheckResult): string {
+  if (result.status === "passed") {
+    return `Valid schema from ${result.model}.`;
+  }
+  return result.reason ?? `Structured check ${result.status.replace("_", " ")}.`;
+}
+
+function formatLatency(value: number | undefined): string {
+  if (typeof value !== "number") return "Not run";
+  if (value >= 1000) return `${Math.round(value / 100) / 10}s`;
+  return `${value} ms`;
 }
 
 function formatContextLength(value: number): string {

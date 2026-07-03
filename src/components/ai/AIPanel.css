@@ -24,6 +24,7 @@
 
 .ai-panel {
   position: fixed;
+  visibility: hidden;
   top: 50%;
   left: 50%;
   width: min(620px, 92vw);
@@ -41,11 +42,14 @@
   pointer-events: none;
   transition:
     transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 180ms ease;
+    opacity 180ms ease,
+    visibility 0s linear 180ms;
   will-change: transform, opacity;
 }
 
 .ai-panel.is-open {
+  visibility: visible;
+  transition-delay: 0s;
   transform: translate(-50%, -50%) scale(1);
   opacity: 1;
   pointer-events: auto;
@@ -182,25 +186,6 @@
   white-space: nowrap;
 }
 
-.ai-health-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-full);
-  background: var(--color-text-muted);
-  flex: 0 0 auto;
-}
-
-.ai-health-dot.is-available {
-  background: var(--color-accent-green);
-}
-.ai-health-dot.is-unavailable {
-  background: var(--color-accent-red);
-}
-.ai-health-dot.is-not-configured,
-.ai-health-dot.is-unknown {
-  background: var(--color-accent-amber);
-}
-
 .ai-status-pill {
   flex: 0 0 auto;
   padding: 2px 6px;
@@ -239,16 +224,6 @@
   background: transparent;
   color: var(--color-text-muted);
   white-space: nowrap;
-}
-
-.ai-status-latency.is-fast {
-  color: var(--color-accent-green);
-}
-.ai-status-latency.is-medium {
-  color: var(--color-accent-amber);
-}
-.ai-status-latency.is-slow {
-  color: var(--color-accent-red);
 }
 
 .ai-home-refresh {
@@ -330,7 +305,7 @@
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   font-weight: var(--weight-black);
-  color: var(--color-accent-amber);
+  color: currentColor;
   flex: 0 0 auto;
 }
 

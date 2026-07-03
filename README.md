@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/brand/current/overcode-banner-dark-nobg.svg" alt="Overcode - all your workspace updates, one calm signal" width="820">
+  <img src="public/brand/current/overcode-banner-dark-nobg.svg" alt="Overcode - all your workspace updates, one calm signal" width="1200">
 </p>
 
 <h1 align="center">Overcode</h1>
@@ -13,6 +13,16 @@
   <img src="https://img.shields.io/badge/Memory-Cognee%20repository%20memory-0f766e?style=flat-square" alt="Cognee repository memory layer">
   <img src="https://img.shields.io/badge/AI-BYOK%20providers-1f70c1?style=flat-square" alt="BYOK AI providers runtime">
   <img src="https://img.shields.io/badge/Runtime-Electron%2030-47848f?style=flat-square" alt="Electron 30">
+</p>
+
+<p align="center">
+  <sub>Memory powered by</sub>
+  <br>
+  <a href="https://www.cognee.ai">
+    <img src="src/assets/providers/cognee.png" alt="Cognee" height="40">
+  </a>
+  <br>
+  <a href="https://www.cognee.ai"><strong>Cognee</strong></a>
 </p>
 
 ---

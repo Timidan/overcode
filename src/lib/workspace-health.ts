@@ -195,11 +195,11 @@ function buildReasons(input: {
   testCommands: TestCommand[];
 }): string[] {
   const reasons: string[] = [];
-  if (input.dirtyFiles > 0) reasons.push(`${input.dirtyFiles} dirty files`);
+  if (input.dirtyFiles > 0) reasons.push(`${input.dirtyFiles} uncommitted files`);
   if (input.stashes > 0) reasons.push(`${input.stashes} stashes`);
   if (input.worktrees > 1) reasons.push(`${input.worktrees} worktrees`);
   if (input.ahead > 0 || input.behind > 0) {
-    reasons.push(`+${input.ahead}/-${input.behind} remote divergence`);
+    reasons.push(`${input.ahead} ahead · ${input.behind} behind remote`);
   }
   const important = input.warnings.find(
     (warning) => warning.severity === "high" || warning.severity === "medium",
@@ -210,7 +210,7 @@ function buildReasons(input: {
   if (important) reasons.push(important.title);
   if (secret) reasons.push(`masked secret: ${maskSecretText(secret.title)}`);
   if (input.testCommands.length > 0) {
-    reasons.push(`${input.testCommands.length} validation commands`);
+    reasons.push(`${input.testCommands.length} suggested checks`);
   }
   return reasons.slice(0, 4);
 }

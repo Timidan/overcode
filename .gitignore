@@ -57,8 +57,17 @@ OvercodePRD.md
 AGENTS.md
 bob_prompts.md
 bob_batch_*.md
-# bob_sessions/ is shipped as IBM Bob attribution evidence for the hackathon.
 Lablab-IBM-Bob-hackathon-guide-May-2026.pdf
+
+# Internal submission-control and working docs (kept local, not shipped).
+HACKATHON.md
+PRODUCT.md
+docs/cognee-submission-plan.md
+docs/ui-review-*.md
+docs/motion-research-*.md
+docs/security-sweep-*.md
+# Agent-workflow plans/specs — internal process artifacts.
+docs/superpowers/
 
 # Agent / IDE state
 .claude/

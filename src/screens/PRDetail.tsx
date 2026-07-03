@@ -30,6 +30,10 @@ import type {
   PRHunkReviewData,
   PRReviewData,
 } from "../lib/ai-structured";
+import {
+  recallCogneeWorkflowMemory,
+  rememberCogneeWorkflowSummary,
+} from "../lib/cognee-workflow-runtime";
 import { PRHunkReviewSummary, PRReviewSummary } from "../components/ai/AIResultViews";
 import { useNav, type PRDetailRef } from "../store/useNav";
 import { useAIPanel } from "../store/useAIPanel";
@@ -604,7 +608,7 @@ function LocalContextStrip({
         >
           <GitBranch size={12} />
           <span>
-            {checkoutCopyState === "copied" ? "Copied" : "Checkout branch"}
+            {checkoutCopyState === "copied" ? "Copied" : "Copy checkout command"}
           </span>
         </button>
         {comparePayload && (
@@ -767,13 +771,63 @@ function FilesTab({
       [key]: { ...prev[key], loading: true, error: undefined },
     }));
     try {
+      const memory = await recallCogneeWorkflowMemory({
+        source: "pr file review",
+        repoName: detail.repoFullName,
+        branch: detail.source_branch,
+        paths: [file.path],
+        prNumber: detail.number,
+        subject: file.path,
+        tags: ["pull-request", "file-review"],
+      });
       const result = await summarizePullRequestFileChangeStructured(detail, file, {
         force,
+        memoryContext: memory?.context,
       });
       setFileSummaries((prev) => ({
         ...prev,
         [key]: { loading: false, result },
       }));
+      void rememberCogneeWorkflowSummary({
+        source: "pr file review",
+        repoName: detail.repoFullName,
+        branch: detail.source_branch,
+        paths: [file.path],
+        prNumber: detail.number,
+        subject: file.path,
+        title: `PR file review for ${detail.repoFullName} ${detail.numberPrefix}${detail.number}`,
+        summary: [
+          `${file.path}: ${result.summary}`,
+          result.data.changedBehavior,
+          result.data.reviewFocus.slice(0, 4).join(" | "),
+        ].filter(Boolean).join(" "),
+        tags: ["pull-request", "file-review"],
+        data: {
+          risk: result.data.risk,
+          suggested_check_count: result.data.suggestedChecks.length,
+          confidence: result.confidence,
+        },
+      });
+      if (result.data.suggestedChecks.length > 0) {
+        void rememberCogneeWorkflowSummary({
+          source: "testing memory",
+          repoName: detail.repoFullName,
+          branch: detail.source_branch,
+          paths: [file.path],
+          prNumber: detail.number,
+          subject: file.path,
+          title: `Testing memory for ${detail.repoFullName} ${detail.numberPrefix}${detail.number}`,
+          summary: [
+            `Suggested checks from PR file review for ${file.path}.`,
+            result.data.suggestedChecks.slice(0, 6).join(" | "),
+          ].filter(Boolean).join(" "),
+          tags: ["testing", "pull-request", "file-review"],
+          data: {
+            suggested_check_count: result.data.suggestedChecks.length,
+            confidence: result.confidence,
+          },
+        });
+      }
     } catch (err) {
       setFileSummaries((prev) => ({
         ...prev,
@@ -1190,41 +1244,45 @@ function AISummaryTab({
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [postSuccess, setPostSuccess] = useState(false);
+  const [confirmingPost, setConfirmingPost] = useState(false);
+  const [memoryUsed, setMemoryUsed] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
 
+  // Opening this tab must never spend tokens by itself: generation only runs
+  // from the explicit button below.
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
+    setSummary(null);
     setError(null);
     setHunkReview(null);
     setHunkError(null);
     setCopyState("idle");
-    summarizePullRequestStructured(detail)
-      .then((result) => {
-        if (!cancelled) setSummary(result);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to generate summary");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    setMemoryUsed(null);
+    setConfirmingPost(false);
   }, [detail]);
 
-  async function refresh() {
+  async function generate(force: boolean) {
     setLoading(true);
     setError(null);
     setCopyState("idle");
     try {
-      const result = await summarizePullRequestStructured(detail, { force: true });
+      const memory = await recallCogneeWorkflowMemory({
+        source: "pr review",
+        repoName: detail.repoFullName,
+        branch: detail.source_branch,
+        paths: detail.files.map((file) => file.path),
+        prNumber: detail.number,
+        subject: detail.title,
+        tags: ["pull-request", "review"],
+      });
+      const result = await summarizePullRequestStructured(detail, {
+        force,
+        memoryContext: memory?.context,
+      });
       setSummary(result);
+      setMemoryUsed(memory ? memory.summary : null);
+      void rememberPRReviewMemory(detail, result);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to refresh summary");
+      setError(err instanceof Error ? err.message : "Failed to generate summary");
     } finally {
       setLoading(false);
     }
@@ -1234,8 +1292,63 @@ function AISummaryTab({
     setHunkLoading(true);
     setHunkError(null);
     try {
-      const result = await summarizePullRequestHunksStructured(detail, { force });
+      const memory = await recallCogneeWorkflowMemory({
+        source: "pr hunk review",
+        repoName: detail.repoFullName,
+        branch: detail.source_branch,
+        paths: detail.files.map((file) => file.path),
+        prNumber: detail.number,
+        subject: detail.title,
+        tags: ["pull-request", "hunk-review"],
+      });
+      const result = await summarizePullRequestHunksStructured(detail, {
+        force,
+        memoryContext: memory?.context,
+      });
       setHunkReview(result);
+      void rememberCogneeWorkflowSummary({
+        source: "pr hunk review",
+        repoName: detail.repoFullName,
+        branch: detail.source_branch,
+        paths: result.data.hunks.map((hunk) => hunk.file),
+        prNumber: detail.number,
+        subject: detail.title,
+        title: `PR hunk review for ${detail.repoFullName} ${detail.numberPrefix}${detail.number}`,
+        summary: [
+          result.summary,
+          `Overall: ${result.data.overall}`,
+          result.data.questions.slice(0, 4).join(" | "),
+          result.data.tests.slice(0, 4).join(" | "),
+        ].filter(Boolean).join(" "),
+        tags: ["pull-request", "hunk-review"],
+        data: {
+          overall: result.data.overall,
+          hunk_count: result.data.hunks.length,
+          question_count: result.data.questions.length,
+          test_count: result.data.tests.length,
+          confidence: result.confidence,
+        },
+      });
+      if (result.data.tests.length > 0) {
+        void rememberCogneeWorkflowSummary({
+          source: "testing memory",
+          repoName: detail.repoFullName,
+          branch: detail.source_branch,
+          paths: result.data.hunks.map((hunk) => hunk.file),
+          prNumber: detail.number,
+          subject: detail.title,
+          title: `Testing memory for ${detail.repoFullName} ${detail.numberPrefix}${detail.number}`,
+          summary: [
+            "Suggested checks from PR hunk review.",
+            result.data.tests.slice(0, 6).join(" | "),
+          ].filter(Boolean).join(" "),
+          tags: ["testing", "pull-request", "hunk-review"],
+          data: {
+            test_count: result.data.tests.length,
+            confidence: result.confidence,
+          },
+        });
+      }
     } catch (err: unknown) {
       setHunkError(err instanceof Error ? err.message : "Failed to review hunks");
     } finally {
@@ -1263,6 +1376,7 @@ function AISummaryTab({
       const suggested = summary.data.suggestedComment || summary.summary;
       await postComment(prRef, suggested);
       setPostSuccess(true);
+      setConfirmingPost(false);
     } catch (err: unknown) {
       setPostError(err instanceof Error ? err.message : "Failed to post comment");
     } finally {
@@ -1275,12 +1389,15 @@ function AISummaryTab({
       <div className="pr-ai-actions">
         <button
           type="button"
-          className="pr-action"
-          onClick={refresh}
+          className={`pr-action${summary ? "" : " pr-action-primary"}`}
+          onClick={() => void generate(Boolean(summary))}
           disabled={loading}
+          title="Generate a review summary with the active AI provider (uses your provider tokens)"
         >
           <ArrowsClockwise size={12} />
-          <span>{loading ? "Refreshing…" : "Refresh"}</span>
+          <span>
+            {loading ? "Generating…" : summary ? "Regenerate" : "Generate summary"}
+          </span>
         </button>
         <button
           type="button"
@@ -1304,12 +1421,12 @@ function AISummaryTab({
         <button
           type="button"
           className="pr-action pr-action-primary"
-          onClick={postSuggested}
-          disabled={!summary || posting}
-          title="Post the suggested reviewer response as a comment"
+          onClick={() => setConfirmingPost(true)}
+          disabled={!summary || posting || confirmingPost}
+          title="Review the suggested reviewer response before posting"
         >
           <PaperPlaneTilt size={12} />
-          <span>{posting ? "Posting…" : "Post as comment"}</span>
+          <span>Post as comment</span>
         </button>
       </div>
       {error && <div className="pr-detail-error">{error}</div>}
@@ -1321,8 +1438,44 @@ function AISummaryTab({
       {postSuccess && (
         <div className="pr-detail-note">Suggested response posted to the PR.</div>
       )}
+      {confirmingPost && summary && (
+        <div className="pr-post-confirm">
+          <div className="section-label">This exact comment will be posted</div>
+          <pre className="pr-post-confirm-body">
+            {summary.data.suggestedComment || summary.summary}
+          </pre>
+          <div className="pr-post-confirm-actions">
+            <button
+              type="button"
+              className="pr-action pr-action-primary"
+              onClick={postSuggested}
+              disabled={posting}
+            >
+              {posting ? "Posting…" : "Post comment"}
+            </button>
+            <button
+              type="button"
+              className="pr-action"
+              onClick={() => setConfirmingPost(false)}
+              disabled={posting}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {!summary && !loading && !error && (
+        <div className="pr-detail-empty">
+          No summary yet. Generate one to get a memory-aware review briefing.
+        </div>
+      )}
       {loading && !summary && (
         <div className="pr-detail-empty">Generating summary with the active AI provider…</div>
+      )}
+      {summary && memoryUsed && (
+        <div className="pr-detail-note" title="Recalled repository memory was included in the AI prompt">
+          From memory: {memoryUsed} informed this summary.
+        </div>
       )}
       {summary && <PRReviewSummary result={summary} />}
       {hunkLoading && !hunkReview && (
@@ -1349,6 +1502,37 @@ function formatPRSummaryForClipboard(summary: AIEnvelope<PRReviewData>): string 
     "Suggested comment:",
     summary.data.suggestedComment,
   ].join("\n").trim();
+}
+
+function rememberPRReviewMemory(
+  detail: PullRequestDetail,
+  result: AIEnvelope<PRReviewData>,
+): Promise<boolean> {
+  return rememberCogneeWorkflowSummary({
+    source: "pr review",
+    repoName: detail.repoFullName,
+    branch: detail.source_branch,
+    paths: detail.files.map((file) => file.path),
+    prNumber: detail.number,
+    subject: detail.title,
+    title: `PR review for ${detail.repoFullName} ${detail.numberPrefix}${detail.number}`,
+    summary: [
+      result.summary,
+      result.data.changeSummary,
+      result.data.riskMatrix
+        .slice(0, 4)
+        .map((risk) => `${risk.severity}: ${risk.file ? `${risk.file} - ` : ""}${risk.concern}`)
+        .join(" | "),
+    ].filter(Boolean).join(" "),
+    tags: ["pull-request", "review"],
+    data: {
+      readiness: result.data.readiness,
+      risk_count: result.data.riskMatrix.length,
+      blocker_count: result.data.blockers.length,
+      failing_checks: result.data.ci.failing,
+      confidence: result.confidence,
+    },
+  });
 }
 
 function Stat({ label, value }: { label: string; value: ReactNode }) {

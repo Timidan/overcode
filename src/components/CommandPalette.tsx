@@ -133,7 +133,7 @@ export function CommandPalette() {
         label: "Toggle AI panel",
         icon: Sparkle,
         section: "Actions",
-        hint: "AI provider",
+        hint: `${navigator.platform.toLowerCase().includes("mac") ? "⌘" : "Ctrl+"}.`,
         run: () => {
           toggleAI();
           close();

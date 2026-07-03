@@ -7,6 +7,7 @@ import path from "node:path";
 import ts from "typescript";
 
 const DEFAULT_PORT = 5174;
+const DEFAULT_RENDERER_ORIGIN = "http://127.0.0.1:5173";
 const STORE_FILE = path.join(os.homedir(), ".overcode", "browser-dev-store.json");
 const MODELS = [
   "openrouter/free",
@@ -969,12 +970,11 @@ function sendJson(response, status, value) {
 }
 
 function setCorsHeaders(request, response) {
-  const origin = request.headers.origin;
-  if (origin && isAllowedOrigin(origin)) {
-    response.setHeader("Access-Control-Allow-Origin", origin);
-  } else {
-    response.setHeader("Access-Control-Allow-Origin", "http://127.0.0.1:5173");
-  }
+  const origin = corsOriginFor(request.headers.origin);
+  response.setHeader(
+    "Access-Control-Allow-Origin",
+    origin, // nosemgrep: javascript.express.security.cors-misconfiguration.cors-misconfiguration
+  );
   response.setHeader("Vary", "Origin");
   response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -982,24 +982,45 @@ function setCorsHeaders(request, response) {
 
 function isAllowedOrigin(origin) {
   if (!origin) return true;
-  return allowedOrigins().has(origin);
+  return corsOriginFor(origin) === origin;
+}
+
+function corsOriginFor(origin) {
+  if (origin && allowedOrigins().has(origin)) return origin;
+  return DEFAULT_RENDERER_ORIGIN;
 }
 
 function allowedOrigins() {
-  const origins = new Set(["http://127.0.0.1:5173", "http://localhost:5173"]);
+  const origins = new Set([DEFAULT_RENDERER_ORIGIN, "http://localhost:5173"]);
   const devServer = process.env.VITE_DEV_SERVER_URL?.trim();
-  if (devServer) {
-    try {
-      origins.add(new URL(devServer).origin);
-    } catch {
-      // Ignore malformed development server URLs.
-    }
-  }
+  if (devServer) addLoopbackOrigin(origins, devServer);
   for (const value of (process.env.OVERCODE_BRIDGE_ALLOWED_ORIGINS ?? "").split(",")) {
-    const origin = value.trim();
-    if (origin) origins.add(origin);
+    addLoopbackOrigin(origins, value);
   }
   return origins;
+}
+
+function addLoopbackOrigin(origins, value) {
+  const origin = loopbackOrigin(value);
+  if (origin) origins.add(origin);
+}
+
+function loopbackOrigin(value) {
+  const candidate = value.trim();
+  if (!candidate) return undefined;
+  try {
+    const url = new URL(candidate);
+    const hostname = url.hostname.toLowerCase();
+    if (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1")
+    ) {
+      return url.origin;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 function loadDotEnv() {

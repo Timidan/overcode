@@ -1,6 +1,9 @@
 const ENDPOINT_ENV = ["COGNEE_API_URL", "COGNEE_SERVICE_URL", "COGNEE_BASE_URL"] as const;
 const PREFERRED_ENDPOINT_ENV = "COGNEE_API_URL";
 const REQUEST_TIMEOUT_MS = 8_000;
+// Recall is a server-side LLM round trip (GRAPH_COMPLETION); a cold first
+// query regularly exceeds the storage timeout, so it gets its own ceiling.
+const RECALL_TIMEOUT_MS = 30_000;
 const DEFAULT_DATASET_NAME = "overcode_memory";
 
 type CogneeEndpointEnv = (typeof ENDPOINT_ENV)[number];
@@ -27,6 +30,8 @@ export interface MemoryDocument {
 export interface MemoryRememberInput {
   documents: MemoryDocument[];
   datasetName?: string;
+  sessionId?: string;
+  nodeSet?: string[];
 }
 
 export interface MemoryRecallQuery {
@@ -34,6 +39,7 @@ export interface MemoryRecallQuery {
   datasets?: string[];
   limit?: number;
   filters?: Record<string, string | number | boolean | null>;
+  nodeSet?: string[];
 }
 
 export interface MemoryImproveInput {
@@ -89,6 +95,11 @@ export interface MemoryImproveResult extends MemoryResult {
 
 export interface MemoryForgetResult extends MemoryResult {
   forgotten: boolean;
+}
+
+export interface MemoryUsageResult extends MemoryResult {
+  storageUsedInBytes: number;
+  storageLimitInBytes: number;
 }
 
 const COGNEE_ROUTES: Record<MemoryOperation, string | null> = {
@@ -152,20 +163,31 @@ function routeFor(operation: MemoryOperation): string | null {
   return COGNEE_ROUTES[operation];
 }
 
-function statusReason(missing: RequiredCogneeEnv[]): string {
-  if (missing.length > 0) return `Missing ${ENDPOINT_ENV.join(" or ")}.`;
-  return "Cognee is not enabled.";
-}
-
 export function cogneeStatus(): MemoryStatus {
   const base = configStatus();
-  const endpointVerified = Object.values(COGNEE_ROUTES).every(Boolean);
   return {
     ...base,
-    enabled: base.configured && endpointVerified,
-    endpointVerified,
-    reason: base.configured && endpointVerified ? undefined : statusReason(base.missing),
+    enabled: base.configured,
+    endpointVerified: false,
+    reason: base.configured ? undefined : `Missing ${ENDPOINT_ENV.join(" or ")}.`,
   };
+}
+
+export async function verifiedCogneeStatus(): Promise<MemoryStatus> {
+  const base = cogneeStatus();
+  if (!base.configured) return base;
+
+  try {
+    await cogneeFetch<unknown>("health", "GET", "/health");
+    return { ...base, endpointVerified: true, reason: undefined };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Health check failed.";
+    return {
+      ...base,
+      endpointVerified: false,
+      reason: `Cognee endpoint is unreachable: ${message}`,
+    };
+  }
 }
 
 function disabledResult(): MemoryResult | null {
@@ -283,6 +305,11 @@ function readRememberInput(value: unknown): MemoryRememberInput {
   return {
     documents: value.documents.map(readDocument),
     datasetName: datasetName(value.datasetName),
+    sessionId:
+      value.sessionId === undefined
+        ? undefined
+        : boundedString(value.sessionId, "sessionId", 120),
+    nodeSet: readStringList(value.nodeSet, "nodeSet"),
   };
 }
 
@@ -301,6 +328,7 @@ function readRecallQuery(value: unknown): MemoryRecallQuery {
         : readStringList(value.datasets, "datasets"),
     limit,
     filters: readScalarRecord(value.filters, "filters"),
+    nodeSet: readStringList(value.nodeSet, "nodeSet"),
   };
 }
 
@@ -335,41 +363,107 @@ function validationError(error: unknown): MemoryResult {
   };
 }
 
-async function postCognee<T>(operation: MemoryOperation, body: BodyInit): Promise<T> {
+async function cogneeFetch<T>(
+  label: string,
+  method: "GET" | "POST" | "DELETE",
+  path: string,
+  body?: BodyInit,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
+): Promise<T> {
   const baseUrl = endpointConfig().url;
-  const route = routeFor(operation);
-  if (!baseUrl || !route) {
+  if (!baseUrl) {
     throw new Error("Cognee is not enabled.");
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const headers: Record<string, string> = {};
   const apiKey = optionalApiKey();
   if (apiKey) headers["X-Api-Key"] = apiKey;
-  if (!(body instanceof FormData)) {
+  if (body !== undefined && !(body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
 
   try {
-    const response = await fetch(`${baseUrl}${route}`, {
-      method: "POST",
+    const response = await fetch(`${baseUrl}${path}`, {
+      method,
       headers,
       body,
       signal: controller.signal,
     });
     if (!response.ok) {
-      throw new Error(`Cognee ${operation} failed: ${response.status} ${response.statusText}`);
+      throw new Error(`Cognee ${label} failed: ${response.status} ${response.statusText}`);
     }
     return (await response.json()) as T;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      throw new Error(`Cognee ${operation} timed out after ${REQUEST_TIMEOUT_MS}ms.`);
+      throw new Error(`Cognee ${label} timed out after ${timeoutMs}ms.`);
     }
     throw error;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+const OPERATION_TIMEOUTS: Record<MemoryOperation, number> = {
+  remember: REQUEST_TIMEOUT_MS,
+  recall: RECALL_TIMEOUT_MS,
+  improve: REQUEST_TIMEOUT_MS,
+  forget: REQUEST_TIMEOUT_MS,
+};
+
+async function postCognee<T>(operation: MemoryOperation, body: BodyInit): Promise<T> {
+  const route = routeFor(operation);
+  if (!route) throw new Error("Cognee is not enabled.");
+  return cogneeFetch<T>(operation, "POST", route, body, OPERATION_TIMEOUTS[operation]);
+}
+
+function sanitizeDocumentId(id: string): string {
+  const safe = id.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  return safe || "memory-item";
+}
+
+function readServerList(response: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(response)) return response.filter(isPlainObject);
+  if (isPlainObject(response)) {
+    for (const key of ["items", "datasets", "data", "results"]) {
+      const value = response[key];
+      if (Array.isArray(value)) return value.filter(isPlainObject);
+    }
+  }
+  return [];
+}
+
+async function findDatasetId(name: string): Promise<string | undefined> {
+  const response = await cogneeFetch<unknown>("forget", "GET", "/api/v1/datasets/");
+  for (const item of readServerList(response)) {
+    if (item.name === name && typeof item.id === "string") return item.id;
+  }
+  return undefined;
+}
+
+async function datasetIsProcessing(datasetId: string): Promise<boolean> {
+  const response = await cogneeFetch<unknown>(
+    "forget",
+    "GET",
+    `/api/v1/datasets/status?dataset_ids=${encodeURIComponent(datasetId)}`,
+  );
+  if (!isPlainObject(response)) return false;
+  return response[datasetId] === "DATASET_PROCESSING_STARTED";
+}
+
+async function findDataItemId(datasetId: string, documentId: string): Promise<string | undefined> {
+  const safeId = sanitizeDocumentId(documentId);
+  const response = await cogneeFetch<unknown>(
+    "forget",
+    "GET",
+    `/api/v1/datasets/${datasetId}/data`,
+  );
+  for (const item of readServerList(response)) {
+    if (typeof item.name !== "string" || typeof item.id !== "string") continue;
+    if (item.name.replace(/\.json$/i, "") === safeId) return item.id;
+  }
+  return undefined;
 }
 
 function serviceError(error: unknown): MemoryResult {
@@ -382,11 +476,20 @@ function serviceError(error: unknown): MemoryResult {
 
 function rememberBody(payload: MemoryRememberInput): FormData {
   const body = new FormData();
-  const documentFile = new Blob([JSON.stringify(payload.documents, null, 2)], {
-    type: "application/json",
-  });
-  body.set("data", documentFile, "overcode-memory.json");
+  for (const document of payload.documents) {
+    const documentFile = new Blob([JSON.stringify(document, null, 2)], {
+      type: "application/json",
+    });
+    body.append("data", documentFile, `${sanitizeDocumentId(document.id)}.json`);
+  }
   body.set("datasetName", payload.datasetName ?? DEFAULT_DATASET_NAME);
+  // Session-routed remembers land in the session cache instead of the dataset's
+  // data records, which makes them unaddressable for id-specific forget — so
+  // session attribution stays strictly opt-in.
+  if (payload.sessionId) body.set("session_id", payload.sessionId);
+  for (const nodeSet of payload.nodeSet ?? []) {
+    body.append("node_set", nodeSet);
+  }
   body.set("run_in_background", "true");
   return body;
 }
@@ -399,6 +502,7 @@ function recallBody(payload: MemoryRecallQuery): string {
     topK: payload.limit ?? 10,
     onlyContext: true,
     includeReferences: true,
+    nodeName: payload.nodeSet?.length ? payload.nodeSet : undefined,
   });
 }
 
@@ -456,6 +560,29 @@ function normalizeRecallItems(response: unknown): MemoryRecallItem[] {
       metadata: isPlainObject(item.metadata) ? item.metadata : undefined,
     };
   });
+}
+
+export async function cogneeUsage(): Promise<MemoryUsageResult> {
+  const empty = { storageUsedInBytes: 0, storageLimitInBytes: 0 };
+  const disabled = disabledResult();
+  if (disabled) return { ...disabled, ...empty };
+
+  try {
+    const response = await cogneeFetch<unknown>("usage", "GET", "/api/v1/quotas/usage");
+    if (!isPlainObject(response)) {
+      return { ok: false, skipped: false, ...empty, error: "Unexpected usage response." };
+    }
+    return {
+      ok: true,
+      skipped: false,
+      storageUsedInBytes:
+        typeof response.storageUsedInBytes === "number" ? response.storageUsedInBytes : 0,
+      storageLimitInBytes:
+        typeof response.storageLimitInBytes === "number" ? response.storageLimitInBytes : 0,
+    };
+  } catch (error) {
+    return { ...serviceError(error), ...empty };
+  }
 }
 
 export async function rememberMemory(raw: unknown): Promise<MemoryRememberResult> {
@@ -529,13 +656,54 @@ export async function forgetMemory(raw: unknown): Promise<MemoryForgetResult> {
 
   const disabled = disabledResult();
   if (disabled) return { ...disabled, forgotten: false };
+
   if (payload.id) {
-    return {
-      ok: false,
-      skipped: true,
-      forgotten: false,
-      reason: "Cognee REST forget is dataset-scoped; id-specific forget was not sent.",
-    };
+    const dataset = payload.datasetName ?? DEFAULT_DATASET_NAME;
+    try {
+      const datasetId = await findDatasetId(dataset);
+      if (!datasetId) {
+        return {
+          ok: false,
+          skipped: false,
+          forgotten: false,
+          reason: `Dataset "${dataset}" was not found on the Cognee server.`,
+        };
+      }
+      if (await datasetIsProcessing(datasetId)) {
+        return {
+          ok: false,
+          skipped: false,
+          forgotten: false,
+          reason: `Dataset "${dataset}" is still processing on the Cognee server; retry the forget in a moment.`,
+        };
+      }
+      const dataId = await findDataItemId(datasetId, payload.id);
+      if (!dataId) {
+        return {
+          ok: false,
+          skipped: false,
+          forgotten: false,
+          reason: `No stored memory matched id "${payload.id}" in dataset "${dataset}".`,
+        };
+      }
+      try {
+        await cogneeFetch<unknown>(
+          "forget",
+          "DELETE",
+          `/api/v1/datasets/${datasetId}/data/${dataId}`,
+        );
+      } catch (error) {
+        return {
+          ...serviceError(error),
+          forgotten: false,
+          reason:
+            "Cognee could not delete the memory yet; it may still be processing. Retry in a moment.",
+        };
+      }
+      return { ok: true, skipped: false, forgotten: true };
+    } catch (error) {
+      return { ...serviceError(error), forgotten: false };
+    }
   }
 
   try {

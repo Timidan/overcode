@@ -16,7 +16,7 @@
   height: 3px;
   border-radius: var(--radius-full);
   background: var(--color-accent-cyan);
-  animation: ai-dot-pulse 1.4s ease-in-out infinite;
+  animation: overcode-ai-dot-pulse 1.4s ease-in-out infinite;
 }
 
 .commit-section {

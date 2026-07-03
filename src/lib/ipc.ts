@@ -1,3 +1,8 @@
+import {
+  recordCogneeMemoryEvent,
+  type CogneeMemoryOperation,
+} from "./cognee-memory-ledger";
+
 export interface Repository {
   id: string;
   name: string;
@@ -203,7 +208,12 @@ export interface LocalIdentity {
   name: string | null;
 }
 
-export type RequiredAIEnv = "OPENROUTER_API_KEY";
+export type RequiredAIEnv =
+  | "OPENROUTER_API_KEY"
+  | "OPENAI_API_KEY"
+  | "ANTHROPIC_API_KEY"
+  | "GEMINI_API_KEY"
+  | "NVIDIA_API_KEY";
 
 export type AIEnvStatus = "configured" | "missing";
 export type AIModelHealthStatus =
@@ -235,7 +245,22 @@ export interface AIStatus {
   health: AIModelHealth[];
 }
 
-export type AIProviderId = "openrouter" | "openai" | "anthropic" | "gemini";
+export type AIModelStructuredCheckStatus = "passed" | "failed" | "not_configured";
+
+export interface AIModelStructuredCheckResult {
+  providerId: AIProviderId;
+  model: string;
+  status: AIModelStructuredCheckStatus;
+  reason?: string;
+  checkedAt: number;
+  latencyMs?: number;
+  generatedLength: number;
+  parsedJson: boolean;
+  schemaValid: boolean;
+  rawSample?: string;
+}
+
+export type AIProviderId = "openrouter" | "openai" | "anthropic" | "gemini" | "nvidia";
 export type AIProviderCredentialSource = "stored" | "env" | "none";
 type LegacyAIProviderCredentialUpdate = {
   api_key?: string | null;
@@ -272,6 +297,19 @@ export interface AIProviderStatus {
   baseUrlSource?: "stored" | "env" | "default" | "none";
   health: AIModelHealthStatus;
   reason?: string;
+  account?: AIProviderAccountStatus;
+}
+
+export interface AIProviderAccountStatus {
+  plan: "free" | "paid" | "unknown";
+  isFreeTier?: boolean;
+  freeModelDailyLimit?: number;
+  freeModelNote?: string;
+  limit?: number | null;
+  limitRemaining?: number | null;
+  usage?: number;
+  usageDaily?: number;
+  checkedAt: number;
 }
 
 export interface AIModelCatalogEntry {
@@ -493,6 +531,8 @@ export interface MemoryDocument {
 export interface MemoryRememberInput {
   documents: MemoryDocument[];
   datasetName?: string;
+  sessionId?: string;
+  nodeSet?: string[];
 }
 
 export interface MemoryRecallQuery {
@@ -500,6 +540,7 @@ export interface MemoryRecallQuery {
   datasets?: string[];
   limit?: number;
   filters?: Record<string, string | number | boolean | null>;
+  nodeSet?: string[];
 }
 
 export interface MemoryImproveInput {
@@ -555,6 +596,45 @@ export interface MemoryImproveResult extends MemoryResult {
 
 export interface MemoryForgetResult extends MemoryResult {
   forgotten: boolean;
+}
+
+export interface MemoryUsageResult extends MemoryResult {
+  storageUsedInBytes: number;
+  storageLimitInBytes: number;
+}
+
+async function trackCogneeMemoryOperation<TResult>(
+  operation: CogneeMemoryOperation,
+  payload: unknown,
+  run: () => Promise<TResult>,
+): Promise<TResult> {
+  const startedAt = new Date().toISOString();
+  const startedMs = Date.now();
+
+  try {
+    const result = await run();
+    recordCogneeMemoryEvent({
+      operation,
+      payload,
+      result,
+      startedAt,
+      durationMs: Date.now() - startedMs,
+    });
+    return result;
+  } catch (error) {
+    recordCogneeMemoryEvent({
+      operation,
+      payload,
+      result: {
+        ok: false,
+        skipped: false,
+        error: error instanceof Error ? error.message : "Cognee memory operation failed.",
+      },
+      startedAt,
+      durationMs: Date.now() - startedMs,
+    });
+    throw error;
+  }
 }
 
 export class IPC {
@@ -757,6 +837,13 @@ export class IPC {
     return this.api.ai.providers();
   }
 
+  async runStructuredAIModelCheck(
+    providerId?: AIProviderId,
+    modelId?: string,
+  ): Promise<AIModelStructuredCheckResult> {
+    return this.api.ai.structuredCheck(providerId, modelId);
+  }
+
   async listAIModels(
     providerId: AIProviderId,
     options?: { force?: boolean },
@@ -774,25 +861,37 @@ export class IPC {
   async rememberMemory(
     payload: MemoryRememberInput,
   ): Promise<MemoryRememberResult> {
-    return this.api.memory.remember(payload);
+    return trackCogneeMemoryOperation("remember", payload, () =>
+      this.api.memory.remember(payload),
+    );
   }
 
   async recallMemory(payload: MemoryRecallQuery): Promise<MemoryRecallResult> {
-    return this.api.memory.recall(payload);
+    return trackCogneeMemoryOperation("recall", payload, () =>
+      this.api.memory.recall(payload),
+    );
   }
 
   async improveMemory(
     payload: MemoryImproveInput,
   ): Promise<MemoryImproveResult> {
-    return this.api.memory.improve(payload);
+    return trackCogneeMemoryOperation("improve", payload, () =>
+      this.api.memory.improve(payload),
+    );
   }
 
   async forgetMemory(payload: MemoryForgetInput): Promise<MemoryForgetResult> {
-    return this.api.memory.forget(payload);
+    return trackCogneeMemoryOperation("forget", payload, () =>
+      this.api.memory.forget(payload),
+    );
   }
 
   async getMemoryStatus(): Promise<MemoryStatus> {
     return this.api.memory.status();
+  }
+
+  async getMemoryUsage(): Promise<MemoryUsageResult> {
+    return this.api.memory.usage();
   }
 
   async getFromStore(key: string): Promise<unknown> {

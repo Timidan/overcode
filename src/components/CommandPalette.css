@@ -86,14 +86,14 @@
   /* Coloured left rule registers the section type at a glance —
      navigate (cyan), repositories (amber), actions (muted). The rule
      sits only on the header so items below stay aligned. */
-  border-left: 3px solid var(--color-text-muted);
+  border-left: 3px solid var(--color-ink);
 }
 
 .cmdk-section:first-child { border-top: none; }
 
-.cmdk-section--navigate     { border-left-color: var(--color-accent-cyan); }
-.cmdk-section--repositories { border-left-color: var(--color-accent-amber); }
-.cmdk-section--actions      { border-left-color: var(--color-text-muted); }
+.cmdk-section--navigate     { border-left-color: var(--color-ink); }
+.cmdk-section--repositories { border-left-color: var(--color-ink); }
+.cmdk-section--actions      { border-left-color: var(--color-ink); }
 
 .cmdk-item {
   display: flex;

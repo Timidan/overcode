@@ -9,7 +9,6 @@ import { useAIPanel } from "../store/useAIPanel";
 import {
   WorktreeRecallCard,
   type WorktreeRecallArtifact,
-  type WorktreeRecallGraphPath,
   type WorktreeRecallResult,
   type WorktreeRecallState,
 } from "./WorktreeRecallCard";
@@ -39,9 +38,10 @@ export function WorktreeList({
   const openAIPanel = useAIPanel((state) => state.open);
   const [trees, setTrees] = useState<Worktree[]>([]);
   const [loading, setLoading] = useState(true);
-  const [summarizingPath, setSummarizingPath] = useState<string | null>(null);
-  const [inspectingPath, setInspectingPath] = useState<string | null>(null);
-  const [recallingPath, setRecallingPath] = useState<string | null>(null);
+  // Per-path busy sets: rows operate independently, so a single-path value
+  // would let one row's completion clear another row's busy state.
+  const [summarizingPaths, setSummarizingPaths] = useState<ReadonlySet<string>>(new Set());
+  const [inspectingPaths, setInspectingPaths] = useState<ReadonlySet<string>>(new Set());
   const [expandedPath, setExpandedPath] = useState<string | null>(null);
   const [inspectDetails, setInspectDetails] = useState<Record<string, WorktreeInspectState>>({});
   const [recallDetails, setRecallDetails] = useState<Record<string, WorktreeRecallState>>({});
@@ -85,9 +85,12 @@ export function WorktreeList({
     }
     setExpandedPath(tree.path);
     setError(null);
+    // Memory context appears unprompted when a row opens; the card's own
+    // state machine handles loading/disabled/empty/error honestly.
+    if (!recallDetails[tree.path]) void recall(tree);
     if (inspectDetails[tree.path] && !inspectDetails[tree.path].error) return;
 
-    setInspectingPath(tree.path);
+    setInspectingPaths((current) => new Set(current).add(tree.path));
     setInspectDetails((current) => ({
       ...current,
       [tree.path]: { loading: true, input: null, error: null },
@@ -108,12 +111,16 @@ export function WorktreeList({
         },
       }));
     } finally {
-      setInspectingPath(null);
+      setInspectingPaths((current) => {
+        const next = new Set(current);
+        next.delete(tree.path);
+        return next;
+      });
     }
   }
 
   async function summarize(tree: Worktree) {
-    setSummarizingPath(tree.path);
+    setSummarizingPaths((current) => new Set(current).add(tree.path));
     setError(null);
     try {
       const input = await ipc.getWorktreeSummaryInput(repoPath, tree.path);
@@ -142,14 +149,15 @@ export function WorktreeList({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not compare worktree");
     } finally {
-      setSummarizingPath(null);
+      setSummarizingPaths((current) => {
+        const next = new Set(current);
+        next.delete(tree.path);
+        return next;
+      });
     }
   }
 
   async function recall(tree: Worktree) {
-    setExpandedPath(tree.path);
-    setRecallingPath(tree.path);
-    setError(null);
     setRecallDetails((current) => ({
       ...current,
       [tree.path]: { status: "loading" },
@@ -160,11 +168,12 @@ export function WorktreeList({
       const recallIpc = ipc as typeof ipc & WorktreeRecallIPC;
 
       if (typeof recallIpc.recallMemory !== "function") {
+        console.warn("[worktree-recall] ipc.recallMemory is not wired in this build");
         setRecallDetails((current) => ({
           ...current,
           [tree.path]: {
             status: "disabled",
-            message: "Cognee recall is not wired in this build. Expected ipc.recallMemory(request).",
+            message: "Memory recall isn't available in this build.",
           },
         }));
         return;
@@ -183,8 +192,6 @@ export function WorktreeList({
           message: err instanceof Error ? err.message : "Could not recall worktree memory",
         },
       }));
-    } finally {
-      setRecallingPath(null);
     }
   }
 
@@ -195,7 +202,10 @@ export function WorktreeList({
         <span className="worktree-count">{trees.length}</span>
       </header>
       {loading ? (
-        <div className="empty">Loading…</div>
+        <div className="worktree-list-skeleton" aria-hidden="true">
+          <span className="worktree-list-skeleton-row" />
+          <span className="worktree-list-skeleton-row" />
+        </div>
       ) : loadError ? (
         <div className="worktree-error" role="alert">
           <span>{loadError}</span>
@@ -204,7 +214,10 @@ export function WorktreeList({
           </button>
         </div>
       ) : trees.length === 0 ? (
-        <div className="empty">No worktrees</div>
+        <div className="empty">
+          No worktrees yet. Create one with git worktree add &lt;path&gt; &lt;branch&gt; to
+          work on two branches at once.
+        </div>
       ) : (
         <ul className="worktree-rows">
           {trees.map((t) => {
@@ -223,40 +236,38 @@ export function WorktreeList({
                   </span>
                 </div>
                 <div className="worktree-meta">
-                  <span>{t.head?.slice(0, 7)}</span>
-                  <span>+{t.ahead ?? 0}/-{t.behind ?? 0}</span>
-                  <span>{t.dirtyCount ?? 0} dirty</span>
+                  <span title={`Commit ${t.head}`}>{t.head?.slice(0, 7)}</span>
+                  <span title="Commits ahead and behind the base branch">
+                    {t.ahead ?? 0} ahead · {t.behind ?? 0} behind
+                  </span>
+                  <span title="Uncommitted files in this worktree">
+                    {t.dirtyCount ?? 0} uncommitted
+                  </span>
                 </div>
                 <button
                   type="button"
                   className="worktree-inspect-button"
                   onClick={() => void inspect(t)}
-                  disabled={inspectingPath !== null || summarizingPath !== null || recallingPath !== null}
-                  title="Inspect changed files in this worktree"
+                  disabled={inspectingPaths.has(t.path)}
+                  title="Inspect changed files and recalled memory for this worktree"
                 >
-                  {inspectingPath === t.path ? "Inspecting…" : expanded ? "Hide" : "Inspect"}
-                </button>
-                <button
-                  type="button"
-                  className="worktree-recall-button"
-                  onClick={() => void recall(t)}
-                  disabled={
-                    recallingPath !== null || summarizingPath !== null || inspectingPath !== null
-                  }
-                  title="Recall related Cognee memory for this worktree"
-                >
-                  {recallingPath === t.path ? "Recalling…" : "Recall"}
+                  {inspectingPaths.has(t.path) ? "Inspecting…" : expanded ? "Hide" : "Inspect"}
                 </button>
                 <button
                   type="button"
                   className="worktree-ai-button"
                   onClick={() => summarize(t)}
-                  disabled={summarizingPath !== null || inspectingPath !== null || recallingPath !== null}
+                  disabled={summarizingPaths.has(t.path)}
                 >
-                  {summarizingPath === t.path ? "Summarizing…" : "Summarize"}
+                  {summarizingPaths.has(t.path) ? "Summarizing…" : "Summarize"}
                 </button>
                 {expanded && detail && <WorktreeDetails detail={detail} />}
-                {expanded && <WorktreeRecallCard state={recallDetail} />}
+                {expanded && (
+                  <WorktreeRecallCard
+                    state={recallDetail}
+                    onRetry={() => void recall(t)}
+                  />
+                )}
               </li>
             );
           })}
@@ -292,9 +303,10 @@ function WorktreeDetails({ detail }: { detail?: WorktreeInspectState }) {
   return (
     <div className="worktree-detail">
       <div className="worktree-detail-head">
-        <span>{input.changedFiles.length} files changed</span>
-        <span>+{input.ahead}/-{input.behind} vs {input.baseRef}</span>
-        <span>{input.dirtyFiles} dirty</span>
+        <span>
+          {input.changedFiles.length} file{input.changedFiles.length === 1 ? "" : "s"} changed
+          vs {input.baseRef}
+        </span>
       </div>
       {files.length > 0 ? (
         <ul className="worktree-file-list">
@@ -335,6 +347,8 @@ function buildRecallRequest(
     input.diffStat.trim() ? `with diff stat ${compactWhitespace(input.diffStat).slice(0, 160)}` : "",
   ].filter(Boolean);
 
+  const repoLabel = (repoName || repoPath).trim().replace(/\s+/g, " ").slice(0, 70);
+
   return {
     query: limitRecallQuery(`${queryParts.join(" ")}.`),
     limit: 6,
@@ -342,6 +356,7 @@ function buildRecallRequest(
       repo: repoName || repoPath,
       branch,
     },
+    nodeSet: [`repo:${repoLabel}`],
   };
 }
 
@@ -394,17 +409,13 @@ function normalizeRecallResponse(response: unknown): WorktreeRecallState {
       .filter((item): item is WorktreeRecallArtifact => item !== null),
     risks: stringList(source.risks ?? source.priorRisks),
     decisions: stringList(source.decisions ?? source.priorDecisions),
-    graphPaths: arrayValue(source.graphPaths ?? source.paths)
-      .map(normalizeGraphPath)
-      .filter((item): item is WorktreeRecallGraphPath => item !== null),
     suggestedNextAction:
       stringValue(source.suggestedNextAction) || stringValue(source.nextAction),
   };
 
   const hasResult =
     Boolean(result.likelyIntent || result.summary || result.suggestedNextAction) ||
-    Boolean(result.artifacts?.length || result.risks?.length || result.decisions?.length) ||
-    Boolean(result.graphPaths?.length);
+    Boolean(result.artifacts?.length || result.risks?.length || result.decisions?.length);
 
   if (!hasResult) {
     return { status: "empty", message: "Cognee returned no usable memory for this worktree." };
@@ -425,21 +436,13 @@ function recallItemsToResult(items: MemoryRecallItem[]): WorktreeRecallResult {
       summary: item.summary,
     })),
     risks: items
-      .map((item) => metadataString(item.metadata, "risk") ?? metadataString(item.metadata, "severity"))
+      .map((item) => metadataString(item.metadata, "risk"))
       .filter((item): item is string => Boolean(item))
       .slice(0, 4),
     decisions: items
       .map((item) => metadataString(item.metadata, "decision"))
       .filter((item): item is string => Boolean(item))
       .slice(0, 4),
-    graphPaths: items.map((item) => ({
-      from: "worktree",
-      kind: "RECALLS",
-      to: `memory:${item.id}`,
-      summary: item.title,
-    })),
-    suggestedNextAction:
-      "Review the recalled memory before summarizing, rebasing, or preparing this worktree for review.",
   };
 }
 
@@ -470,19 +473,6 @@ function normalizeArtifact(value: unknown): WorktreeRecallArtifact | null {
     summary: stringValue(value.summary),
     ref: stringValue(value.ref),
     url: stringValue(value.url),
-  };
-}
-
-function normalizeGraphPath(value: unknown): WorktreeRecallGraphPath | null {
-  if (typeof value === "string") return { nodes: value.split("->").map((part) => part.trim()) };
-  if (!isRecord(value)) return null;
-
-  return {
-    from: stringValue(value.from),
-    to: stringValue(value.to),
-    kind: stringValue(value.kind),
-    summary: stringValue(value.summary),
-    nodes: stringList(value.nodes),
   };
 }
 

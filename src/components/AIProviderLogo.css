@@ -21,6 +21,18 @@
   height: 36px;
 }
 
+.ai-provider-logo.is-nvidia.is-sm {
+  width: 36px;
+}
+
+.ai-provider-logo.is-nvidia.is-md {
+  width: 46px;
+}
+
+.ai-provider-logo.is-nvidia.is-lg {
+  width: 58px;
+}
+
 .ai-provider-logo-mark {
   width: 100%;
   height: 100%;

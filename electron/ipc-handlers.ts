@@ -4,8 +4,13 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import os from "node:os";
 import * as storeLib from "./lib/store";
-import { callAIModel, aiConfigStatus, configuredModel } from "./lib/ai-runtime";
-import { listProviderModels } from "./lib/ai-providers";
+import {
+  callAIModel,
+  aiConfigStatus,
+  configuredModel,
+  runStructuredAIModelCheck,
+} from "./lib/ai-runtime";
+import { listProviderModels, readOpenRouterKeyStatus } from "./lib/ai-providers";
 import {
   sanitizeSettingsForRendererRead,
   sanitizeSettingsForRendererWrite,
@@ -21,11 +26,12 @@ import type {
   AIProviderStatus,
 } from "./lib/ai-provider-types";
 import {
-  cogneeStatus,
+  cogneeUsage,
   forgetMemory,
   improveMemory,
   recallMemory,
   rememberMemory,
+  verifiedCogneeStatus,
 } from "./lib/cognee";
 
 const execFileAsync = promisify(execFile);
@@ -100,6 +106,7 @@ const AI_PROVIDER_IDS: AIProviderId[] = [
   "openai",
   "anthropic",
   "gemini",
+  "nvidia",
 ];
 
 type GitChannel =
@@ -183,7 +190,7 @@ function assertAIProviderId(value: unknown): AIProviderId {
   if (typeof value === "string" && AI_PROVIDER_IDS.includes(value as AIProviderId)) {
     return value as AIProviderId;
   }
-  throw new Error("Provider id must be one of: openrouter, openai, anthropic, gemini.");
+  throw new Error("Provider id must be one of: openrouter, openai, anthropic, gemini, nvidia.");
 }
 
 function assertOptionalAIModelId(value: unknown): string | undefined {
@@ -243,13 +250,25 @@ function readActiveAIProvider(): AIProviderId {
     : "openrouter";
 }
 
-function readAIProviderStatuses(): AIProviderStatus[] {
+async function readAIProviderStatuses(): Promise<AIProviderStatus[]> {
   const activeProviderId = readActiveAIProvider();
   const credentialStatuses = storeLib.aiProviderCredentialStatus();
-  return AI_PROVIDER_IDS.map((providerId) => {
+  return Promise.all(AI_PROVIDER_IDS.map(async (providerId) => {
     const status = credentialStatuses[providerId];
     const configured = status.api_key !== "none";
     const active = providerId === activeProviderId;
+    const account = providerId === "openrouter" && configured
+      ? await readOpenRouterKeyStatus({
+        apiKey: storeLib.getAIProviderApiKey(providerId),
+        baseUrl: storeLib.getAIProviderBaseUrl(providerId),
+      }).catch((error) => ({
+        plan: "unknown" as const,
+        checkedAt: Date.now(),
+        freeModelNote: error instanceof Error
+          ? error.message
+          : "OpenRouter key status could not be checked.",
+      }))
+      : undefined;
     return {
       providerId,
       configured,
@@ -260,11 +279,12 @@ function readAIProviderStatuses(): AIProviderStatus[] {
           ? "env"
           : status.base_url,
       health: configured ? "unknown" : "not_configured",
+      account,
       reason: configured
-        ? "Passive provider status is local only and skips provider health probes."
+        ? account?.freeModelNote ?? "Passive provider status is local only and skips provider health probes."
         : "API key is not configured.",
     };
-  });
+  }));
 }
 
 function recordGitWorkerChange(event: WorkerEvent): void {
@@ -849,6 +869,19 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
   ipcMain.handle("ai:status", () => aiConfigStatus());
   ipcMain.handle("ai:providers", async () => readAIProviderStatuses());
   ipcMain.handle(
+    "ai:structured-check",
+    async (
+      _event,
+      payload: { providerId?: unknown; modelId?: unknown } | undefined,
+    ) => {
+      const providerId = payload?.providerId === undefined
+        ? undefined
+        : assertAIProviderId(payload.providerId);
+      const modelId = assertOptionalAIModelId(payload?.modelId);
+      return runStructuredAIModelCheck({ providerId, modelId });
+    },
+  );
+  ipcMain.handle(
     "ai:models",
     async (
       _event,
@@ -893,7 +926,8 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
   ipcMain.handle("memory:forget", async (_, payload: unknown) =>
     forgetMemory(payload),
   );
-  ipcMain.handle("memory:status", () => cogneeStatus());
+  ipcMain.handle("memory:status", () => verifiedCogneeStatus());
+  ipcMain.handle("memory:usage", () => cogneeUsage());
 
   // ============================================================
   // STORE CHANNELS (3)

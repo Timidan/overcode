@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useStashLabels } from "../hooks/useStashLabels";
 import { ipc } from "../lib/ipc";
 import { useAIPanel } from "../store/useAIPanel";
+import { useWorkingTree } from "../store/useWorkingTree";
 import "./StashList.css";
 
 interface StashListProps {
   repoId: string;
+  repoName?: string;
   repoPath: string;
 }
 
@@ -16,10 +18,14 @@ interface StashInspectState {
   error: string | null;
 }
 
-export function StashList({ repoId, repoPath }: StashListProps) {
+export function StashList({ repoId, repoName, repoPath }: StashListProps) {
   const { stashes, labels, loading, refresh } = useStashLabels(repoId, repoPath);
   const openAIPanel = useAIPanel((state) => state.open);
-  const [busyRef, setBusyRef] = useState<string | null>(null);
+  const dirtyPaths = useWorkingTree((s) => s.dirtyPathsByRepo[repoPath]);
+  const [busy, setBusy] = useState<{ ref: string; action: "pop" | "drop" | "explain" } | null>(
+    null,
+  );
+  const busyRef = busy?.ref ?? null;
   const [expandedRef, setExpandedRef] = useState<string | null>(null);
   const [details, setDetails] = useState<Record<string, StashInspectState>>({});
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +75,7 @@ export function StashList({ repoId, repoPath }: StashListProps) {
 
   async function explain(stash: { ref: string; message: string }) {
     setError(null);
-    setBusyRef(stash.ref);
+    setBusy({ ref: stash.ref, action: "explain" });
     try {
       let detail = details[stash.ref];
       if (!detail || detail.error) {
@@ -87,6 +93,7 @@ export function StashList({ repoId, repoPath }: StashListProps) {
       }
       openAIPanel("stash", {
         repoId,
+        repoName,
         repoPath,
         ref: stash.ref,
         message: stash.message,
@@ -96,12 +103,12 @@ export function StashList({ repoId, repoPath }: StashListProps) {
     } catch (error) {
       setError(error instanceof Error ? error.message : "Stash explanation failed");
     } finally {
-      setBusyRef(null);
+      setBusy(null);
     }
   }
 
   async function handlePop(ref: string) {
-    setBusyRef(ref);
+    setBusy({ ref, action: "pop" });
     setError(null);
     try {
       await ipc.stashPop(repoPath, ref);
@@ -111,12 +118,12 @@ export function StashList({ repoId, repoPath }: StashListProps) {
     } catch (error) {
       setError(error instanceof Error ? error.message : "Stash pop failed");
     } finally {
-      setBusyRef(null);
+      setBusy(null);
     }
   }
 
   async function handleDrop(ref: string) {
-    setBusyRef(ref);
+    setBusy({ ref, action: "drop" });
     setError(null);
     try {
       await ipc.stashDrop(repoPath, ref);
@@ -126,8 +133,17 @@ export function StashList({ repoId, repoPath }: StashListProps) {
     } catch (error) {
       setError(error instanceof Error ? error.message : "Stash drop failed");
     } finally {
-      setBusyRef(null);
+      setBusy(null);
     }
+  }
+
+  function handleRowKey(ref: string, event: ReactKeyboardEvent<HTMLDivElement>) {
+    // Only toggle when the row itself is focused; Enter/Space on the nested
+    // Pop/Drop buttons must keep their native behavior.
+    if (event.target !== event.currentTarget) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    void inspect(ref);
   }
 
   return (
@@ -143,7 +159,15 @@ export function StashList({ repoId, repoPath }: StashListProps) {
         const expanded = expandedRef === stash.ref;
         return (
         <div key={stash.ref} className="stash-entry">
-          <div className="stash-item">
+          <div
+            className="stash-item"
+            role="button"
+            tabIndex={0}
+            aria-expanded={expanded}
+            title={expanded ? "Hide stash files and diff" : "Inspect files and diff in this stash"}
+            onClick={() => void inspect(stash.ref)}
+            onKeyDown={(event) => handleRowKey(stash.ref, event)}
+          >
             <div className="stash-ref" title={stash.ref}>
               {shortRef(stash.ref)}
             </div>
@@ -155,43 +179,38 @@ export function StashList({ repoId, repoPath }: StashListProps) {
             <StashTime date={stash.date} />
             <button
               type="button"
-              className="stash-button stash-button-secondary"
-              title="Inspect files and diff in this stash"
-              onClick={() => void inspect(stash.ref)}
-              disabled={busyRef !== null}
-            >
-              {expanded ? "Hide" : "Inspect"}
-            </button>
-            <button
-              type="button"
-              className="stash-button stash-button-secondary"
-              title="Ask the active AI provider to explain this stash"
-              onClick={() => void explain(stash)}
-              disabled={busyRef !== null}
-            >
-              Explain
-            </button>
-            <button
-              type="button"
               className="stash-button"
               title="Apply this stash and remove it from the list"
-              onClick={() => handlePop(stash.ref)}
+              onClick={(event) => {
+                event.stopPropagation();
+                void handlePop(stash.ref);
+              }}
               disabled={busyRef !== null}
             >
-              {busyRef === stash.ref ? "…" : "Pop"}
+              {busy?.ref === stash.ref && busy.action === "pop" ? "Popping…" : "Pop"}
             </button>
             <button
               type="button"
               className="stash-button"
               title="Discard this stash"
-              onClick={() => handleDrop(stash.ref)}
+              onClick={(event) => {
+                event.stopPropagation();
+                void handleDrop(stash.ref);
+              }}
               disabled={busyRef !== null}
             >
-              Drop
+              {busy?.ref === stash.ref && busy.action === "drop" ? "Dropping…" : "Drop"}
             </button>
           </div>
           {expanded && (
-            <StashDetails detail={detail} message={stash.message} />
+            <StashDetails
+              detail={detail}
+              message={stash.message}
+              dirtyPaths={dirtyPaths}
+              explaining={busy?.ref === stash.ref && busy.action === "explain"}
+              busy={busyRef !== null}
+              onExplain={() => void explain(stash)}
+            />
           )}
         </div>
         );
@@ -204,9 +223,17 @@ export function StashList({ repoId, repoPath }: StashListProps) {
 function StashDetails({
   detail,
   message,
+  dirtyPaths,
+  explaining,
+  busy,
+  onExplain,
 }: {
   detail?: StashInspectState;
   message: string;
+  dirtyPaths?: string[];
+  explaining: boolean;
+  busy: boolean;
+  onExplain: () => void;
 }) {
   if (!detail || detail.loading) {
     return <div className="stash-detail-state">Inspecting stash…</div>;
@@ -214,11 +241,28 @@ function StashDetails({
   if (detail.error) {
     return <div className="stash-detail-state stash-detail-error">{detail.error}</div>;
   }
+  const overlap = dirtyPaths
+    ? detail.files.filter((file) => dirtyPaths.includes(file)).length
+    : 0;
   return (
     <div className="stash-detail">
       <div className="stash-detail-head">
         <span>{detail.files.length} files</span>
+        {overlap > 0 && (
+          <span className="stash-overlap-note">
+            touches {overlap} file{overlap === 1 ? "" : "s"} you're editing
+          </span>
+        )}
         {message && <span title={message}>{message}</span>}
+        <button
+          type="button"
+          className="stash-button stash-detail-explain"
+          title="Ask the active AI provider to explain this stash"
+          onClick={onExplain}
+          disabled={busy}
+        >
+          {explaining ? "Explaining…" : "Explain"}
+        </button>
       </div>
       {detail.files.length > 0 ? (
         <ul className="stash-file-list">

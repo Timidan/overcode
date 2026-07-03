@@ -212,11 +212,6 @@ interface AIHomeProps {
   onPickFeature: (feature: AIFeature) => void;
 }
 
-function latencyBadgeClass(ms: number): string {
-  if (ms < 200) return "is-fast";
-  if (ms < 800) return "is-medium";
-  return "is-slow";
-}
 
 interface ShortcutDef {
   feature: AIFeature;
@@ -235,6 +230,7 @@ const SHORTCUTS: ShortcutDef[] = [
 function AIHome({ onPickFeature }: AIHomeProps) {
   const navigate = useNav((s) => s.navigate);
   const [status, setStatus] = useState<AIStatus | null>(null);
+  const [hasChecked, setHasChecked] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadStatus = useCallback(async () => {
@@ -244,6 +240,7 @@ function AIHome({ onPickFeature }: AIHomeProps) {
       setStatus(ai);
     } finally {
       setRefreshing(false);
+      setHasChecked(true);
     }
   }, []);
 
@@ -260,23 +257,23 @@ function AIHome({ onPickFeature }: AIHomeProps) {
       ? "not_configured"
       : (activeHealth?.status ?? "unknown");
 
+  const statusPending = !hasChecked;
+
   return (
     <div className="ai-home">
       <section className="ai-home-status" aria-live="polite">
         <div className="ai-home-status-row">
-          <span
-            className={`ai-health-dot ${healthDotClass(healthStatus)}`}
-            aria-hidden="true"
-          />
           <code className="ai-home-model">
-            {status?.model ?? "openrouter/free"}
+            {statusPending ? "…" : status?.model ?? "No model active"}
           </code>
-          <span className={`ai-status-pill ${healthDotClass(healthStatus)}`}>
-            {healthLabel(healthStatus)}
+          <span
+            className={`ai-status-pill ${statusPending ? "" : healthDotClass(healthStatus)}`}
+          >
+            {statusPending ? "Checking" : healthLabel(healthStatus)}
           </span>
           {typeof activeHealth?.latencyMs === "number" && (
             <span
-              className={`ai-status-latency ${latencyBadgeClass(activeHealth.latencyMs)}`}
+              className="ai-status-latency"
               title={`Last probe round-trip: ${Math.round(activeHealth.latencyMs)}ms`}
             >
               {Math.round(activeHealth.latencyMs)}ms
@@ -316,6 +313,11 @@ function AIHome({ onPickFeature }: AIHomeProps) {
             type="button"
             className="ai-shortcut"
             onClick={() => onPickFeature(shortcut.feature)}
+            title={
+              status && !status.configured
+                ? "Configure an AI provider in Settings first"
+                : undefined
+            }
           >
             <span>{shortcut.label}</span>
             <span aria-hidden="true" className="ai-shortcut-arrow">

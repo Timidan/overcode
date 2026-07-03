@@ -31,8 +31,7 @@
 .settings-toast {
   padding: var(--space-3) var(--space-4);
   background: transparent;
-  border: 1px solid var(--color-accent-amber);
-  border-left: 4px solid var(--color-accent-amber);
+  border: 1px solid var(--color-ink);
   border-radius: 0;
   font-family: var(--font-mono);
   font-size: var(--text-sm);
@@ -115,83 +114,7 @@
   letter-spacing: var(--tracking-wider);
 }
 
-/* Brutalist health pill — hard-bordered chip in currentColor, transparent
-   bg, UPPERCASE label. Color is foreground-only and driven by status class. */
-.settings-health-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 2px 6px;
-  border: 1px solid currentColor;
-  border-radius: 0;
-  background: transparent;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-wider);
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-}
-
-.settings-health-pill.is-available     { color: var(--color-accent-green); }
-.settings-health-pill.is-unavailable   { color: var(--color-accent-red); }
-.settings-health-pill.is-not-configured,
-.settings-health-pill.is-unknown       { color: var(--color-accent-amber); }
-
-/* Dot inside the pill inherits its color from the pill class so the chip
-   reads as one unit. */
-.settings-health-pill .settings-health-dot {
-  background: currentColor;
-}
-
-/* Last-5-checks indicator — row of hard-bordered 4x8 boxes ordered oldest
-   left -> newest right. One box per probe resolution; color is foreground-
-   only via tokens. Wraps as inline-flex so it lives next to the pill. */
-.settings-health-history {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.settings-health-history-box {
-  display: inline-block;
-  width: 4px;
-  height: 8px;
-  border: 1px solid var(--color-ink);
-  border-radius: 0;
-  background: transparent;
-}
-
-.settings-health-history-box.is-available     { background: var(--color-accent-green); }
-.settings-health-history-box.is-unavailable   { background: var(--color-accent-red); }
-.settings-health-history-box.is-not-configured,
-.settings-health-history-box.is-unknown       { background: var(--color-accent-amber); }
-.settings-health-history-box.is-empty         { background: var(--color-text-muted); }
-
 .settings-hint-block { margin: 0 0 var(--space-2) 0; }
-
-.settings-provider-strip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  color: var(--color-text-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-
-.settings-provider-strip-label {
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-widest);
-  text-transform: uppercase;
-}
-
-.settings-provider-strip-logos {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
 
 .settings-memory-brand {
   display: inline-flex;
@@ -255,60 +178,6 @@
   gap: var(--space-2);
 }
 
-.settings-model-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  border: 1px solid var(--color-ink);
-}
-
-.settings-model-option {
-  display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) max-content;
-  align-items: center;
-  column-gap: var(--space-2);
-  row-gap: 3px;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--color-border-subtle);
-  border-radius: 0;
-  color: var(--color-text-primary);
-  font-family: var(--font-mono);
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.settings-model-option:last-child { border-bottom: none; }
-
-.settings-model-option:hover { background: var(--color-bg-elevated); }
-
-.settings-model-option.is-selected {
-  background: var(--color-text-primary);
-  color: var(--color-text-inverted);
-}
-
-.settings-model-option.is-selected .settings-model-name,
-.settings-model-option.is-selected .settings-model-health,
-.settings-model-option.is-selected .settings-model-reason {
-  color: var(--color-text-inverted);
-}
-
-.settings-health-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-full);
-  background: var(--color-text-muted);
-  flex: 0 0 auto;
-}
-
-.settings-health-dot.is-available     { background: var(--color-accent-green); }
-.settings-health-dot.is-unavailable   { background: var(--color-accent-red); }
-.settings-health-dot.is-not-configured,
-.settings-health-dot.is-unknown       { background: var(--color-accent-amber); }
-
 .settings-accounts {
   display: flex;
   flex-direction: column;
@@ -336,7 +205,6 @@
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-widest);
   color: var(--color-text-secondary);
-  text-transform: uppercase;
 }
 
 .settings-governance-card strong {
@@ -397,7 +265,6 @@
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-wider);
   color: var(--color-text-secondary);
-  text-transform: uppercase;
 }
 
 .settings-memory-field strong,
@@ -471,35 +338,6 @@
   font-weight: var(--weight-bold);
 }
 
-.settings-model-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-bold);
-  color: var(--color-text-primary);
-}
-
-.settings-model-health {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-wider);
-  color: var(--color-text-secondary);
-}
-
-.settings-model-health.is-available     { color: var(--color-accent-green); }
-.settings-model-health.is-unavailable   { color: var(--color-accent-red); }
-.settings-model-health.is-not-configured,
-.settings-model-health.is-unknown       { color: var(--color-accent-amber); }
-
-.settings-model-reason {
-  grid-column: 2 / -1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-size: var(--text-xs);
-  line-height: 1.5;
-  color: var(--color-text-muted);
-}
-
 .settings-input {
   flex: 1;
   padding: var(--space-2) var(--space-3);
@@ -538,7 +376,7 @@
   color: var(--color-text-primary);
 }
 
-.settings-button:disabled { opacity: 0.5; cursor: progress; }
+.settings-button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .settings-icon-button {
   display: inline-flex;
@@ -560,15 +398,16 @@
 }
 
 .settings-about-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(420px, 520px) minmax(260px, 1fr);
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-6);
 }
 
 .settings-about-brand {
   display: inline-flex;
-  width: 360px;
-  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .settings-about-lockup {
@@ -589,78 +428,15 @@
   display: block;
 }
 
-.settings-credentials {
-  margin-top: 24px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
-}
-
-.settings-credentials-label {
-  margin-bottom: 8px;
-}
-
-.settings-credential-status-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 12px 0 16px;
-}
-
-.settings-credential-badge {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
-  border-left-width: 3px;
-  border-radius: 4px;
-  background: var(--surface-elevated, rgba(255, 255, 255, 0.03));
-}
-
-.settings-credential-badge.is-stored { border-left-color: #4ade80; }
-.settings-credential-badge.is-env { border-left-color: #facc15; }
-.settings-credential-badge.is-none { border-left-color: #f87171; }
-
-.settings-credential-badge-label {
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--text-muted, rgba(255, 255, 255, 0.6));
-}
-
-.settings-credential-badge-status {
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.settings-credential-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.settings-credential-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.settings-credential-label {
-  font-size: 12px;
-  color: var(--text-muted, rgba(255, 255, 255, 0.7));
-}
-
-.settings-credential-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-
 .settings-button-quiet {
-  opacity: 0.7;
+  background: transparent;
+  border: 1px solid var(--color-ink);
+  color: var(--color-text-primary);
 }
 
-.settings-button-quiet:hover {
-  opacity: 1;
+.settings-button-quiet:hover:not(:disabled) {
+  background: var(--color-text-primary);
+  color: var(--color-text-inverted);
 }
 
 .settings-section-header {
@@ -696,20 +472,60 @@
 
 @media (max-width: 720px) {
   .settings-row,
-  .settings-add-row,
-  .settings-about-row {
+  .settings-add-row {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .settings-about-brand {
-    width: min(100%, 420px);
+  .settings-about-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
   }
 
-  .settings-model-option { grid-template-columns: 8px minmax(0, 1fr); }
-  .settings-model-health { grid-column: 2; }
+  .settings-about-brand {
+    width: 100%;
+    max-width: 520px;
+  }
   .settings-governance-grid { grid-template-columns: 1fr; }
   .settings-memory-grid { grid-template-columns: 1fr; }
   .settings-audit-row { grid-template-columns: 1fr; }
-  .settings-credential-status-row { grid-template-columns: 1fr; }
+}
+
+
+.settings-memory-digest {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-ink);
+}
+
+.settings-memory-advanced summary {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.settings-memory-advanced[open] summary {
+  margin-bottom: var(--space-2);
+}
+
+.settings-forget-confirm {
+  animation: overcode-rise var(--duration-enter) var(--ease-standard) both;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-accent-red);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-primary);
+}
+
+.settings-forget-confirm-actions {
+  display: flex;
+  gap: var(--space-2);
 }

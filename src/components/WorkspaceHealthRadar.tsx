@@ -8,6 +8,11 @@ import {
   Warning,
 } from "@phosphor-icons/react";
 import {
+  COGNEE_MEMORY_LEDGER_CHANGED_EVENT,
+  loadCogneeMemoryLedger,
+  type CogneeMemoryLedgerSnapshot,
+} from "../lib/cognee-memory-ledger";
+import {
   loadWorkspaceHealthRadar,
   type WorkspaceHealthRadar as WorkspaceHealthRadarData,
 } from "../lib/workspace-health";
@@ -17,6 +22,9 @@ import "./WorkspaceHealthRadar.css";
 export function WorkspaceHealthRadar({ refreshKey }: { refreshKey: number }) {
   const navigate = useNav((state) => state.navigate);
   const [radar, setRadar] = useState<WorkspaceHealthRadarData | null>(null);
+  const [memory, setMemory] = useState<CogneeMemoryLedgerSnapshot>(() =>
+    loadCogneeMemoryLedger(),
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,12 +45,19 @@ export function WorkspaceHealthRadar({ refreshKey }: { refreshKey: number }) {
     };
   }, [refreshKey]);
 
+  useEffect(() => {
+    function refreshMemory() {
+      setMemory(loadCogneeMemoryLedger());
+    }
+
+    window.addEventListener(COGNEE_MEMORY_LEDGER_CHANGED_EVENT, refreshMemory);
+    return () => {
+      window.removeEventListener(COGNEE_MEMORY_LEDGER_CHANGED_EVENT, refreshMemory);
+    };
+  }, []);
+
   const items = radar?.items.slice(0, 6) ?? [];
   const maxScore = items.reduce((max, item) => Math.max(max, item.score), 0);
-  // 75th-percentile cutoff for the amber-accent mini-bar. Computed from the
-  // visible items, not the global radar — keeps the accent reserved for
-  // "the worst in view".
-  const p75Cutoff = computePercentile(items.map((item) => item.score), 0.75);
 
   return (
     <section className="workspace-radar" aria-label="Workspace health radar">
@@ -60,73 +75,98 @@ export function WorkspaceHealthRadar({ refreshKey }: { refreshKey: number }) {
             <Metric label="Attention" value={radar.totals.attention} />
             <Metric label="Dirty" value={radar.totals.dirtyFiles} />
             <Metric label="Warnings" value={radar.totals.warnings} />
-            <Metric label="Commands" value={radar.totals.validationCommands} />
           </div>
         )}
       </header>
 
       {loading ? (
-        <div className="workspace-radar-empty">Scanning local workspace health…</div>
+        <div className="workspace-radar-skeleton" aria-hidden="true">
+          <span className="workspace-radar-skeleton-row" />
+          <span className="workspace-radar-skeleton-row" />
+        </div>
       ) : items.length === 0 ? (
         <div className="workspace-radar-empty">No pinned local workspaces to rank yet.</div>
       ) : (
         <div className="workspace-radar-list">
-          {items.map((item) => (
-            <article
-              key={item.repo.id}
-              className={`workspace-radar-row workspace-radar-${item.priority}`}
-            >
-              <div className="workspace-radar-score">
-                <Pulse size={14} aria-hidden="true" />
-                <span>{item.score}</span>
-                <ScoreBar
-                  score={item.score}
-                  max={maxScore}
-                  isHigh={item.score > p75Cutoff && item.score > 0}
-                />
-              </div>
-              <div className="workspace-radar-main">
-                <div className="workspace-radar-title">
-                  <span>{item.repo.name}</span>
-                  <code>{item.branch}</code>
-                </div>
-                <div className="workspace-radar-reasons">
-                  {item.reasons.length > 0
-                    ? item.reasons.map((reason) => <span key={reason}>{reason}</span>)
-                    : <span>clear</span>}
-                </div>
-              </div>
-              <div className="workspace-radar-stats">
-                <span title="Dirty files">{item.dirtyFiles} dirty</span>
-                <span title="Stashes">{item.stashes} stash</span>
-                <span title="Worktrees">{item.worktrees} trees</span>
-                <span title="Divergence">
-                  <GitBranch size={12} aria-hidden="true" />
-                  +{item.ahead}/-{item.behind}
-                </span>
-                <span title="Environment warnings">
-                  <Warning size={12} aria-hidden="true" />
-                  {item.warnings.length}
-                </span>
-                <span title="Masked secret warnings">
-                  <Shield size={12} aria-hidden="true" />
-                  {item.secretWarnings.length}
-                </span>
-                <span title="Suggested validation commands">
-                  <TerminalWindow size={12} aria-hidden="true" />
-                  {item.testCommands.length}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="workspace-radar-open"
+          {items.map((item) => {
+            const highPriority =
+              item.priority === "attention" || item.priority === "blocked";
+            const memoryNote = highPriority
+              ? memoryNoteForRepo(memory, item.repo.id, item.repo.name)
+              : null;
+            return (
+              <article
+                key={item.repo.id}
+                className={`workspace-radar-row workspace-radar-${item.priority}`}
                 onClick={() => navigate("repo-detail", item.repo.id)}
-                title={`Open ${item.repo.name}`}
               >
-                <ArrowRight size={14} aria-hidden="true" />
-              </button>
-            </article>
-          ))}
+                <div className="workspace-radar-score">
+                  <Pulse size={14} aria-hidden="true" />
+                  <span>{item.score}</span>
+                  <ScoreBar score={item.score} max={maxScore} isHigh={highPriority} />
+                </div>
+                <div className="workspace-radar-main">
+                  <div className="workspace-radar-title">
+                    <span>{item.repo.name}</span>
+                    <code>{item.branch}</code>
+                  </div>
+                  <div className="workspace-radar-reasons">
+                    {item.reasons.length > 0
+                      ? item.reasons.map((reason) => <span key={reason}>{reason}</span>)
+                      : <span>clear</span>}
+                    {memoryNote && (
+                      <span className="workspace-radar-memory-note">
+                        memory: {memoryNote}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="workspace-radar-stats">
+                  {item.stashes > 0 && (
+                    <span title="Stashes">{item.stashes} stash</span>
+                  )}
+                  {item.worktrees > 0 && (
+                    <span title="Worktrees">{item.worktrees} trees</span>
+                  )}
+                  {(item.ahead > 0 || item.behind > 0) && (
+                    <span title="Commits ahead and behind the remote">
+                      <GitBranch size={12} aria-hidden="true" />
+                      {item.ahead} ahead · {item.behind} behind
+                    </span>
+                  )}
+                  {item.warnings.length > 0 && (
+                    <span title="Environment warnings">
+                      <Warning size={12} aria-hidden="true" />
+                      {item.warnings.length}
+                    </span>
+                  )}
+                  {item.secretWarnings.length > 0 && (
+                    <span title="Masked secret warnings">
+                      <Shield size={12} aria-hidden="true" />
+                      {item.secretWarnings.length}
+                    </span>
+                  )}
+                  {item.testCommands.length > 0 && (
+                    <span title="Suggested checks">
+                      <TerminalWindow size={12} aria-hidden="true" />
+                      {item.testCommands.length}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="workspace-radar-open"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    navigate("repo-detail", item.repo.id);
+                  }}
+                  title={`Open ${item.repo.name}`}
+                >
+                  <ArrowRight size={14} aria-hidden="true" />
+                </button>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
@@ -169,9 +209,19 @@ function ScoreBar({
   );
 }
 
-function computePercentile(values: number[], q: number): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor(q * (sorted.length - 1))));
-  return sorted[idx];
+/** Latest remembered title for a repo, shown as a reason chip on rows that
+ * already need attention. Returns null when memory has nothing useful. */
+function memoryNoteForRepo(
+  snapshot: CogneeMemoryLedgerSnapshot,
+  repoId: string,
+  repoName: string,
+): string | null {
+  const event = snapshot.events.find((entry) => {
+    if (!entry.repo) return false;
+    if (entry.repo !== repoId && entry.repo !== repoName) return false;
+    return entry.titles.length > 0;
+  });
+  const title = event?.titles[0];
+  if (!title) return null;
+  return title.length > 60 ? `${title.slice(0, 57)}...` : title;
 }

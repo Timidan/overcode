@@ -5,6 +5,10 @@ import {
   type StashExplainPayload,
 } from "../../lib/ai-features";
 import type { AIEnvelope, StashExplainData } from "../../lib/ai-structured";
+import {
+  recallCogneeWorkflowMemory,
+  rememberCogneeWorkflowSummary,
+} from "../../lib/cognee-workflow-runtime";
 import { StashExplainResult } from "./AIResultViews";
 import "./ImpactAnalysis.css";
 
@@ -30,7 +34,42 @@ export function StashExplain({ payload: explicitPayload }: Props) {
       setResponse(null);
 
       try {
-        setResponse(await explainStashStructured(data));
+        const memory = await recallCogneeWorkflowMemory({
+          source: "stash explanation",
+          repoId: data.repoId,
+          repoName: data.repoName ?? data.repoPath,
+          branch: data.branch,
+          paths: data.files,
+          stashRef: data.ref,
+          subject: data.message,
+          tags: ["stash", "wip"],
+        });
+        const result = await explainStashStructured(
+          memory?.context ? { ...data, memoryContext: memory.context } : data,
+        );
+        setResponse(result);
+        void rememberCogneeWorkflowSummary({
+          source: "stash explanation",
+          repoId: data.repoId,
+          repoName: data.repoName ?? data.repoPath,
+          branch: data.branch,
+          paths: result.data.files,
+          stashRef: data.ref,
+          subject: data.message,
+          title: `Stash memory for ${data.repoName ?? data.repoId} ${data.ref}`,
+          summary: [
+            result.summary,
+            result.data.intent,
+            result.data.suggestedActions.slice(0, 4).join(" | "),
+          ].filter(Boolean).join(" "),
+          tags: ["stash", "wip"],
+          data: {
+            label: result.data.label,
+            risk_count: result.data.risks.length,
+            file_count: result.data.files.length,
+            confidence: result.confidence,
+          },
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Stash explanation failed");
       } finally {

@@ -2,6 +2,7 @@ import { useMemo, type AnchorHTMLAttributes, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import { preprocessForMarkdown } from "./pr-message-preprocess";
 import "./PRMessage.css";
 
 interface Props {
@@ -12,17 +13,17 @@ interface Props {
 
 /**
  * Render a GitHub-flavoured PR/MR comment body with proper markdown,
- * tables, code fences, inline code, links, images, blockquotes,
- * collapsible <details>, plus our own highlight passes for:
+ * tables, code fences, inline code, links, images, blockquotes, plus
+ * our own highlight passes for:
  *   • @mentions     → styled chip linking to provider profile
  *   • file:line refs → clickable inline tokens that call onJumpToFile
  *
- * Pre-processing wraps raw matches in custom HTML markers so the GFM
- * pipeline + rehype-raw can carry them through; we then map those
- * markers to React nodes in `components.mark`.
+ * Raw remote HTML is escaped before our pre-processing inserts custom
+ * <mark> placeholders. `rehype-raw` is kept only so those placeholders
+ * survive the markdown pipeline and can be mapped to React nodes.
  */
 export function PRMessage({ body, onJumpToFile }: Props) {
-  const preprocessed = useMemo(() => preprocess(body), [body]);
+  const preprocessed = useMemo(() => preprocessForMarkdown(body), [body]);
 
   const components = useMemo<Components>(
     () => ({
@@ -141,65 +142,4 @@ function MentionOrFileRef({
     );
   }
   return <mark className={className}>{children}</mark>;
-}
-
-/**
- * The pre-processing pass adds machine-readable hooks to the raw markdown
- * before it hits remark/rehype, so we can render mentions and file references
- * with React components without losing any of the surrounding markdown
- * semantics (tables, code fences, etc).
- *
- * Rules avoid matching inside code spans/blocks to prevent rewriting code.
- */
-function preprocess(body: string): string {
-  // Track inside-code-fence state so we don't touch fenced code.
-  const lines = body.split("\n");
-  let inFence = false;
-  const out: string[] = [];
-  for (const rawLine of lines) {
-    if (/^```/.test(rawLine.trim())) {
-      inFence = !inFence;
-      out.push(rawLine);
-      continue;
-    }
-    if (inFence) {
-      out.push(rawLine);
-      continue;
-    }
-    out.push(decorateOutsideCode(rawLine));
-  }
-  return out.join("\n");
-}
-
-const MENTION_PATTERN = /(^|[^\w/])@([a-zA-Z0-9][-a-zA-Z0-9_]*(?:\[bot\])?)\b/g;
-// path/segments with at least one slash and a file-ish extension, optionally :line[:col].
-const FILEREF_PATTERN = /(^|[\s(`[])((?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.-]+\.[A-Za-z0-9]+)(?::(\d+))?(?=$|[\s),`\]])/g;
-
-/**
- * Walk a single line and decorate matches outside of backtick-delimited code
- * spans. We intentionally process backticks first so inline code is preserved
- * verbatim — GitHub doesn't expand mentions inside `code` either.
- */
-function decorateOutsideCode(line: string): string {
-  const parts = line.split("`");
-  for (let i = 0; i < parts.length; i += 2) {
-    parts[i] = parts[i]
-      .replace(
-        MENTION_PATTERN,
-        (_match, lead: string, user: string) =>
-          `${lead}<mark data-kind="mention" data-user="${escapeAttr(user)}"></mark>`,
-      )
-      .replace(
-        FILEREF_PATTERN,
-        (_match, lead: string, path: string, lineNo?: string) =>
-          `${lead}<mark data-kind="fileref" data-path="${escapeAttr(path)}"${
-            lineNo ? ` data-line="${escapeAttr(lineNo)}"` : ""
-          }></mark>`,
-      );
-  }
-  return parts.join("`");
-}
-
-function escapeAttr(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

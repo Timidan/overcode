@@ -1,4 +1,4 @@
-export type AIProviderId = "openrouter" | "openai" | "anthropic" | "gemini";
+export type AIProviderId = "openrouter" | "openai" | "anthropic" | "gemini" | "nvidia";
 
 export type AIProviderCredentialSource = "stored" | "env" | "none";
 
@@ -33,6 +33,19 @@ export interface AIProviderStatus {
   baseUrlSource?: AIProviderBaseUrlSource;
   health: AIModelHealthStatus;
   reason?: string;
+  account?: AIProviderAccountStatus;
+}
+
+export interface AIProviderAccountStatus {
+  plan: "free" | "paid" | "unknown";
+  isFreeTier?: boolean;
+  freeModelDailyLimit?: number;
+  freeModelNote?: string;
+  limit?: number | null;
+  limitRemaining?: number | null;
+  usage?: number;
+  usageDaily?: number;
+  checkedAt: number;
 }
 
 export interface AIProviderCredentials {
@@ -77,6 +90,7 @@ export interface AIChatRequest {
   userPrompt: string;
   maxTokens: number;
   temperature: number;
+  signal?: AbortSignal;
 }
 
 export interface AIProviderAdapter {

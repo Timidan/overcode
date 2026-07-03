@@ -95,7 +95,8 @@
   align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
-  opacity: 0;
+  /* Dimmed but visible at rest so first-time users learn rows are actionable. */
+  opacity: 0.45;
   transition: opacity var(--transition-fast);
 }
 
@@ -119,9 +120,23 @@
   transition: color var(--transition-fast), background var(--transition-fast);
 }
 
-.activity-item-button:hover {
+.activity-item-button:hover:not(:disabled) {
   background: var(--color-text-primary);
   color: var(--color-text-inverted);
+}
+
+.activity-item-button:focus-visible {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 2px;
+}
+
+.activity-item-button:disabled,
+.activity-item-button[aria-disabled="true"] {
+  opacity: 0.45;
+}
+
+.activity-item-button:disabled {
+  cursor: progress;
 }
 
 .activity-item-time {

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { ActiveModelBadge } from "./ActiveModelBadge";
 import "./RouteFrame.css";
 
 interface RouteFrameProps {
@@ -46,6 +47,7 @@ function RouteFrameInner({ children }: { children: ReactNode }) {
 
   return (
     <div className="route-frame" ref={ref}>
+      <ActiveModelBadge />
       {children}
     </div>
   );
