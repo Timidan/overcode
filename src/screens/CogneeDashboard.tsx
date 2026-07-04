@@ -11,7 +11,6 @@ import { AIProviderLogo } from "../components/AIProviderLogo";
 import { Sidebar } from "../components/Sidebar";
 import {
   COGNEE_MEMORY_LEDGER_CHANGED_EVENT,
-  clearCogneeMemoryLedger,
   loadCogneeMemoryLedger,
   type CogneeMemoryLedgerEvent,
   type CogneeMemoryLedgerSnapshot,
@@ -51,7 +50,7 @@ export function CogneeDashboard() {
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    setLedger(loadCogneeMemoryLedger());
+    setLedger(await ipc.hydrateMemoryLedger());
     try {
       setStatus(await ipc.getMemoryStatus());
       setStatusError(null);
@@ -139,9 +138,8 @@ export function CogneeDashboard() {
     }
   }
 
-  function clearLocalTelemetry() {
-    clearCogneeMemoryLedger();
-    setLedger(loadCogneeMemoryLedger());
+  async function clearLocalTelemetry() {
+    setLedger(await ipc.clearMemoryLedger());
     setMessage({ text: "Local Cognee dashboard telemetry cleared.", tone: "ok" });
   }
 
@@ -385,7 +383,7 @@ export function CogneeDashboard() {
               <button
                 type="button"
                 className="cognee-dashboard-button is-muted"
-                onClick={clearLocalTelemetry}
+                onClick={() => void clearLocalTelemetry()}
                 title="Clear local dashboard event telemetry"
               >
                 Clear local telemetry

@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Sparkle } from "@phosphor-icons/react";
 import { ipc } from "../lib/ipc";
-import { extractCogneeMemoryHighlights } from "../lib/cognee-workflow-memory";
-import { recallCogneeWorkflowMemory } from "../lib/cognee-workflow-runtime";
+import {
+  buildCogneeWorkspaceBrief,
+  buildCogneeWorkspaceBriefRecallRequest,
+  buildCogneeWorkspaceBriefTeaser,
+  type CogneeWorkspaceBrief,
+} from "../lib/cognee-workspace-brief";
 import { AIProviderLogo } from "./AIProviderLogo";
 import { MemoryRecallModal } from "./MemoryRecallModal";
 import { useAIPanel } from "../store/useAIPanel";
@@ -74,17 +78,14 @@ export function MorningBrief({ stats, repositories }: Props) {
   const openAIPanel = useAIPanel((s) => s.open);
   const [username, setUsername] = useState<string | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());
-  const [memory, setMemory] = useState<{
-    subject: string;
-    highlights: string[];
-    itemCount: number;
-  } | null>(null);
+  const [memory, setMemory] = useState<CogneeWorkspaceBrief | null>(null);
   const [memoryDismissed, setMemoryDismissed] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
   const memoryRecallStarted = useRef(false);
 
-  // One quiet memory line, recalled once per mount for the busiest repo.
-  // Empty, disabled, or failed recall renders nothing at all.
+  // One quiet workspace memory line, recalled once per mount. Empty, disabled,
+  // or failed recall renders nothing at all; a narrow recall still renders with
+  // an explicit coverage note so it never pretends one repo is the whole space.
   //
   // Deliberately no cancelled-flag cleanup: under StrictMode the double
   // effect invocation would discard the only recall the run-once ref allows,
@@ -93,33 +94,28 @@ export function MorningBrief({ stats, repositories }: Props) {
   useEffect(() => {
     if (memoryRecallStarted.current || repositories.length === 0) return;
     memoryRecallStarted.current = true;
-    const target = repositories.reduce((busiest, repo) =>
-      (repo.dirty_count ?? 0) > (busiest.dirty_count ?? 0) ? repo : busiest,
-    );
-    void recallCogneeWorkflowMemory(
-      {
-        source: "morning brief",
-        repoId: target.id,
-        repoName: target.name,
-        subject: "recent work, risks, and decisions",
-        limit: 3,
-      },
-      undefined,
-      // The brief fires the coldest recall of the session; one retry covers
-      // Cognee Cloud's empty-first-response warmup.
-      { retryOnEmpty: true },
-    ).then((recalled) => {
-      if (!recalled) return;
-      const highlights = extractCogneeMemoryHighlights(recalled.context);
-      if (highlights.length > 0) {
-        setMemory({
-          subject: target.name,
-          highlights,
-          itemCount: recalled.itemCount,
-        });
-      }
+    const request = buildCogneeWorkspaceBriefRecallRequest(repositories, stats);
+    if (!request) return;
+    const recallRequest = request;
+
+    async function recallWorkspaceBrief() {
+      const first = await ipc.recallMemory(recallRequest);
+      if (first.ok && !first.skipped && first.items.length > 0) return first;
+
+      // The dashboard often performs the coldest recall of the session. One
+      // retry covers Cognee Cloud's empty-first-response warmup without turning
+      // the dashboard into a spinner.
+      await new Promise((resolve) => window.setTimeout(resolve, 4_000));
+      return ipc.recallMemory(recallRequest);
+    }
+
+    void recallWorkspaceBrief().then((recalled) => {
+      if (!recalled.ok || recalled.skipped || recalled.items.length === 0) return;
+      setMemory(buildCogneeWorkspaceBrief(recalled.items, repositories, stats));
+    }).catch((error) => {
+      console.warn("[cognee-workspace-brief-recall-failed]", error);
     });
-  }, [repositories]);
+  }, [repositories, stats]);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,9 +198,9 @@ export function MorningBrief({ stats, repositories }: Props) {
               type="button"
               className="morning-brief-memory-teaser"
               onClick={() => setMemoryOpen(true)}
-              title={`Open the full Cognee memory for ${memory.subject}`}
+              title="Open the Cognee workspace brief"
             >
-              From memory: {truncateLine(memory.highlights[0], 120)}
+              {truncateLine(buildCogneeWorkspaceBriefTeaser(memory), 140)}
             </button>
             <button
               type="button"
@@ -220,9 +216,7 @@ export function MorningBrief({ stats, repositories }: Props) {
       </ul>
       {memory && memoryOpen && (
         <MemoryRecallModal
-          subject={memory.subject}
-          highlights={memory.highlights}
-          itemCount={memory.itemCount}
+          brief={memory}
           onClose={() => setMemoryOpen(false)}
         />
       )}

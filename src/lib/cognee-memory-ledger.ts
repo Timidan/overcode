@@ -75,7 +75,7 @@ export interface CogneeMemoryLedgerSnapshot {
   breakdownByDataset: CogneeMemoryDatasetBreakdown[];
 }
 
-interface CogneeMemoryLedgerStore {
+export interface CogneeMemoryLedgerStore {
   events: CogneeMemoryLedgerEvent[];
 }
 
@@ -105,6 +105,37 @@ export interface RecordCogneeMemoryEventInput {
 
 export function loadCogneeMemoryLedger(storage = getDefaultStorage()): CogneeMemoryLedgerSnapshot {
   const events = readEvents(storage);
+  return buildSnapshot(events);
+}
+
+export function loadCogneeMemoryLedgerFromStore(
+  value: unknown,
+): CogneeMemoryLedgerSnapshot {
+  return buildSnapshot(readEventsFromStore(value));
+}
+
+export function exportCogneeMemoryLedgerStore(
+  storage = getDefaultStorage(),
+): CogneeMemoryLedgerStore {
+  return { events: readEvents(storage) };
+}
+
+export function replaceCogneeMemoryLedgerStore(
+  value: unknown,
+  storage = getDefaultStorage(),
+): CogneeMemoryLedgerSnapshot {
+  const events = readEventsFromStore(value).slice(0, DEFAULT_MAX_EVENTS);
+  writeEvents(events, storage);
+  return buildSnapshot(events);
+}
+
+export function mergeCogneeMemoryLedgerStore(
+  value: unknown,
+  storage = getDefaultStorage(),
+  maxEvents = DEFAULT_MAX_EVENTS,
+): CogneeMemoryLedgerSnapshot {
+  const events = mergeEvents(readEvents(storage), readEventsFromStore(value), maxEvents);
+  writeEvents(events, storage);
   return buildSnapshot(events);
 }
 
@@ -246,12 +277,15 @@ function readEvents(storage: Storage | undefined): CogneeMemoryLedgerEvent[] {
   try {
     const raw = storage.getItem(LEDGER_STORAGE_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as Partial<CogneeMemoryLedgerStore>;
-    if (!Array.isArray(parsed.events)) return [];
-    return parsed.events.filter(isLedgerEvent);
+    return readEventsFromStore(JSON.parse(raw));
   } catch {
     return [];
   }
+}
+
+function readEventsFromStore(value: unknown): CogneeMemoryLedgerEvent[] {
+  const store = asRecord(value);
+  return Array.isArray(store.events) ? store.events.filter(isLedgerEvent) : [];
 }
 
 function writeEvents(events: CogneeMemoryLedgerEvent[], storage: Storage | undefined): void {
@@ -261,6 +295,20 @@ function writeEvents(events: CogneeMemoryLedgerEvent[], storage: Storage | undef
   } catch {
     // Dashboard telemetry is best-effort and local-only.
   }
+}
+
+function mergeEvents(
+  localEvents: CogneeMemoryLedgerEvent[],
+  durableEvents: CogneeMemoryLedgerEvent[],
+  maxEvents: number,
+): CogneeMemoryLedgerEvent[] {
+  const byId = new Map<string, CogneeMemoryLedgerEvent>();
+  for (const event of [...localEvents, ...durableEvents]) {
+    if (!byId.has(event.id)) byId.set(event.id, event);
+  }
+  return [...byId.values()]
+    .sort((left, right) => eventTime(right) - eventTime(left))
+    .slice(0, Math.max(1, maxEvents));
 }
 
 function eventStatus(result: Record<string, unknown>): CogneeMemoryEventStatus {
@@ -455,6 +503,10 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function eventTime(event: CogneeMemoryLedgerEvent): number {
+  return Date.parse(event.startedAt) || 0;
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -473,7 +525,7 @@ function getDefaultStorage(): Storage | undefined {
   }
 }
 
-function emitLedgerChanged(event: CogneeMemoryLedgerEvent): void {
+function emitLedgerChanged(event: CogneeMemoryLedgerEvent | undefined): void {
   if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") return;
   try {
     window.dispatchEvent(new CustomEvent(COGNEE_MEMORY_LEDGER_CHANGED_EVENT, { detail: event }));

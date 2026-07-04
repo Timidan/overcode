@@ -8,6 +8,7 @@ import type {
 } from "./ipc";
 
 const STORE_KEY = "overcode:browser-api-fallback";
+const COGNEE_LEDGER_KEY = "overcode:cognee-memory-ledger:v1";
 const PROVIDERS: AIProviderId[] = ["openrouter", "openai", "anthropic", "gemini", "nvidia"];
 const CURATED_MODELS: Record<AIProviderId, AIModelCatalogEntry[]> = {
   openrouter: [
@@ -450,6 +451,19 @@ export function installBrowserApiFallback(): void {
         storageUsedInBytes: 0,
         storageLimitInBytes: 0,
       }),
+      ledgerGet: async () => {
+        try {
+          return JSON.parse(window.localStorage.getItem(COGNEE_LEDGER_KEY) ?? "{\"events\":[]}");
+        } catch {
+          return { events: [] };
+        }
+      },
+      ledgerSet: async (payload) => {
+        window.localStorage.setItem(COGNEE_LEDGER_KEY, JSON.stringify(payload ?? { events: [] }));
+      },
+      ledgerClear: async () => {
+        window.localStorage.removeItem(COGNEE_LEDGER_KEY);
+      },
     },
     store: {
       get: async (key) => {

@@ -232,6 +232,93 @@ function assertStoreKey(value: unknown): string {
   return value;
 }
 
+function assertCogneeMemoryLedger(value: unknown): storeLib.StoredCogneeMemoryLedger {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Cognee memory ledger must be an object.");
+  }
+  const events = (value as { events?: unknown }).events;
+  if (!Array.isArray(events)) throw new Error("Cognee memory ledger events must be an array.");
+  if (events.length > 500) throw new Error("Cognee memory ledger is too large.");
+  return { events: events.map(assertCogneeMemoryLedgerEvent) };
+}
+
+function assertCogneeMemoryLedgerEvent(value: unknown): storeLib.StoredCogneeMemoryLedgerEvent {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Cognee memory ledger event must be an object.");
+  }
+  const event = value as Record<string, unknown>;
+  return {
+    id: boundedLedgerString(event.id, "id", 120),
+    operation: assertCogneeMemoryOperation(event.operation),
+    status: assertCogneeMemoryEventStatus(event.status),
+    source: boundedLedgerString(event.source, "source", 120),
+    startedAt: boundedLedgerString(event.startedAt, "startedAt", 80),
+    durationMs: boundedLedgerNumber(event.durationMs, "durationMs"),
+    datasetName: optionalLedgerString(event.datasetName, "datasetName", 120),
+    repo: optionalLedgerString(event.repo, "repo", 300),
+    branch: optionalLedgerString(event.branch, "branch", 160),
+    query: optionalLedgerString(event.query, "query", 2_000),
+    documentCount: boundedLedgerNumber(event.documentCount, "documentCount"),
+    storedCount: boundedLedgerNumber(event.storedCount, "storedCount"),
+    recallItemCount: boundedLedgerNumber(event.recallItemCount, "recallItemCount"),
+    payloadBytes: boundedLedgerNumber(event.payloadBytes, "payloadBytes"),
+    estimatedTokens: boundedLedgerNumber(event.estimatedTokens, "estimatedTokens"),
+    accepted: optionalLedgerBoolean(event.accepted, "accepted"),
+    forgotten: optionalLedgerBoolean(event.forgotten, "forgotten"),
+    reason: optionalLedgerString(event.reason, "reason", 500),
+    error: optionalLedgerString(event.error, "error", 500),
+    titles: assertLedgerTitles(event.titles),
+  };
+}
+
+function assertCogneeMemoryOperation(value: unknown): storeLib.StoredCogneeMemoryLedgerEvent["operation"] {
+  if (value === "remember" || value === "recall" || value === "improve" || value === "forget") {
+    return value;
+  }
+  throw new Error("Unsupported Cognee memory operation.");
+}
+
+function assertCogneeMemoryEventStatus(value: unknown): storeLib.StoredCogneeMemoryLedgerEvent["status"] {
+  if (value === "succeeded" || value === "skipped" || value === "failed") return value;
+  throw new Error("Unsupported Cognee memory event status.");
+}
+
+function boundedLedgerString(value: unknown, name: string, max: number): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`Cognee memory ledger ${name} must be a non-empty string.`);
+  }
+  if (value.length > max || /[\0]/.test(value)) {
+    throw new Error(`Cognee memory ledger ${name} is invalid.`);
+  }
+  return value;
+}
+
+function optionalLedgerString(value: unknown, name: string, max: number): string | undefined {
+  if (value === undefined) return undefined;
+  return boundedLedgerString(value, name, max);
+}
+
+function boundedLedgerNumber(value: unknown, name: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(`Cognee memory ledger ${name} must be a finite non-negative number.`);
+  }
+  return Math.round(value);
+}
+
+function optionalLedgerBoolean(value: unknown, name: string): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") {
+    throw new Error(`Cognee memory ledger ${name} must be a boolean.`);
+  }
+  return value;
+}
+
+function assertLedgerTitles(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new Error("Cognee memory ledger titles must be an array.");
+  if (value.length > 10) throw new Error("Cognee memory ledger titles are too large.");
+  return value.map((title, index) => boundedLedgerString(title, `titles[${index}]`, 240));
+}
+
 function assertGitLabProjectId(value: unknown): string {
   if (typeof value !== "string" || !value.trim() || value.length > 300) {
     throw new Error("GitLab project id must be a non-empty string.");
@@ -928,6 +1015,11 @@ export function registerIPCHandlers(gitWorker: UtilityProcess) {
   );
   ipcMain.handle("memory:status", () => verifiedCogneeStatus());
   ipcMain.handle("memory:usage", () => cogneeUsage());
+  ipcMain.handle("memory:ledger:get", () => storeLib.getCogneeMemoryLedger());
+  ipcMain.handle("memory:ledger:set", async (_, payload: unknown) => {
+    storeLib.setCogneeMemoryLedger(assertCogneeMemoryLedger(payload));
+  });
+  ipcMain.handle("memory:ledger:clear", () => storeLib.clearCogneeMemoryLedger());
 
   // ============================================================
   // STORE CHANNELS (3)

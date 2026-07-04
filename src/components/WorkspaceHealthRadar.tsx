@@ -16,6 +16,7 @@ import {
   loadWorkspaceHealthRadar,
   type WorkspaceHealthRadar as WorkspaceHealthRadarData,
 } from "../lib/workspace-health";
+import { ipc } from "../lib/ipc";
 import { useNav } from "../store/useNav";
 import "./WorkspaceHealthRadar.css";
 
@@ -50,6 +51,10 @@ export function WorkspaceHealthRadar({ refreshKey }: { refreshKey: number }) {
       setMemory(loadCogneeMemoryLedger());
     }
 
+    void ipc
+      .hydrateMemoryLedger()
+      .then(setMemory)
+      .catch(refreshMemory);
     window.addEventListener(COGNEE_MEMORY_LEDGER_CHANGED_EVENT, refreshMemory);
     return () => {
       window.removeEventListener(COGNEE_MEMORY_LEDGER_CHANGED_EVENT, refreshMemory);

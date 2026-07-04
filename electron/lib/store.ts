@@ -58,6 +58,33 @@ export interface ActivityItem {
   timestamp: number;
 }
 
+export interface StoredCogneeMemoryLedgerEvent {
+  id: string;
+  operation: "remember" | "recall" | "improve" | "forget";
+  status: "succeeded" | "skipped" | "failed";
+  source: string;
+  startedAt: string;
+  durationMs: number;
+  datasetName?: string;
+  repo?: string;
+  branch?: string;
+  query?: string;
+  documentCount: number;
+  storedCount: number;
+  recallItemCount: number;
+  payloadBytes: number;
+  estimatedTokens: number;
+  accepted?: boolean;
+  forgotten?: boolean;
+  reason?: string;
+  error?: string;
+  titles: string[];
+}
+
+export interface StoredCogneeMemoryLedger {
+  events: StoredCogneeMemoryLedgerEvent[];
+}
+
 export interface Settings {
   watch_directories: string[];
   ai_provider_id?: AIProviderId;
@@ -99,6 +126,7 @@ export interface StoreSchema {
   }>;
   remote_data_cache: Record<string, unknown>;
   activity: ActivityItem[];
+  cognee_memory_ledger: StoredCogneeMemoryLedger;
   settings: StoredSettings;
 }
 
@@ -114,6 +142,7 @@ const store = new Store<StoreSchema>({
     ai_audit_log: [],
     remote_data_cache: {},
     activity: [],
+    cognee_memory_ledger: { events: [] },
     settings: {
       watch_directories: ["~/projects", "~/Desktop/persona", "~/Desktop"],
     },
@@ -179,6 +208,22 @@ export function addActivity(item: ActivityItem): void {
 
 export function clearActivity(): void {
   store.set("activity", []);
+}
+
+// ============================================================
+// COGNEE MEMORY LEDGER
+// ============================================================
+
+export function getCogneeMemoryLedger(): StoredCogneeMemoryLedger {
+  return store.get("cognee_memory_ledger", { events: [] });
+}
+
+export function setCogneeMemoryLedger(ledger: StoredCogneeMemoryLedger): void {
+  store.set("cognee_memory_ledger", ledger);
+}
+
+export function clearCogneeMemoryLedger(): void {
+  store.set("cognee_memory_ledger", { events: [] });
 }
 
 // ============================================================

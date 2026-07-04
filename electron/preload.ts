@@ -100,6 +100,9 @@ const api = {
     forget: (payload: unknown) => ipcRenderer.invoke("memory:forget", payload),
     status: () => ipcRenderer.invoke("memory:status"),
     usage: () => ipcRenderer.invoke("memory:usage"),
+    ledgerGet: () => ipcRenderer.invoke("memory:ledger:get"),
+    ledgerSet: (payload: unknown) => ipcRenderer.invoke("memory:ledger:set", payload),
+    ledgerClear: () => ipcRenderer.invoke("memory:ledger:clear"),
   },
 
   store: {

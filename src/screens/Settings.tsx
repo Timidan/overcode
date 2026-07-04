@@ -95,6 +95,10 @@ export function SettingsScreen() {
     function refreshLedger() {
       setLedger(loadCogneeMemoryLedger());
     }
+    void ipc
+      .hydrateMemoryLedger()
+      .then(setLedger)
+      .catch(refreshLedger);
     window.addEventListener(COGNEE_MEMORY_LEDGER_CHANGED_EVENT, refreshLedger);
     return () => {
       window.removeEventListener(COGNEE_MEMORY_LEDGER_CHANGED_EVENT, refreshLedger);

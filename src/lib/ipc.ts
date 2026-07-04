@@ -1,5 +1,11 @@
 import {
+  clearCogneeMemoryLedger,
+  exportCogneeMemoryLedgerStore,
+  loadCogneeMemoryLedger,
+  mergeCogneeMemoryLedgerStore,
   recordCogneeMemoryEvent,
+  type CogneeMemoryLedgerSnapshot,
+  type CogneeMemoryLedgerStore,
   type CogneeMemoryOperation,
 } from "./cognee-memory-ledger";
 
@@ -620,6 +626,7 @@ async function trackCogneeMemoryOperation<TResult>(
       startedAt,
       durationMs: Date.now() - startedMs,
     });
+    void persistCogneeMemoryLedger();
     return result;
   } catch (error) {
     recordCogneeMemoryEvent({
@@ -633,7 +640,16 @@ async function trackCogneeMemoryOperation<TResult>(
       startedAt,
       durationMs: Date.now() - startedMs,
     });
+    void persistCogneeMemoryLedger();
     throw error;
+  }
+}
+
+async function persistCogneeMemoryLedger(): Promise<void> {
+  try {
+    await window.api.memory.ledgerSet(exportCogneeMemoryLedgerStore());
+  } catch {
+    // Cognee dashboard telemetry is best-effort and must not affect workflows.
   }
 }
 
@@ -892,6 +908,28 @@ export class IPC {
 
   async getMemoryUsage(): Promise<MemoryUsageResult> {
     return this.api.memory.usage();
+  }
+
+  async hydrateMemoryLedger(): Promise<CogneeMemoryLedgerSnapshot> {
+    try {
+      const durable = (await this.api.memory.ledgerGet()) as CogneeMemoryLedgerStore;
+      const snapshot = mergeCogneeMemoryLedgerStore(durable);
+      await this.api.memory.ledgerSet(exportCogneeMemoryLedgerStore());
+      return snapshot;
+    } catch {
+      void persistCogneeMemoryLedger();
+      return loadCogneeMemoryLedger();
+    }
+  }
+
+  async clearMemoryLedger(): Promise<CogneeMemoryLedgerSnapshot> {
+    clearCogneeMemoryLedger();
+    try {
+      await this.api.memory.ledgerClear();
+    } catch {
+      // Local telemetry clear should still work in browser fallback/test mode.
+    }
+    return loadCogneeMemoryLedger();
   }
 
   async getFromStore(key: string): Promise<unknown> {
