@@ -17,11 +17,16 @@ import { StashList } from "../components/StashList";
 import { WorktreeList } from "../components/WorktreeList";
 import { EnvironmentWarnings } from "../components/EnvironmentWarnings";
 import { BranchBadge } from "../components/BranchBadge";
+import { RepoMemoryRecallModal } from "../components/RepoMemoryRecallModal";
 import { useNav } from "../store/useNav";
 import { useAIPanel } from "../store/useAIPanel";
 import { ipc } from "../lib/ipc";
-import { extractCogneeMemoryHighlight } from "../lib/cognee-workflow-memory";
-import { recallCogneeWorkflowMemory } from "../lib/cognee-workflow-runtime";
+import { extractCogneeMemoryHighlights } from "../lib/cognee-workflow-memory";
+import {
+  COGNEE_WORKFLOW_MEMORY_UPDATED_EVENT,
+  recallCogneeWorkflowMemory,
+  type RecalledCogneeWorkflowMemory,
+} from "../lib/cognee-workflow-runtime";
 import {
   loadRepositoryById,
   type WorkspaceRepository,
@@ -30,6 +35,11 @@ import "./RepoDetail.css";
 
 type ColumnSizes = [number, number, number];
 type SidecarSizes = [number, number, number, number];
+
+interface RepoMemoryState {
+  line: string;
+  recalled: RecalledCogneeWorkflowMemory;
+}
 
 const DEFAULT_COLUMN_SIZES: ColumnSizes = [41, 29, 30];
 const DEFAULT_SIDECAR_SIZES: SidecarSizes = [25, 23, 25, 27];
@@ -43,8 +53,9 @@ export function RepoDetail() {
   const [repo, setRepo] = useState<WorkspaceRepository | null>(null);
   const [repoMissing, setRepoMissing] = useState(false);
   const [branch, setBranch] = useState<string>("main");
-  const [memoryLine, setMemoryLine] = useState<string | null>(null);
+  const [repoMemory, setRepoMemory] = useState<RepoMemoryState | null>(null);
   const [memoryDismissed, setMemoryDismissed] = useState(false);
+  const [memoryModalOpen, setMemoryModalOpen] = useState(false);
   const [aiBusy, setAiBusy] = useState<"impact" | "commit" | "brief" | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [columnSizes, setColumnSizes] = useState<ColumnSizes>(DEFAULT_COLUMN_SIZES);
@@ -74,8 +85,9 @@ export function RepoDetail() {
     setRepoMissing(false);
     setRepo(null);
     setBranch("main");
-    setMemoryLine(null);
+    setRepoMemory(null);
     setMemoryDismissed(false);
+    setMemoryModalOpen(false);
     async function load() {
       if (!repoId) {
         setRepoMissing(true);
@@ -104,26 +116,40 @@ export function RepoDetail() {
   // One quiet recall for this repo; empty/disabled/error memory renders nothing.
   useEffect(() => {
     if (!repo) return;
+    const currentRepo = repo;
     let cancelled = false;
-    // Branch is deliberately omitted: this is a once-per-repo recall and a
-    // stale branch filter would hide valid memory.
-    recallCogneeWorkflowMemory(
-      {
-        source: "repo detail",
-        repoId: repo.id,
-        repoName: repo.name,
-        subject: "recent analysis, risks, and decisions",
-        limit: 3,
-      },
-      undefined,
-      { retryOnEmpty: true },
-    ).then((memory) => {
-      if (cancelled || !memory) return;
-      const line = extractCogneeMemoryHighlight(memory.context);
-      if (line) setMemoryLine(line.length > 160 ? `${line.slice(0, 157)}...` : line);
-    });
+    function recallRepoMemory() {
+      // Branch is deliberately omitted: this is a repo-level recall and a
+      // stale branch filter would hide valid memory.
+      recallCogneeWorkflowMemory(
+        {
+          source: "repo detail",
+          repoId: currentRepo.id,
+          repoName: currentRepo.name,
+          subject: "recent analysis, risks, and decisions",
+          limit: 3,
+        },
+        undefined,
+        { retryOnEmpty: true, requireRepoMatch: true },
+      ).then((memory) => {
+        if (cancelled || !memory) return;
+        const line = extractRepoMemoryLine(memory);
+        if (line) setRepoMemory({ line, recalled: memory });
+      });
+    }
+
+    function handleMemoryUpdated(event: Event) {
+      if (!isMemoryUpdateForRepo(event, currentRepo)) return;
+      recallRepoMemory();
+    }
+
+    // Branch is deliberately omitted: this is repo-level memory and a stale
+    // branch filter would hide valid memories across normal branch switches.
+    recallRepoMemory();
+    window.addEventListener(COGNEE_WORKFLOW_MEMORY_UPDATED_EVENT, handleMemoryUpdated);
     return () => {
       cancelled = true;
+      window.removeEventListener(COGNEE_WORKFLOW_MEMORY_UPDATED_EVENT, handleMemoryUpdated);
     };
     // Recall once per repo open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -308,14 +334,25 @@ export function RepoDetail() {
           <span className="repo-detail-platform">{repo.platform}</span>
         </header>
 
-        {memoryLine && !memoryDismissed && (
+        {repoMemory && !memoryDismissed && (
           <div className="repo-memory-strip" role="note">
             <span className="repo-memory-strip-label">From memory</span>
-            <span className="repo-memory-strip-text">{memoryLine}</span>
+            <button
+              type="button"
+              className="repo-memory-strip-text"
+              onClick={() => setMemoryModalOpen(true)}
+              aria-label={`Open full Cognee memory for ${repo.name}`}
+              title="Open full Cognee memory"
+            >
+              {repoMemory.line}
+            </button>
             <button
               type="button"
               className="repo-memory-strip-dismiss"
-              onClick={() => setMemoryDismissed(true)}
+              onClick={() => {
+                setMemoryDismissed(true);
+                setMemoryModalOpen(false);
+              }}
               aria-label="Dismiss memory note"
               title="Dismiss"
             >
@@ -460,8 +497,28 @@ export function RepoDetail() {
           </aside>
         </div>
       </main>
+      {repoMemory && memoryModalOpen && (
+        <RepoMemoryRecallModal
+          repoName={repo.name}
+          memory={repoMemory.recalled}
+          onClose={() => setMemoryModalOpen(false)}
+        />
+      )}
     </div>
   );
+}
+
+function extractRepoMemoryLine(memory: RecalledCogneeWorkflowMemory): string | null {
+  const highlights = extractCogneeMemoryHighlights(memory.context);
+  const line = highlights[0] ?? memory.items[0]?.summary ?? memory.summary;
+  if (!line.trim()) return null;
+  return line.length > 160 ? `${line.slice(0, 157)}...` : line;
+}
+
+function isMemoryUpdateForRepo(event: Event, repo: WorkspaceRepository): boolean {
+  if (!(event instanceof CustomEvent) || !event.detail) return true;
+  const detail = event.detail as { repoId?: unknown; repoName?: unknown };
+  return detail.repoId === repo.id || detail.repoName === repo.name;
 }
 
 function resizePair<T extends number[]>(

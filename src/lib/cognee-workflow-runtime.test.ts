@@ -44,8 +44,53 @@ describe("Cognee workflow memory runtime", () => {
       itemCount: 1,
       summary: "1 recalled Cognee memory item",
       references: ["src/screens/CogneeDashboard.tsx"],
+      items: [
+        expect.objectContaining({
+          id: "memory-1",
+          title: "Commit convention",
+        }),
+      ],
     });
     expect(recalled?.context).toContain("Use feat(memory)");
+  });
+
+  it("can keep repo-level recall scoped to the requested repository", async () => {
+    const client: CogneeWorkflowMemoryClient = {
+      recallMemory: vi.fn(async () => ({
+        ok: true,
+        skipped: false,
+        items: [
+          {
+            id: "overcode-memory",
+            title: "Repo brief for Overcode",
+            summary: "Overcode has a Cognee dashboard and BYOK AI providers.",
+            metadata: { repo: "overcode", repository: "overcode" },
+          },
+          {
+            id: "synth-memory",
+            title: "Repo brief for synth-x",
+            summary: "synth-x needs release preparation and dependency checks.",
+            metadata: { repo: "repo-synth", repository: "synth-x" },
+          },
+        ],
+      })),
+      rememberMemory: vi.fn(),
+    };
+
+    const recalled = await recallCogneeWorkflowMemory(
+      {
+        source: "repo detail",
+        repoId: "repo-synth",
+        repoName: "synth-x",
+      },
+      client,
+      { requireRepoMatch: true },
+    );
+
+    expect(recalled?.itemCount).toBe(1);
+    expect(recalled?.items[0]?.id).toBe("synth-memory");
+    expect(recalled?.context).toContain("synth-x needs release preparation");
+    expect(recalled?.context).not.toContain("Overcode has a Cognee dashboard");
   });
 
   it("retries once when the first recall comes back empty and retryOnEmpty is set", async () => {

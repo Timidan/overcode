@@ -239,6 +239,43 @@ export function extractCogneeMemoryReferences(item: MemoryRecallItem): string[] 
   );
 }
 
+export function filterCogneeMemoryItemsForSubject(
+  items: MemoryRecallItem[],
+  subject: CogneeWorkflowSubject,
+): MemoryRecallItem[] {
+  return items.filter((item) => isCogneeMemoryItemForSubject(item, subject));
+}
+
+export function isCogneeMemoryItemForSubject(
+  item: MemoryRecallItem,
+  subject: CogneeWorkflowSubject,
+): boolean {
+  const expected = buildRepoTokens([
+    subject.repoId,
+    subject.repoName,
+  ]);
+  if (expected.size === 0) return true;
+
+  const metadata = item.metadata ?? {};
+  const metadataCandidates = [
+    metadata.repo,
+    metadata.repository,
+    metadata.repoName,
+    metadata.workspace,
+    metadata.project,
+    metadata.local_path,
+    metadata.path,
+  ].flatMap(metadataTextValues);
+  const metadataTokens = buildRepoTokens(metadataCandidates);
+  if (metadataTokens.size > 0) {
+    return setsIntersect(expected, metadataTokens);
+  }
+
+  const text = `${item.title} ${item.summary}`.toLowerCase();
+  const repoNameTokens = buildRepoTokens([subject.repoName]);
+  return Array.from(repoNameTokens).some((token) => text.includes(token));
+}
+
 function sanitizeMetadata(
   input: CogneeSummaryMemoryInput,
 ): Record<string, string | number | boolean | null> {
@@ -295,6 +332,51 @@ function referenceValues(value: unknown): string[] {
     return value.flatMap((item) => (typeof item === "string" ? item.split(",") : []));
   }
   return [];
+}
+
+function metadataTextValues(value: unknown): string[] {
+  if (typeof value === "string") return value.trim() ? [value.trim()] : [];
+  if (typeof value === "number" || typeof value === "boolean") return [String(value)];
+  if (Array.isArray(value)) return value.flatMap(metadataTextValues);
+  return [];
+}
+
+function buildRepoTokens(values: Array<string | undefined>): Set<string> {
+  const tokens = new Set<string>();
+  for (const value of values) {
+    const normalized = normalizeRepoToken(value);
+    if (!normalized) continue;
+    tokens.add(normalized);
+    const segment = lastPathSegment(normalized);
+    if (segment) tokens.add(segment);
+  }
+  return tokens;
+}
+
+function normalizeRepoToken(value: string | undefined): string {
+  const clean = normalizeText(value)
+    .replace(/^local:/i, "")
+    .replace(/\.git$/i, "")
+    .toLowerCase();
+  if (!clean) return "";
+  try {
+    const parsed = new URL(clean);
+    return parsed.pathname.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+  } catch {
+    return clean.replace(/^\/+|\/+$/g, "");
+  }
+}
+
+function lastPathSegment(value: string): string {
+  const parts = value.split(/[\\/]/).filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1].replace(/\.git$/i, "") : "";
+}
+
+function setsIntersect(left: Set<string>, right: Set<string>): boolean {
+  for (const value of left) {
+    if (right.has(value)) return true;
+  }
+  return false;
 }
 
 function normalizeList(values: Array<string | undefined> | undefined, limit: number): string[] {

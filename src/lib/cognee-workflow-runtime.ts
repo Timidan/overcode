@@ -1,12 +1,20 @@
-import type { MemoryRecallQuery, MemoryRecallResult, MemoryRememberInput } from "./ipc";
+import type {
+  MemoryRecallItem,
+  MemoryRecallQuery,
+  MemoryRecallResult,
+  MemoryRememberInput,
+} from "./ipc";
 import {
   buildCogneeRecallRequest,
   buildCogneeSummaryMemoryInput,
   extractCogneeMemoryReferences,
+  filterCogneeMemoryItemsForSubject,
   formatCogneeRecallContext,
   type CogneeSummaryMemoryInput,
   type CogneeWorkflowSubject,
 } from "./cognee-workflow-memory";
+
+export const COGNEE_WORKFLOW_MEMORY_UPDATED_EVENT = "overcode:cognee-memory-updated";
 
 export interface CogneeWorkflowMemoryClient {
   recallMemory(payload: MemoryRecallQuery): Promise<MemoryRecallResult>;
@@ -18,6 +26,7 @@ export interface RecalledCogneeWorkflowMemory {
   itemCount: number;
   summary: string;
   references: string[];
+  items: MemoryRecallItem[];
 }
 
 export interface RecallCogneeWorkflowMemoryOptions {
@@ -27,6 +36,10 @@ export interface RecallCogneeWorkflowMemoryOptions {
    * should opt in. */
   retryOnEmpty?: boolean;
   retryDelayMs?: number;
+  /** Keep only memories whose repo metadata/name matches the requested repo.
+   * Repo-level teasers use this so a strong memory from another workspace does
+   * not masquerade as context for the current repo. */
+  requireRepoMatch?: boolean;
 }
 
 export async function recallCogneeWorkflowMemory(
@@ -42,18 +55,23 @@ export async function recallCogneeWorkflowMemory(
       const memoryClient = client ?? (await getDefaultCogneeMemoryClient());
       const result = await memoryClient.recallMemory(request as MemoryRecallQuery);
       if (!result.ok || result.skipped || result.items.length === 0) return null;
-      const context = formatCogneeRecallContext(result.items);
+      const items = options?.requireRepoMatch
+        ? filterCogneeMemoryItemsForSubject(result.items, subject)
+        : result.items;
+      if (items.length === 0) return null;
+      const context = formatCogneeRecallContext(items);
       if (!context) return null;
       const references = Array.from(
-        new Set(result.items.flatMap(extractCogneeMemoryReferences)),
+        new Set(items.flatMap(extractCogneeMemoryReferences)),
       ).slice(0, 12);
       return {
         context,
-        itemCount: result.items.length,
-        summary: `${result.items.length} recalled Cognee memory item${
-          result.items.length === 1 ? "" : "s"
+        itemCount: items.length,
+        summary: `${items.length} recalled Cognee memory item${
+          items.length === 1 ? "" : "s"
         }`,
         references,
+        items,
       };
     } catch (error) {
       console.warn("[cognee-workflow-recall-failed]", error);
@@ -76,6 +94,7 @@ export async function rememberCogneeWorkflowSummary(
   try {
     const memoryClient = client ?? await getDefaultCogneeMemoryClient();
     await memoryClient.rememberMemory(buildCogneeSummaryMemoryInput(input));
+    emitCogneeWorkflowMemoryUpdated(input);
     return true;
   } catch (error) {
     console.warn("[cognee-workflow-remember-failed]", error);
@@ -86,4 +105,15 @@ export async function rememberCogneeWorkflowSummary(
 async function getDefaultCogneeMemoryClient(): Promise<CogneeWorkflowMemoryClient> {
   const module = await import("./ipc");
   return module.ipc;
+}
+
+function emitCogneeWorkflowMemoryUpdated(input: CogneeSummaryMemoryInput): void {
+  if (typeof window === "undefined" || typeof CustomEvent === "undefined") return;
+  window.dispatchEvent(new CustomEvent(COGNEE_WORKFLOW_MEMORY_UPDATED_EVENT, {
+    detail: {
+      repoId: input.repoId,
+      repoName: input.repoName,
+      source: input.source,
+    },
+  }));
 }

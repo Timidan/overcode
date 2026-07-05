@@ -73,7 +73,7 @@
 .repo-memory-strip {
   animation: overcode-rise var(--duration-enter) var(--ease-standard) both;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   border: 1px dashed var(--color-ink);
@@ -90,12 +90,29 @@
 }
 
 .repo-memory-strip-text {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.repo-memory-strip-text:hover,
+.repo-memory-strip-text:focus-visible {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .repo-memory-strip-dismiss {
+  flex-shrink: 0;
   margin-left: auto;
   padding: 0 4px;
   background: transparent;

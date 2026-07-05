@@ -23,7 +23,10 @@ if (smokeDebugPort) {
 
 // Opt-in sandbox bypass for Linux kernels that reject the bundled chrome-sandbox
 // helper (some Arch/Manjaro and SELinux-enforcing systems). Default off.
-if (process.platform === "linux" && app.isPackaged && process.env.OVERCODE_NO_SANDBOX === "1") {
+const useLinuxPackagedNoSandbox =
+  process.platform === "linux" && app.isPackaged && process.env.OVERCODE_NO_SANDBOX === "1";
+
+if (useLinuxPackagedNoSandbox) {
   app.commandLine.appendSwitch("no-sandbox");
 }
 
@@ -68,7 +71,7 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      sandbox: !useLinuxPackagedNoSandbox,
     },
   });
 

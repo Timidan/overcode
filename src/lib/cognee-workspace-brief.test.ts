@@ -44,15 +44,37 @@ describe("Cognee workspace brief", () => {
     const request = buildCogneeWorkspaceBriefRecallRequest(repositories, stats);
 
     expect(request).toEqual({
-      query: expect.stringContaining("Recall Overcode workspace memory across all pinned repositories."),
+      query: expect.stringContaining("Recall Overcode workspace memory."),
       datasets: [COGNEE_WORKSPACE_DATASET],
       limit: 6,
     });
     expect(request?.query).toContain("overcode");
     expect(request?.query).toContain("web3-toolkit");
-    expect(request?.query).toContain("Prioritize memories from different repositories");
+    expect(request?.query).toContain("Prefer diverse repos");
+    expect(request?.query.length).toBeLessThanOrEqual(500);
     expect(request?.filters).toBeUndefined();
     expect(request?.nodeSet).toBeUndefined();
+  });
+
+  it("keeps workspace recall queries within Cognee's validation limit", () => {
+    const manyRepos = Array.from({ length: 18 }, (_, index): WorkspaceRepository => ({
+      id: `repo-${index}`,
+      name: `very-long-product-repository-name-${index}-with-extra-context`,
+      platform: "local",
+      local_path: `/workspace/very-long-product-repository-name-${index}-with-extra-context`,
+      dirty_count: index,
+    }));
+
+    const request = buildCogneeWorkspaceBriefRecallRequest(manyRepos, {
+      commits: 48,
+      prs: 3,
+      repos: manyRepos.length,
+      localChanges: 120,
+    });
+
+    expect(request?.query.length).toBeLessThanOrEqual(500);
+    expect(request?.query).toContain("+");
+    expect(request?.query).toContain("more");
   });
 
   it("surfaces narrow Cognee coverage instead of implying the whole workspace is represented", () => {

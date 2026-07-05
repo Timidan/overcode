@@ -190,6 +190,49 @@ describe("repo brief structured generation", () => {
     );
   });
 
+  it("strips marker comments from the local evidence-backed brief purpose", async () => {
+    const thin = briefEnvelope(
+      {
+        purpose: "Provide a concise overview to get developers up to speed quickly.",
+        keyModules: [],
+        recentActivity: [],
+        onboardingPath: ["Clone repo"],
+        notableRisks: [],
+      },
+      ["Repository facts were garbled; details may be incomplete."],
+    );
+    mockIpc.callAIModel
+      .mockResolvedValueOnce(JSON.stringify(thin))
+      .mockResolvedValueOnce(JSON.stringify(thin));
+
+    const { getRepoBriefStructured } = await import("./ai-features");
+    const result = await getRepoBriefStructured({
+      repoId: "repo-synth",
+      repoName: "synth-x",
+      branch: "master",
+      tree: [
+        "contracts/strategy.sol",
+        "dashboard/src/App.tsx",
+        "data/routes.json",
+        "docs/README.md",
+        "src/index.ts",
+        "video/demo.mp4",
+      ],
+      readme: [
+        "# Murmur <!-- MARKEE:START:0x253e91dcc7bd56e3695348c3bb0bc9febf6f01b5 -->",
+        "<!-- MARKEE:END -->",
+      ].join("\n"),
+      recentCommits: ["Add dashboard route", "Update contracts"],
+      changedFiles: ["contracts/strategy.sol"],
+    });
+
+    expect(result.data.purpose).toContain("Murmur repository");
+    expect(result.data.purpose).toContain("contracts");
+    expect(result.data.purpose).not.toContain("MARKEE");
+    expect(result.data.purpose).not.toContain("<!--");
+    expect(result.data.purpose).not.toContain("# Murmur");
+  });
+
   it("keeps provider failure reasons on the local fallback", async () => {
     mockIpc.callAIModel.mockRejectedValue(
       new Error("Error invoking remote method 'ai:complete': Error: OpenRouter returned 429"),

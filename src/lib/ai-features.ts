@@ -37,7 +37,7 @@ const MAX_TREE_ITEMS = 80;
 const MAX_LIST_ITEMS = 80;
 const MAX_PROMPT_CHARS = 14_000;
 const MAX_MEMORY_CONTEXT_CHARS = 4_000;
-const REPO_BRIEF_CACHE_VERSION = "brief:v5";
+const REPO_BRIEF_CACHE_VERSION = "brief:v6";
 
 const IMPACT_SYSTEM_PROMPT =
   "Analyze this code diff for a developer. Return only valid JSON with this shape: {\"schemaVersion\":1,\"feature\":\"impact\",\"summary\":\"1 short sentence\",\"confidence\":\"low|medium|high\",\"warnings\":[\"...\"],\"data\":{\"intent\":\"...\",\"modules\":[{\"name\":\"...\",\"paths\":[\"...\"],\"changeType\":\"added|modified|removed|mixed\"}],\"risks\":[{\"severity\":\"low|medium|high\",\"area\":\"...\",\"reason\":\"...\",\"files\":[\"...\"]}],\"checks\":[{\"command\":\"optional command\",\"reason\":\"...\"}],\"recommendation\":\"...\"}}. No markdown fences.";
@@ -1234,7 +1234,10 @@ function buildRepoBriefPrompt(payload: BriefPayload): string | null {
     payload.changedFiles?.filter(Boolean) ?? [],
     MAX_LIST_ITEMS,
   );
-  const readme = truncateText(payload.readme?.trim() ?? "", MAX_README_CHARS);
+  const readme = truncateText(
+    sanitizeRepositoryEvidenceText(payload.readme?.trim() ?? ""),
+    MAX_README_CHARS,
+  );
 
   const hasRealData =
     tree.length > 0 ||
@@ -1503,9 +1506,7 @@ function buildLocalRepoBriefData(payload: BriefPayload): RepoBriefData {
   ]);
   const readme = summarizeReadme(payload.readme ?? "");
 
-  const purpose = readme
-    ? readme
-    : "Purpose is not explicit in the available README/package data. Start by inspecting the top-level files and primary source directories.";
+  const purpose = buildLocalRepoBriefPurpose(payload, readme, tree);
 
   return {
     purpose,
@@ -1530,6 +1531,30 @@ function buildLocalRepoBriefData(payload: BriefPayload): RepoBriefData {
         : "No uncommitted files were returned.",
     ],
   };
+}
+
+function buildLocalRepoBriefPurpose(
+  payload: BriefPayload,
+  readme: string,
+  tree: string[],
+): string {
+  if (readme.length >= 40) return readme;
+
+  const label = cleanRepositoryLabel(readme || payload.repoName || payload.repoId);
+  const modules = tree
+    .map((item) => item.replace(/\/+$/, ""))
+    .filter(Boolean)
+    .slice(0, 6);
+  if (label && modules.length > 0) {
+    return `${label} repository. Local evidence includes ${formatNaturalList(modules)}.`;
+  }
+  if (label) {
+    return `${label} repository. Purpose is not explicit in the available README/package data.`;
+  }
+  if (modules.length > 0) {
+    return `Purpose is not explicit in README/package data. Local evidence includes ${formatNaturalList(modules)}.`;
+  }
+  return "Purpose is not explicit in the available README/package data. Start by inspecting the top-level files and primary source directories.";
 }
 
 function buildLocalPRReviewData(detail: PullRequestDetail): PRReviewData {
@@ -1947,23 +1972,65 @@ function groupPathsByTopLevel(paths: string[]): Array<[string, string[]]> {
 }
 
 function summarizeReadme(value: string): string {
-  const lines = value
+  const lines = sanitizeRepositoryEvidenceText(value)
     .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .filter((line) => !/^(name|version|description|scripts|dependencies|devDependencies):/i.test(line));
-  const heading = lines.find((line) => /^#\s+/.test(line));
+    .map((line) => ({
+      raw: line.trim(),
+      clean: cleanReadmeLine(line),
+    }))
+    .filter((line) => line.clean)
+    .filter(
+      (line) =>
+        !/^(name|version|description|scripts|dependencies|devDependencies):/i.test(line.clean),
+    );
+  const heading = lines.find((line) => /^#\s+/.test(line.raw))?.clean;
   const prose = lines.find(
     (line) =>
-      !line.startsWith("#") &&
-      !line.startsWith("[") &&
-      !line.startsWith("!") &&
-      !/^<\/?(p|img|picture|source|h1|h2|h3|strong|em|div|span)\b/i.test(line) &&
-      !/<img\b/i.test(line) &&
-      !/shields\.io|badge/i.test(line) &&
-      line.length > 30,
+      !line.raw.startsWith("#") &&
+      !line.raw.startsWith("[") &&
+      !line.raw.startsWith("!") &&
+      !/^<\/?(p|img|picture|source|h1|h2|h3|strong|em|div|span)\b/i.test(line.raw) &&
+      !/<img\b/i.test(line.raw) &&
+      !/shields\.io|badge/i.test(line.raw) &&
+      line.clean.length > 30,
   );
-  return truncateText([heading, prose].filter(Boolean).join(" "), 700);
+  return truncateText([heading, prose?.clean].filter(Boolean).join(" "), 700);
+}
+
+function sanitizeRepositoryEvidenceText(value: string): string {
+  return value
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/\bMARKEE:(?:START|END):[A-Za-z0-9:_-]+\b/gi, " ")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function cleanReadmeLine(value: string): string {
+  return value
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/^[-*]\s+/, "")
+    .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)]\([^)]*\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanRepositoryLabel(value: string | undefined): string {
+  return (value ?? "")
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/\bMARKEE:(?:START|END):[A-Za-z0-9:_-]+\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatNaturalList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
 function formatList(items: string[], emptyText: string): string {

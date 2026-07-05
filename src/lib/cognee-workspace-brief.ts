@@ -7,6 +7,7 @@ import {
 } from "./cognee-workflow-memory";
 
 const MAX_QUERY_REPOS = 12;
+const MAX_RECALL_QUERY_CHARS = 500;
 const MAX_REPO_SIGNALS = 8;
 const MAX_MEMORY_ITEMS = 8;
 const MAX_REFERENCES_PER_MEMORY = 4;
@@ -57,21 +58,17 @@ export function buildCogneeWorkspaceBriefRecallRequest(
     .filter(Boolean)
     .slice(0, MAX_QUERY_REPOS);
 
-  const signals = [
-    `${repositories.length} pinned workspace${repositories.length === 1 ? "" : "s"}`,
-    `${stats.localChanges} uncommitted file${stats.localChanges === 1 ? "" : "s"}`,
-    `${stats.prs} pull request${stats.prs === 1 ? "" : "s"} updated in the last 24h`,
-    `${stats.commits} commit${stats.commits === 1 ? "" : "s"} in the last 24h`,
-  ];
+  const repoList = fitRepoListForQuery(repoNames);
+  const query = [
+    "Recall Overcode workspace memory.",
+    `Repos: ${repoList}.`,
+    `Signals: ${repositories.length} pinned, ${stats.localChanges} dirty files, ${stats.prs} PRs, ${stats.commits} commits.`,
+    "Brief: active work, risks, decisions, integrations, dependencies, next actions.",
+    "Prefer diverse repos; do not default to Overcode.",
+  ].join(" ");
 
   return {
-    query: [
-      "Recall Overcode workspace memory across all pinned repositories.",
-      `Known workspaces: ${repoNames.join(", ")}.`,
-      `Current dashboard signals: ${signals.join("; ")}.`,
-      "Return a workspace-level brief: active work, cross-repo risks, decisions, integrations, dependencies, and next actions.",
-      "Prioritize memories from different repositories; include Overcode only when it is the relevant memory, not as the default.",
-    ].join(" "),
+    query: boundText(query, MAX_RECALL_QUERY_CHARS),
     datasets: [COGNEE_WORKSPACE_DATASET],
     limit: Math.min(10, Math.max(6, repositories.length)),
   };
@@ -359,6 +356,24 @@ function compareReposForBrief(
   const rightDirty = right.dirty_count ?? 0;
   if (rightDirty !== leftDirty) return rightDirty - leftDirty;
   return left.name.localeCompare(right.name);
+}
+
+function fitRepoListForQuery(repoNames: string[]): string {
+  const maxRepoListChars = 160;
+  const names: string[] = [];
+  let used = 0;
+
+  for (const name of repoNames) {
+    const cleaned = boundText(name.replace(/\s+/g, "-"), 36);
+    const separatorChars = names.length === 0 ? 0 : 2;
+    if (used + separatorChars + cleaned.length > maxRepoListChars) break;
+    names.push(cleaned);
+    used += separatorChars + cleaned.length;
+  }
+
+  if (names.length === 0) return "workspace repos";
+  const omitted = repoNames.length - names.length;
+  return omitted > 0 ? `${names.join(", ")} +${omitted} more` : names.join(", ");
 }
 
 function unique(values: string[]): string[] {
