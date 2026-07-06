@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Overcode icon">
+  <defs>
+    <pattern id="dots-ink" width="13" height="13" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="4" r="3.2" fill="#0a0a0c"/>
+    </pattern>
+    <pattern id="dots-amber" width="13" height="13" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="4" r="3.2" fill="#d4670d"/>
+    </pattern>
+    <pattern id="dots-violet" width="13" height="13" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="4" r="3.2" fill="#6d3ad9"/>
+    </pattern>
+    <mask id="oc-mask">
+      <rect width="256" height="256" fill="#000"/>
+      <text x="35" y="162" fill="#fff" font-family="JetBrains Mono, Fira Code, Cascadia Code, monospace" font-size="106" font-weight="600" letter-spacing="-9">OC</text>
+    </mask>
+  </defs>
+  <rect width="256" height="256" fill="#f4ecd8"/>
+  <path d="M0 0h256v256H0zM24 24v208h208V24z" fill="#0a0a0c" fill-rule="evenodd"/>
+  <rect x="176" width="10" height="256" fill="#d4670d"/>
+  <g mask="url(#oc-mask)">
+    <rect x="24" y="66" width="92" height="116" fill="url(#dots-ink)"/>
+    <rect x="116" y="66" width="40" height="116" fill="url(#dots-amber)"/>
+    <rect x="156" y="66" width="76" height="116" fill="url(#dots-violet)"/>
+  </g>
+</svg>

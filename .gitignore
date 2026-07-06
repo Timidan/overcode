@@ -45,6 +45,7 @@ public/brand/current/*
 # Local scratch, research, and handoff artifacts
 tmp/
 sync-status-samples.html
+/overcodeV2.mp4
 overcode_asset_pack (1)/
 overcode_identity_assets/
 design.md

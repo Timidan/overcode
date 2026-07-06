@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#1a1814" />
+    <title>Overcode: one calm signal.</title>
+    <meta
+      name="description"
+      content="Overcode is a native desktop hub for Git workspaces, pull requests, bring-your-own-key AI providers, and Cognee-backed repository memory."
+    />
+    <meta property="og:title" content="Overcode: one calm signal." />
+    <meta
+      property="og:description"
+      content="Native desktop workspace signal for local Git, pull requests, AI providers, and Cognee-backed repository memory."
+    />
+    <meta
+      property="og:image"
+      content="https://overcode.timidan.xyz/assets/og-card.png"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://overcode.timidan.xyz/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Overcode: one calm signal." />
+    <meta
+      name="twitter:description"
+      content="Native desktop workspace signal for local Git, pull requests, AI providers, and Cognee-backed repository memory."
+    />
+    <meta
+      name="twitter:image"
+      content="https://overcode.timidan.xyz/assets/og-card.png"
+    />
+    <link rel="canonical" href="https://overcode.timidan.xyz/" />
+    <link rel="icon" type="image/svg+xml" href="./assets/overcode-icon.svg" />
+    <link rel="apple-touch-icon" href="./assets/overcode-icon-512.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="./style.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Overcode",
+        "description": "Native desktop hub for Git workspaces, pull requests, bring-your-own-key AI providers, and Cognee-backed repository memory.",
+        "url": "https://overcode.timidan.xyz/",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Windows, Linux",
+        "softwareVersion": "0.1.1",
+        "downloadUrl": "https://github.com/Timidan/overcode/releases/latest",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@type": "Person", "name": "Timidan" }
+      }
+    </script>
+    <script>
+      (function setInitialTheme() {
+        try {
+          var query = new URLSearchParams(location.search).get("theme");
+          var stored = localStorage.getItem("overcode-site-theme");
+          var theme =
+            query === "light" || query === "dark"
+              ? query
+              : stored === "light" || stored === "dark"
+                ? stored
+                : matchMedia("(prefers-color-scheme: light)").matches
+                  ? "light"
+                  : "dark";
+          document.documentElement.dataset.theme = theme;
+        } catch (_error) {
+          document.documentElement.dataset.theme = "dark";
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="site-shell" id="top">
+      <header class="site-header" aria-label="site header">
+        <a class="brand-link" href="#top" aria-label="Overcode home">
+          <img
+            class="brand-logo brand-logo-dark"
+            src="./assets/overcode-logo-dark.svg"
+            alt="Overcode"
+            width="710"
+            height="200"
+          />
+          <img
+            class="brand-logo brand-logo-light"
+            src="./assets/overcode-logo-light.svg"
+            alt=""
+            width="710"
+            height="200"
+            aria-hidden="true"
+          />
+        </a>
+        <nav class="site-nav" aria-label="primary navigation">
+          <a href="#about">about</a>
+          <a href="#downloads">downloads</a>
+        </nav>
+        <div class="header-actions">
+          <a href="https://github.com/Timidan/overcode" rel="noreferrer">GitHub</a>
+          <button class="theme-toggle" type="button" data-theme-toggle>theme: dark</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <h1 id="hero-title">one calm signal.</h1>
+            <p class="hero-description">
+              Native desktop hub for Git workspaces, pull requests,
+              bring-your-own-key AI providers, and Cognee-backed repository memory.
+            </p>
+            <div class="cognee-lockup" aria-label="Cognee repository memory layer">
+              <img src="./assets/cognee.png" alt="Cognee" width="800" height="800" />
+              <div>
+                <p>repository memory powered by Cognee.</p>
+                <p>approved summaries and module facts only.</p>
+              </div>
+              <div class="cognee-signal" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+            <div class="hero-actions" aria-label="download actions">
+              <a class="primary-cta" href="#downloads" data-primary-download>
+                <span data-primary-label>see all downloads</span>
+                <span data-primary-meta>choose a shipped build below</span>
+              </a>
+              <div class="primary-cta primary-cta-unavailable" data-primary-unavailable hidden>
+                <span data-primary-unavailable-label>macOS build not shipped yet</span>
+                <a
+                  href="https://github.com/Timidan/overcode/releases"
+                  data-primary-unavailable-link
+                  rel="noreferrer"
+                >
+                  <span data-primary-unavailable-meta>watch releases on GitHub</span>
+                </a>
+              </div>
+              <div class="secondary-links" aria-label="secondary actions">
+                <a href="#downloads">all downloads ↓</a>
+                <a href="https://github.com/Timidan/overcode" rel="noreferrer">
+                  view on GitHub
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <figure class="interface-reel" aria-label="Overcode interface preview">
+            <video
+              class="interface-reel-video"
+              src="./assets/overcodeV2.mp4"
+              poster="./assets/overcodeV2-poster.png"
+              autoplay
+              muted
+              loop
+              playsinline
+            ></video>
+          </figure>
+          <div class="hero-rule" aria-hidden="true"></div>
+        </section>
+
+        <section class="section-block" id="about" aria-labelledby="about-title">
+          <div class="section-heading">
+            <h2 id="about-title">what overcode is</h2>
+          </div>
+          <div class="broadsheet-rows">
+            <article class="broadsheet-row">
+              <h3>workspace dashboard</h3>
+              <p>Read local repositories, branches, worktrees, stashes, and recent activity in one native surface.</p>
+            </article>
+            <article class="broadsheet-row">
+              <h3>pull requests and issues</h3>
+              <p>Track GitHub and GitLab review state beside the local repository context that explains it.</p>
+            </article>
+            <article class="broadsheet-row">
+              <h3>bring-your-own-key providers</h3>
+              <p>Run AI features through configured provider credentials without turning Overcode into a backend.</p>
+            </article>
+            <article class="broadsheet-row">
+              <h3>Cognee repository memory</h3>
+              <p>Retain approved summaries, module facts, and recall context without storing raw source or secrets.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section-block downloads-block" id="downloads" aria-labelledby="downloads-title">
+          <div class="section-heading">
+            <h2 id="downloads-title">downloads</h2>
+          </div>
+          <div class="download-list" aria-label="platform downloads">
+            <article class="download-row" data-download-platform="windows">
+              <div>
+                <p class="download-platform">Windows</p>
+                <p class="download-version" data-download-version>v0.1.1</p>
+                <p class="download-flag" data-detected-flag hidden>your platform</p>
+              </div>
+              <p>x64</p>
+              <p data-download-artifact>Overcode-Windows-0.1.1-Setup.exe</p>
+              <p data-download-size>83.0 MB</p>
+              <a
+                href="https://github.com/Timidan/overcode/releases/download/v0.1.1/Overcode-Windows-0.1.1-Setup.exe"
+                data-download-link
+                rel="noreferrer"
+              >
+                download
+              </a>
+            </article>
+
+            <article class="download-row" data-download-platform="linux">
+              <div>
+                <p class="download-platform">Linux</p>
+                <p class="download-version" data-download-version>v0.1.1</p>
+                <p class="download-flag" data-detected-flag hidden>your platform</p>
+              </div>
+              <p>x86_64</p>
+              <p data-download-artifact>Overcode-Linux-0.1.1.AppImage</p>
+              <p data-download-size>113.4 MB</p>
+              <a
+                href="https://github.com/Timidan/overcode/releases/download/v0.1.1/Overcode-Linux-0.1.1.AppImage"
+                data-download-link
+                rel="noreferrer"
+              >
+                download
+              </a>
+            </article>
+
+            <article class="download-row" data-download-platform="mac">
+              <div>
+                <p class="download-platform">macOS</p>
+                <p class="download-version" data-download-version>v0.1.1</p>
+                <p class="download-flag" data-detected-flag hidden>your platform</p>
+              </div>
+              <p>apple silicon</p>
+              <p data-download-artifact>in progress · watch releases</p>
+              <p data-download-size>not shipped</p>
+              <a
+                href="https://github.com/Timidan/overcode/releases"
+                data-download-link
+                rel="noreferrer"
+              >
+                watch releases
+              </a>
+            </article>
+
+            <article class="download-row" data-download-platform="source">
+              <div>
+                <p class="download-platform">build from source</p>
+                <p class="download-version" data-download-version>v0.1.1</p>
+              </div>
+              <p>npm</p>
+              <p data-download-artifact>GitHub readme</p>
+              <p data-download-size>source</p>
+              <a
+                href="https://github.com/Timidan/overcode#running-from-source"
+                data-download-link
+                rel="noreferrer"
+              >
+                read source steps
+              </a>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <p>local-first. no backend. no telemetry.</p>
+        <nav aria-label="footer links">
+          <a href="https://github.com/Timidan/overcode" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/Timidan/overcode/releases" rel="noreferrer">releases</a>
+          <a href="https://github.com/Timidan/overcode/issues" rel="noreferrer">issues</a>
+          <a href="https://www.cognee.ai" rel="noreferrer">cognee.ai</a>
+        </nav>
+        <p><span data-release-date>2026.07.05</span> · overcode <span data-release-version>v0.1.1</span></p>
+      </footer>
+    </div>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
