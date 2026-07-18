@@ -269,6 +269,32 @@
   color: var(--color-text-secondary);
 }
 
+.wt-cognee-feedback {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  transform-origin: top center;
+  animation: wt-cognee-feedback-in 200ms var(--ease-standard) both;
+}
+
+.wt-cognee-feedback .wt-cognee-message {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@keyframes wt-cognee-feedback-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .wt-cognee-action {
   justify-content: center;
   border-color: var(--color-accent-green);
@@ -365,6 +391,11 @@
   .wt-cognee-action {
     width: 100%;
   }
+
+  .wt-cognee-feedback {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 .wt-memory-used {
@@ -380,4 +411,21 @@
 .wt-error-retry:focus-visible {
   outline: 2px solid var(--color-text-primary);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wt-cognee-feedback {
+    animation: wt-cognee-feedback-fade 80ms linear both;
+    transform: none;
+  }
+
+  .wt-dot {
+    animation: none;
+    transform: none;
+  }
+}
+
+@keyframes wt-cognee-feedback-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

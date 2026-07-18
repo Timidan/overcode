@@ -82,6 +82,13 @@
   color: var(--color-text-secondary);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .repo-memory-strip {
+    animation: overcode-reduced-fade 80ms linear both;
+    transform: none;
+  }
+}
+
 .repo-memory-strip-label {
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-widest);

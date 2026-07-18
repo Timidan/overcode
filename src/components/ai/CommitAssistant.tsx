@@ -5,10 +5,7 @@ import {
   generateCommitAssistant,
   type CommitPayload,
 } from "../../lib/ai-features";
-import {
-  recallCogneeWorkflowMemory,
-  rememberCogneeWorkflowSummary,
-} from "../../lib/cognee-workflow-runtime";
+import { cogneeRepositoryMemory } from "../../lib/cognee-repository-memory";
 import "./CommitAssistant.css";
 
 interface Props {
@@ -38,7 +35,7 @@ export function CommitAssistant({ payload: explicitPayload }: Props) {
       setCopyError(null);
 
       try {
-        const memory = await recallCogneeWorkflowMemory({
+        const memory = await cogneeRepositoryMemory.recall({
           source: "commit assistant",
           repoId: data.repoId,
           repoName: data.repoName ?? data.repoPath,
@@ -51,7 +48,7 @@ export function CommitAssistant({ payload: explicitPayload }: Props) {
         );
         setCommitMessage(result.commitMessage);
         setPrDescription(result.prDescription);
-        void rememberCogneeWorkflowSummary({
+        void cogneeRepositoryMemory.remember({
           source: "commit assistant",
           repoId: data.repoId,
           repoName: data.repoName ?? data.repoPath,

@@ -128,7 +128,7 @@ function App() {
           position: fixed against the viewport. */}
       <div className="app-shell">
         <RouteErrorBoundary screen={screen} onReset={() => navigate("dashboard")}>
-          <RouteFrame screen={screen}>{renderScreen(screen)}</RouteFrame>
+          <RouteFrame>{renderScreen(screen)}</RouteFrame>
         </RouteErrorBoundary>
       </div>
       <AIPanel />

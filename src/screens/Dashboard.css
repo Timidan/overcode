@@ -94,7 +94,6 @@
 }
 
 .stat-cards {
-  animation: overcode-rise var(--duration-enter) var(--ease-standard) both;
   display: flex;
   gap: 0;
   border: 1px solid var(--color-ink);

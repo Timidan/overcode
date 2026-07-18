@@ -11,10 +11,10 @@ import { AIProviderLogo } from "../components/AIProviderLogo";
 import { Sidebar } from "../components/Sidebar";
 import {
   COGNEE_MEMORY_LEDGER_CHANGED_EVENT,
-  loadCogneeMemoryLedger,
   type CogneeMemoryLedgerEvent,
   type CogneeMemoryLedgerSnapshot,
 } from "../lib/cognee-memory-ledger";
+import { cogneeRepositoryMemory } from "../lib/cognee-repository-memory";
 import { ipc, type MemoryStatus, type MemoryUsageResult } from "../lib/ipc";
 import {
   describeCogneeStatusPill,
@@ -31,7 +31,7 @@ const DEFAULT_DATASET = "overcode_memory";
 
 export function CogneeDashboard() {
   const [ledger, setLedger] = useState<CogneeMemoryLedgerSnapshot>(() =>
-    loadCogneeMemoryLedger(),
+    cogneeRepositoryMemory.loadLedger(),
   );
   const [status, setStatus] = useState<MemoryStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
@@ -50,7 +50,7 @@ export function CogneeDashboard() {
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    setLedger(await ipc.hydrateMemoryLedger());
+    setLedger(await cogneeRepositoryMemory.hydrateLedger());
     try {
       setStatus(await ipc.getMemoryStatus());
       setStatusError(null);
@@ -76,7 +76,7 @@ export function CogneeDashboard() {
     void refresh();
 
     function onLedgerChanged() {
-      setLedger(loadCogneeMemoryLedger());
+      setLedger(cogneeRepositoryMemory.loadLedger());
     }
 
     window.addEventListener(COGNEE_MEMORY_LEDGER_CHANGED_EVENT, onLedgerChanged);
@@ -118,7 +118,9 @@ export function CogneeDashboard() {
     setForgetting(true);
     setMessage(null);
     try {
-      const result = await ipc.forgetMemory({ datasetName: primaryDataset });
+      const result = await cogneeRepositoryMemory.forget({
+        datasetName: primaryDataset,
+      });
       setMessage(
         result.ok
           ? { text: "Cognee forget request completed.", tone: "ok" }
@@ -139,7 +141,7 @@ export function CogneeDashboard() {
   }
 
   async function clearLocalTelemetry() {
-    setLedger(await ipc.clearMemoryLedger());
+    setLedger(await cogneeRepositoryMemory.clearLedger());
     setMessage({ text: "Local Cognee dashboard telemetry cleared.", tone: "ok" });
   }
 

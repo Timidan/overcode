@@ -3,7 +3,6 @@ import { ArrowsLeftRight, Copy, ArrowClockwise } from "@phosphor-icons/react";
 import { useAIPanel } from "../../store/useAIPanel";
 import {
   ipc,
-  type MemoryRememberResult,
   type WorktreeSummaryInput,
 } from "../../lib/ipc";
 import {
@@ -14,11 +13,11 @@ import type {
   AIEnvelope,
   WorktreeCompareData,
 } from "../../lib/ai-structured";
-import { recallCogneeWorkflowMemory } from "../../lib/cognee-workflow-runtime";
+import { cogneeRepositoryMemory } from "../../lib/cognee-repository-memory";
 import { WorktreeCompareSummary } from "./AIResultViews";
 import { BrutalistSelect } from "../BrutalistSelect";
 import { AIProviderLogo } from "../AIProviderLogo";
-import { buildWorktreeCompareMemoryInput } from "./worktree-memory";
+import { buildWorktreeCompareMemorySummary } from "./worktree-memory";
 import "./WorktreeCompare.css";
 
 interface Props {
@@ -109,7 +108,7 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
           );
           payload = payloadFromSummaryInput(incoming, fresh);
         }
-        const memory = await recallCogneeWorkflowMemory({
+        const memory = await cogneeRepositoryMemory.recall({
           source: "worktree compare",
           repoId: payload.repoId,
           repoName: payload.repoName,
@@ -158,14 +157,14 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
     if (!content || !lastPayload) return;
     setRememberState({ status: "saving" });
     try {
-      const input = buildWorktreeCompareMemoryInput(lastPayload, content);
-      const result = await ipc.rememberMemory(input) as MemoryRememberResult;
-      if (result.ok) {
+      const approvedSummary = buildWorktreeCompareMemorySummary(lastPayload, content);
+      const result = await cogneeRepositoryMemory.remember(approvedSummary);
+      if (result.ok && !result.skipped) {
         setRememberState({
           status: "saved",
           message: `Saved ${result.stored} worktree memory record${result.stored === 1 ? "" : "s"} to Cognee.`,
-          savedId: input.documents[0]?.id ?? "",
-          savedDataset: input.datasetName ?? "overcode_memory",
+          savedId: result.id ?? "",
+          savedDataset: result.datasetName,
         });
         return;
       }
@@ -186,7 +185,14 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
     const { savedId, savedDataset } = rememberState;
     setRememberState({ status: "forgetting", message: "", savedId, savedDataset });
     try {
-      const result = await ipc.forgetMemory({ id: savedId, datasetName: savedDataset });
+      const result = await cogneeRepositoryMemory.forget(
+        { id: savedId, datasetName: savedDataset },
+        {
+          source: "worktree compare",
+          repoId: lastPayload?.repoId,
+          repoName: lastPayload?.repoName,
+        },
+      );
       if (result.forgotten) {
         setRememberState({
           status: "forgotten",
@@ -208,7 +214,7 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
         savedDataset,
       });
     }
-  }, [rememberState]);
+  }, [lastPayload, rememberState]);
 
   const canCompare = Boolean(incoming?.repoId && source && target);
 
@@ -314,23 +320,38 @@ export function WorktreeCompare({ payload: explicitPayload }: Props) {
             >
               <span>{rememberState.status === "saving" ? "Remembering..." : "Remember with Cognee"}</span>
             </button>
-            {(rememberState.status === "saved" || rememberState.status === "forgetting") && (
-              <button
-                type="button"
-                className="wt-action wt-cognee-action"
-                onClick={() => void forgetSavedMemory()}
-                disabled={rememberState.status === "forgetting"}
-                title="Forget this saved memory in Cognee"
-              >
-                <span>
-                  {rememberState.status === "forgetting" ? "Forgetting..." : "Forget this memory"}
-                </span>
-              </button>
-            )}
             {rememberState.status !== "idle" &&
-              rememberState.status !== "saving" &&
-              rememberState.message && (
-                <div className="wt-cognee-message">{rememberState.message}</div>
+              rememberState.status !== "saving" && (
+                <div
+                  key={rememberState.status}
+                  className="wt-cognee-feedback"
+                >
+                  {(rememberState.status === "saved" ||
+                    rememberState.status === "forgetting") && (
+                    <button
+                      type="button"
+                      className="wt-action wt-cognee-action"
+                      onClick={() => void forgetSavedMemory()}
+                      disabled={rememberState.status === "forgetting"}
+                      title="Forget this saved memory in Cognee"
+                    >
+                      <span>
+                        {rememberState.status === "forgetting"
+                          ? "Forgetting..."
+                          : "Forget this memory"}
+                      </span>
+                    </button>
+                  )}
+                  {rememberState.message && (
+                    <div
+                      className="wt-cognee-message"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      {rememberState.message}
+                    </div>
+                  )}
+                </div>
               )}
           </section>
           <footer className="wt-actions">

@@ -30,10 +30,7 @@ import type {
   PRHunkReviewData,
   PRReviewData,
 } from "../lib/ai-structured";
-import {
-  recallCogneeWorkflowMemory,
-  rememberCogneeWorkflowSummary,
-} from "../lib/cognee-workflow-runtime";
+import { cogneeRepositoryMemory } from "../lib/cognee-repository-memory";
 import { PRHunkReviewSummary, PRReviewSummary } from "../components/ai/AIResultViews";
 import { useNav, type PRDetailRef } from "../store/useNav";
 import { useAIPanel } from "../store/useAIPanel";
@@ -771,7 +768,7 @@ function FilesTab({
       [key]: { ...prev[key], loading: true, error: undefined },
     }));
     try {
-      const memory = await recallCogneeWorkflowMemory({
+      const memory = await cogneeRepositoryMemory.recall({
         source: "pr file review",
         repoName: detail.repoFullName,
         branch: detail.source_branch,
@@ -788,7 +785,7 @@ function FilesTab({
         ...prev,
         [key]: { loading: false, result },
       }));
-      void rememberCogneeWorkflowSummary({
+      void cogneeRepositoryMemory.remember({
         source: "pr file review",
         repoName: detail.repoFullName,
         branch: detail.source_branch,
@@ -809,7 +806,7 @@ function FilesTab({
         },
       });
       if (result.data.suggestedChecks.length > 0) {
-        void rememberCogneeWorkflowSummary({
+        void cogneeRepositoryMemory.remember({
           source: "testing memory",
           repoName: detail.repoFullName,
           branch: detail.source_branch,
@@ -1265,7 +1262,7 @@ function AISummaryTab({
     setError(null);
     setCopyState("idle");
     try {
-      const memory = await recallCogneeWorkflowMemory({
+      const memory = await cogneeRepositoryMemory.recall({
         source: "pr review",
         repoName: detail.repoFullName,
         branch: detail.source_branch,
@@ -1292,7 +1289,7 @@ function AISummaryTab({
     setHunkLoading(true);
     setHunkError(null);
     try {
-      const memory = await recallCogneeWorkflowMemory({
+      const memory = await cogneeRepositoryMemory.recall({
         source: "pr hunk review",
         repoName: detail.repoFullName,
         branch: detail.source_branch,
@@ -1306,7 +1303,7 @@ function AISummaryTab({
         memoryContext: memory?.context,
       });
       setHunkReview(result);
-      void rememberCogneeWorkflowSummary({
+      void cogneeRepositoryMemory.remember({
         source: "pr hunk review",
         repoName: detail.repoFullName,
         branch: detail.source_branch,
@@ -1330,7 +1327,7 @@ function AISummaryTab({
         },
       });
       if (result.data.tests.length > 0) {
-        void rememberCogneeWorkflowSummary({
+        void cogneeRepositoryMemory.remember({
           source: "testing memory",
           repoName: detail.repoFullName,
           branch: detail.source_branch,
@@ -1507,8 +1504,8 @@ function formatPRSummaryForClipboard(summary: AIEnvelope<PRReviewData>): string 
 function rememberPRReviewMemory(
   detail: PullRequestDetail,
   result: AIEnvelope<PRReviewData>,
-): Promise<boolean> {
-  return rememberCogneeWorkflowSummary({
+) {
+  return cogneeRepositoryMemory.remember({
     source: "pr review",
     repoName: detail.repoFullName,
     branch: detail.source_branch,

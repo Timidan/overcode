@@ -102,6 +102,11 @@
   }
 }
 
+@keyframes overcode-reduced-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .motion-caret {
   animation: overcode-caret-blink 1s steps(1, end) infinite;
 }
@@ -122,14 +127,6 @@
 
 .motion-rise {
   animation: overcode-rise var(--duration-enter) var(--ease-standard) both;
-}
-
-/* First-load stagger for list items — set --stagger-index inline (cap it in JS
-   so long lists don't delay forever). Fires once on mount; because list rows
-   keep stable keys, client-side filtering does NOT replay it. */
-.motion-rise-stagger {
-  animation: overcode-rise var(--duration-enter) var(--ease-standard) both;
-  animation-delay: calc(var(--stagger-index, 0) * 40ms);
 }
 
 .motion-arrow-up {
@@ -186,12 +183,30 @@ textarea:focus:not(:focus-visible) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto !important;
+  }
+
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+    transition-property: opacity, color, background-color, border-color !important;
+  }
+
+  .motion-skeleton,
+  .motion-caret,
+  .motion-breathe,
+  .motion-pulse-fast,
+  .motion-spin,
+  .motion-shimmer {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .motion-rise,
+  .motion-arrow-up,
+  .motion-arrow-down {
+    animation: overcode-reduced-fade 80ms linear both;
+    transform: none;
   }
 }

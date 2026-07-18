@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { AIEnvelope, WorktreeCompareData } from "../../lib/ai-structured";
 import type { WorktreeComparePayload } from "../../lib/ai-features";
-import { buildWorktreeCompareMemoryInput } from "./worktree-memory";
+import { buildCogneeSummaryMemoryInput } from "../../lib/cognee-workflow-memory";
+import { buildWorktreeCompareMemorySummary } from "./worktree-memory";
 
 describe("worktree Cognee memory payload", () => {
   it("builds a bounded memory document without raw source or diff payloads", () => {
@@ -57,7 +58,8 @@ describe("worktree Cognee memory payload", () => {
       },
     };
 
-    const memory = buildWorktreeCompareMemoryInput(payload, result);
+    const approvedSummary = buildWorktreeCompareMemorySummary(payload, result);
+    const memory = buildCogneeSummaryMemoryInput(approvedSummary);
     const document = memory.documents[0];
 
     expect(memory.datasetName).toBe("overcode_memory");

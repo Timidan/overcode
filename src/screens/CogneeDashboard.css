@@ -586,6 +586,13 @@
   font-size: var(--text-xs);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .cognee-dashboard-status-error {
+    animation: overcode-reduced-fade 80ms linear both;
+    transform: none;
+  }
+}
+
 .cognee-events-footer {
   padding: var(--space-2) var(--space-4);
   font-family: var(--font-mono);

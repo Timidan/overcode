@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Sparkle } from "@phosphor-icons/react";
 import { ipc } from "../lib/ipc";
+import { cogneeRepositoryMemory } from "../lib/cognee-repository-memory";
 import {
   buildCogneeWorkspaceBrief,
   buildCogneeWorkspaceBriefRecallRequest,
@@ -98,19 +99,10 @@ export function MorningBrief({ stats, repositories }: Props) {
     if (!request) return;
     const recallRequest = request;
 
-    async function recallWorkspaceBrief() {
-      const first = await ipc.recallMemory(recallRequest);
-      if (first.ok && !first.skipped && first.items.length > 0) return first;
-
-      // The dashboard often performs the coldest recall of the session. One
-      // retry covers Cognee Cloud's empty-first-response warmup without turning
-      // the dashboard into a spinner.
-      await new Promise((resolve) => window.setTimeout(resolve, 4_000));
-      return ipc.recallMemory(recallRequest);
-    }
-
-    void recallWorkspaceBrief().then((recalled) => {
-      if (!recalled.ok || recalled.skipped || recalled.items.length === 0) return;
+    void cogneeRepositoryMemory.recallWorkspace(recallRequest, {
+      coldStartRetry: true,
+    }).then((recalled) => {
+      if (!recalled) return;
       setMemory(buildCogneeWorkspaceBrief(recalled.items, repositories, stats));
     }).catch((error) => {
       console.warn("[cognee-workspace-brief-recall-failed]", error);

@@ -525,6 +525,13 @@
   color: var(--color-text-primary);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .settings-forget-confirm {
+    animation: overcode-reduced-fade 80ms linear both;
+    transform: none;
+  }
+}
+
 .settings-forget-confirm-actions {
   display: flex;
   gap: var(--space-2);

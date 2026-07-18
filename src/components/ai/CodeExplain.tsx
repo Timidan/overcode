@@ -5,10 +5,7 @@ import {
   type CodeExplainPayload,
 } from "../../lib/ai-features";
 import type { CodeExplanationData, AIEnvelope } from "../../lib/ai-structured";
-import {
-  recallCogneeWorkflowMemory,
-  rememberCogneeWorkflowSummary,
-} from "../../lib/cognee-workflow-runtime";
+import { cogneeRepositoryMemory } from "../../lib/cognee-repository-memory";
 import { CodeExplanationResult } from "./AIResultViews";
 import "./ImpactAnalysis.css";
 
@@ -35,7 +32,7 @@ export function CodeExplain({ payload: explicitPayload }: Props) {
 
       try {
         const path = extractSubjectPath(data.subject);
-        const memory = await recallCogneeWorkflowMemory({
+        const memory = await cogneeRepositoryMemory.recall({
           source: "code inspector",
           repoId: data.repoId,
           repoName: data.repoName,
@@ -48,7 +45,7 @@ export function CodeExplain({ payload: explicitPayload }: Props) {
           memory?.context ? { ...data, memoryContext: memory.context } : data,
         );
         setResponse(result);
-        void rememberCogneeWorkflowSummary({
+        void cogneeRepositoryMemory.remember({
           source: "code inspector",
           repoId: data.repoId,
           repoName: data.repoName,
@@ -69,7 +66,7 @@ export function CodeExplain({ payload: explicitPayload }: Props) {
           },
         });
         if (result.data.suggestedChecks.length > 0) {
-          void rememberCogneeWorkflowSummary({
+          void cogneeRepositoryMemory.remember({
             source: "testing memory",
             repoId: data.repoId,
             repoName: data.repoName,

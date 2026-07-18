@@ -66,6 +66,7 @@ export interface CogneeSummaryMemoryInput extends CogneeWorkflowSubject {
   title: string;
   summary: string;
   data?: Record<string, unknown>;
+  nodeSet?: string[];
 }
 
 export function buildCogneeRecallRequest(
@@ -205,6 +206,9 @@ export function buildCogneeSummaryMemoryInput(
     input.summary,
   ].filter((value) => value !== undefined && value !== null).join(":");
 
+  const nodeSet = normalizeList(input.nodeSet, 4)
+    .map((value) => boundText(redactSensitiveText(value), 100));
+
   return {
     datasetName: COGNEE_WORKSPACE_DATASET,
     documents: [
@@ -220,6 +224,7 @@ export function buildCogneeSummaryMemoryInput(
         metadata,
       },
     ],
+    nodeSet: nodeSet.length > 0 ? nodeSet : undefined,
   };
 }
 

@@ -1,7 +1,8 @@
 /* ============================================================
    AIPanel — brutalist centered modal.
    Backdrop dims the rest of the app. Esc closes. Clicking the
-   backdrop closes. The modal scales in (0.92 → 1) + fades.
+   backdrop closes. Open and close are immediate for the keyboard-first
+   Cmd/Ctrl+. surface.
    Constrained size: 620px × 80vh.
    ============================================================ */
 
@@ -14,7 +15,6 @@
   z-index: 899;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 180ms ease;
 }
 
 .ai-panel-backdrop.is-open {
@@ -35,22 +35,14 @@
   border: 1px solid var(--color-ink);
   z-index: 900;
 
-  /* Scale-in entrance per the ui-animation skill: start at 0.92 (not 0),
-     fade up over 180ms. Translate keeps the centering math in transform. */
-  transform: translate(-50%, -50%) scale(0.92);
+  transform: translate(-50%, -50%);
   opacity: 0;
   pointer-events: none;
-  transition:
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 180ms ease,
-    visibility 0s linear 180ms;
-  will-change: transform, opacity;
 }
 
 .ai-panel.is-open {
   visibility: visible;
-  transition-delay: 0s;
-  transform: translate(-50%, -50%) scale(1);
+  transform: translate(-50%, -50%);
   opacity: 1;
   pointer-events: auto;
 }
@@ -312,25 +304,6 @@
 .ai-shortcut:hover .ai-shortcut-arrow,
 .ai-shortcut:focus-visible .ai-shortcut-arrow {
   color: var(--color-text-inverted);
-}
-
-/* ============================================================
-   Reduced motion — modal centers instantly with a tiny fade.
-   No scale animation, no backdrop blur change.
-   ============================================================ */
-@media (prefers-reduced-motion: reduce) {
-  .ai-panel-backdrop {
-    transition: opacity 60ms linear;
-  }
-  .ai-panel {
-    transform: translate(-50%, -50%);
-    opacity: 0;
-    transition: opacity 80ms linear;
-  }
-  .ai-panel.is-open {
-    transform: translate(-50%, -50%);
-    opacity: 1;
-  }
 }
 
 /* AI Feature Error State */

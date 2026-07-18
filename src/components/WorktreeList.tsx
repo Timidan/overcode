@@ -2,13 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ipc,
   type MemoryRecallItem,
-  type MemoryRecallQuery,
   type WorktreeSummaryInput,
 } from "../lib/ipc";
+import { cogneeRepositoryMemory } from "../lib/cognee-repository-memory";
 import { useAIPanel } from "../store/useAIPanel";
 import {
   WorktreeRecallCard,
-  type WorktreeRecallArtifact,
   type WorktreeRecallResult,
   type WorktreeRecallState,
 } from "./WorktreeRecallCard";
@@ -165,24 +164,21 @@ export function WorktreeList({
 
     try {
       const input = await ipc.getWorktreeSummaryInput(repoPath, tree.path);
-      const recallIpc = ipc as typeof ipc & WorktreeRecallIPC;
-
-      if (typeof recallIpc.recallMemory !== "function") {
-        console.warn("[worktree-recall] ipc.recallMemory is not wired in this build");
-        setRecallDetails((current) => ({
-          ...current,
-          [tree.path]: {
-            status: "disabled",
-            message: "Memory recall isn't available in this build.",
-          },
-        }));
-        return;
-      }
-
-      const response = await recallIpc.recallMemory(buildRecallRequest(repoName, repoPath, input));
+      const recalled = await cogneeRepositoryMemory.recallWithStatus({
+        source: "worktree inspection",
+        repoId,
+        repoName: repoName || repoPath,
+        branch: input.branch || input.targetRef || undefined,
+        paths: input.changedFiles,
+        tags: ["worktree", "inspection"],
+        limit: 6,
+      }, { coldStartRetry: true });
+      const recallState: WorktreeRecallState = recalled.status === "ready"
+        ? { status: "ready", result: recallItemsToResult(recalled.memory.items) }
+        : { status: recalled.status, message: recalled.message };
       setRecallDetails((current) => ({
         ...current,
-        [tree.path]: normalizeRecallResponse(response),
+        [tree.path]: recallState,
       }));
     } catch (err) {
       setRecallDetails((current) => ({
@@ -284,10 +280,6 @@ interface WorktreeInspectState {
   error: string | null;
 }
 
-interface WorktreeRecallIPC {
-  recallMemory?: (request: MemoryRecallQuery) => Promise<unknown>;
-}
-
 function WorktreeDetails({ detail }: { detail?: WorktreeInspectState }) {
   if (!detail || detail.loading) {
     return <div className="worktree-detail-state">Inspecting worktree…</div>;
@@ -331,99 +323,6 @@ function WorktreeDetails({ detail }: { detail?: WorktreeInspectState }) {
   );
 }
 
-function buildRecallRequest(
-  repoName: string,
-  repoPath: string,
-  input: WorktreeSummaryInput,
-): MemoryRecallQuery {
-  const changedFiles = input.changedFiles.filter(Boolean).slice(0, 12);
-  const uniqueCommits = input.uniqueCommits.filter(Boolean).slice(0, 6);
-  const branch = input.branch || input.targetRef || "(detached)";
-  const queryParts = [
-    `Recall Overcode memory for repo ${repoName || repoPath}`,
-    `on branch ${branch}`,
-    changedFiles.length > 0 ? `touching files ${changedFiles.join(", ")}` : "",
-    uniqueCommits.length > 0 ? `with commits ${uniqueCommits.join(", ")}` : "",
-    input.diffStat.trim() ? `with diff stat ${compactWhitespace(input.diffStat).slice(0, 160)}` : "",
-  ].filter(Boolean);
-
-  const repoLabel = (repoName || repoPath).trim().replace(/\s+/g, " ").slice(0, 70);
-
-  return {
-    query: limitRecallQuery(`${queryParts.join(" ")}.`),
-    limit: 6,
-    filters: {
-      repo: repoName || repoPath,
-      branch,
-    },
-    nodeSet: [`repo:${repoLabel}`],
-  };
-}
-
-function normalizeRecallResponse(response: unknown): WorktreeRecallState {
-  if (!isRecord(response)) {
-    return { status: "empty", message: "No Cognee memory matched this worktree." };
-  }
-
-  if (response.disabled === true || response.status === "disabled" || response.skipped === true) {
-    return {
-      status: "disabled",
-      message:
-        stringValue(response.message) ||
-        stringValue(response.reason) ||
-        stringValue(response.error) ||
-        "Cognee memory is disabled or unconfigured.",
-    };
-  }
-
-  if (response.ok === false) {
-    return {
-      status: "error",
-      message:
-        stringValue(response.error) ||
-        stringValue(response.reason) ||
-        "Cognee memory recall did not complete.",
-    };
-  }
-
-  const recalledItems = arrayValue(response.items)
-    .map(normalizeRecallItem)
-    .filter((item): item is MemoryRecallItem => item !== null);
-  if (recalledItems.length > 0) {
-    return { status: "ready", result: recallItemsToResult(recalledItems) };
-  }
-
-  if (response.status === "empty" || response.empty === true) {
-    return {
-      status: "empty",
-      message: stringValue(response.message) || "No Cognee memory matched this worktree.",
-    };
-  }
-
-  const source = isRecord(response.result) ? response.result : response;
-  const result: WorktreeRecallResult = {
-    likelyIntent: stringValue(source.likelyIntent) || stringValue(source.intent),
-    summary: stringValue(source.summary),
-    artifacts: arrayValue(source.artifacts ?? source.relatedArtifacts)
-      .map(normalizeArtifact)
-      .filter((item): item is WorktreeRecallArtifact => item !== null),
-    risks: stringList(source.risks ?? source.priorRisks),
-    decisions: stringList(source.decisions ?? source.priorDecisions),
-    suggestedNextAction:
-      stringValue(source.suggestedNextAction) || stringValue(source.nextAction),
-  };
-
-  const hasResult =
-    Boolean(result.likelyIntent || result.summary || result.suggestedNextAction) ||
-    Boolean(result.artifacts?.length || result.risks?.length || result.decisions?.length);
-
-  if (!hasResult) {
-    return { status: "empty", message: "Cognee returned no usable memory for this worktree." };
-  }
-
-  return { status: "ready", result };
-}
-
 function recallItemsToResult(items: MemoryRecallItem[]): WorktreeRecallResult {
   const first = items[0];
   return {
@@ -444,60 +343,6 @@ function recallItemsToResult(items: MemoryRecallItem[]): WorktreeRecallResult {
       .filter((item): item is string => Boolean(item))
       .slice(0, 4),
   };
-}
-
-function normalizeRecallItem(value: unknown): MemoryRecallItem | null {
-  if (!isRecord(value)) return null;
-  const id = stringValue(value.id);
-  const title = stringValue(value.title);
-  const summary = stringValue(value.summary);
-  if (!id || !title || !summary) return null;
-  return {
-    id,
-    title,
-    summary,
-    score: typeof value.score === "number" ? value.score : undefined,
-    metadata: isRecord(value.metadata) ? value.metadata : undefined,
-  };
-}
-
-function normalizeArtifact(value: unknown): WorktreeRecallArtifact | null {
-  if (typeof value === "string") return { title: value };
-  if (!isRecord(value)) return null;
-
-  return {
-    id: stringValue(value.id),
-    title: stringValue(value.title),
-    label: stringValue(value.label),
-    kind: stringValue(value.kind),
-    summary: stringValue(value.summary),
-    ref: stringValue(value.ref),
-    url: stringValue(value.url),
-  };
-}
-
-function stringList(value: unknown): string[] {
-  return arrayValue(value).map(stringValue).filter((item): item is string => Boolean(item));
-}
-
-function arrayValue(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
-function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function compactWhitespace(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
-}
-
-function limitRecallQuery(value: string): string {
-  return value.length > 480 ? `${value.slice(0, 477)}...` : value;
 }
 
 function metadataString(

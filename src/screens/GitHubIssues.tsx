@@ -286,7 +286,7 @@ export function GitHubIssues() {
   return (
     <div className="issues-screen-container">
       <Sidebar />
-      <main className="issues-screen-main motion-rise">
+      <main className="issues-screen-main">
         <header className="issues-screen-header">
           <h1 className="issues-screen-title">Issues</h1>
           <div className="issues-screen-meta">
@@ -452,12 +452,11 @@ export function GitHubIssues() {
 
         {!loading && !error && visibleIssues.length > 0 && (
           <div className="issues-list">
-            {visibleIssues.map((issue, index) => (
+            {visibleIssues.map((issue) => (
               <IssueCard
                 key={`${issueProvider}:${issue.repoFullName}:${issue.number}`}
                 issue={issue}
                 provider={issueProvider}
-                staggerIndex={index}
                 onOpen={() =>
                   openIssueDetail({
                     repoFullName: issue.repoFullName,
@@ -488,12 +487,10 @@ function IssueCard({
   issue,
   provider,
   onOpen,
-  staggerIndex = 0,
 }: {
   issue: GitHubIssue;
   provider: IssueProvider;
   onOpen: () => void;
-  staggerIndex?: number;
 }) {
   const accentClass = accentClassFor(issue);
   // GitLab issues are addressed by `!<iid>` in MRs and `#<iid>` in issues,
@@ -502,8 +499,7 @@ function IssueCard({
   return (
     <button
       type="button"
-      className={`issue-card ${accentClass} motion-rise-stagger`}
-      style={{ "--stagger-index": Math.min(staggerIndex, 8) } as React.CSSProperties}
+      className={`issue-card ${accentClass}`}
       onClick={onOpen}
       aria-label={`${provider === "gitlab" ? "GitLab" : "GitHub"} issue ${numberPrefix}${issue.number}: ${issue.title}`}
     >

@@ -8,7 +8,6 @@ import {
   type PRCardData,
   type PRStatus,
 } from "../lib/collaboration";
-import type { CSSProperties } from "react";
 import type { PullRequestCheckSummary } from "../lib/ipc";
 import { useNav } from "../store/useNav";
 import "./PRCard.css";
@@ -17,8 +16,6 @@ export type { PRCardData, PRStatus } from "../lib/collaboration";
 
 interface Props {
   pr: PRCardData;
-  /** Position in the list, used only for the first-load entrance stagger. */
-  staggerIndex?: number;
 }
 
 type CheckBucket = "passing" | "failing" | "pending";
@@ -133,10 +130,9 @@ function localMappingTitle(pr: PRCardData): string | undefined {
   return "No pinned local workspace matches this remote repository";
 }
 
-export function PRCard({ pr, staggerIndex = 0 }: Props) {
+export function PRCard({ pr }: Props) {
   const openPRDetail = useNav((s) => s.openPRDetail);
   const mappingLabel = localMappingLabel(pr);
-  const staggerStyle = { "--stagger-index": Math.min(staggerIndex, 8) } as CSSProperties;
 
   function openDetail() {
     openPRDetail({
@@ -151,7 +147,7 @@ export function PRCard({ pr, staggerIndex = 0 }: Props) {
   }
 
   return (
-    <article className={`pr-tile pr-status-${pr.status} motion-rise-stagger`} style={staggerStyle}>
+    <article className={`pr-tile pr-status-${pr.status}`}>
       <button
         type="button"
         className="pr-tile-surface"

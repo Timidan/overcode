@@ -159,7 +159,7 @@ export function GitHubIssueDetail() {
   return (
     <div className="issue-detail-container">
       <Sidebar />
-      <main className="issue-detail-main motion-rise">
+      <main className="issue-detail-main">
         <header className="issue-detail-header">
           <button
             type="button"

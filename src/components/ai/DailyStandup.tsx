@@ -6,10 +6,7 @@ import {
 } from "../../lib/ai-features";
 import { buildStandupPayload, type StandupRange } from "../../lib/standup-data";
 import type { AIEnvelope, StandupData } from "../../lib/ai-structured";
-import {
-  recallCogneeWorkflowMemory,
-  rememberCogneeWorkflowSummary,
-} from "../../lib/cognee-workflow-runtime";
+import { cogneeRepositoryMemory } from "../../lib/cognee-repository-memory";
 import { StandupSummary } from "./AIResultViews";
 import "./DailyStandup.css";
 
@@ -37,7 +34,7 @@ export function DailyStandup({ payload }: { payload?: StandupPayload | null }) {
       try {
         const nextPayload = payload ?? await buildStandupPayload(range);
         setLastPayload(nextPayload);
-        const memory = await recallCogneeWorkflowMemory({
+        const memory = await cogneeRepositoryMemory.recall({
           source: "daily standup",
           repoId: "workspace",
           repoName: "workspace",
@@ -50,7 +47,7 @@ export function DailyStandup({ payload }: { payload?: StandupPayload | null }) {
         );
         setContent(result);
         setView("result");
-        void rememberCogneeWorkflowSummary({
+        void cogneeRepositoryMemory.remember({
           source: "daily standup",
           repoId: "workspace",
           repoName: "workspace",
