@@ -125,8 +125,8 @@ export function PullRequests() {
         )}
 
         <div className="pr-screen-list">
-          {prs.map((pr, index) => (
-            <PRCard key={pr.id} pr={pr} staggerIndex={index} />
+          {prs.map((pr) => (
+            <PRCard key={pr.id} pr={pr} />
           ))}
         </div>
       </main>

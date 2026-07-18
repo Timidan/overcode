@@ -1,7 +1,7 @@
 {
   "name": "overcode",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Desktop developer workspace hub for Git, pull requests, BYOK AI providers, and Cognee-backed repository memory.",
   "author": {
     "name": "Timidan",

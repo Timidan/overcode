@@ -5,47 +5,12 @@ import {
   type ImpactPayload,
 } from "../../lib/ai-features";
 import type { AIEnvelope, ImpactData } from "../../lib/ai-structured";
-import { COGNEE_WORKSPACE_DATASET } from "../../lib/cognee-workflow-memory";
-import { rememberCogneeWorkflowSummary } from "../../lib/cognee-workflow-runtime";
-import { ipc } from "../../lib/ipc";
+import { cogneeRepositoryMemory } from "../../lib/cognee-repository-memory";
 import { ImpactResult } from "./AIResultViews";
 import "./ImpactAnalysis.css";
 
 interface Props {
   payload?: ImpactPayload | null;
-}
-
-interface MemoryRecallItem {
-  id: string;
-  title: string;
-  summary: string;
-  score?: number;
-  metadata?: Record<string, unknown>;
-}
-
-interface MemoryRecallResult {
-  ok: boolean;
-  skipped?: boolean;
-  items?: MemoryRecallItem[];
-}
-
-interface OptionalMemoryIPC {
-  recallMemory?: (query: {
-    query: string;
-    limit?: number;
-    filters?: Record<string, string | number | boolean | null>;
-  }) => Promise<MemoryRecallResult>;
-  rememberMemory?: (input: {
-    datasetName?: string;
-    documents: Array<{
-      id: string;
-      kind: "summary" | "fact" | "note";
-      title: string;
-      summary: string;
-      tags?: string[];
-      metadata?: Record<string, string | number | boolean | null>;
-    }>;
-  }) => Promise<unknown>;
 }
 
 const MAX_MEMORY_ITEMS = 4;
@@ -120,64 +85,32 @@ async function recallImpactMemory(payload: ImpactPayload): Promise<{
   context: string;
   used: NonNullable<ImpactPayload["memoryUsed"]>;
 } | null> {
-  const memoryIpc = ipc as unknown as OptionalMemoryIPC;
-  if (typeof memoryIpc.recallMemory !== "function") {
-    return null;
-  }
-
   const changedPaths = boundedPaths(payload.fileTree);
   const repo = payload.repoName?.trim() || payload.repoId?.trim() || "current repository";
   const branch = payload.branch?.trim();
-  const queryParts = [
-    `Recall Overcode memory for ${repo}`,
-    branch ? `on branch ${branch}` : "",
-    changedPaths.length > 0 ? `touching ${changedPaths.join(", ")}` : "",
-  ].filter(Boolean);
-
-  if (queryParts.length === 1 && changedPaths.length === 0) {
+  if (!branch && changedPaths.length === 0) {
     return null;
   }
 
-  try {
-    const recalled = await memoryIpc.recallMemory({
-      query: `${queryParts.join(" ")}.`,
-      limit: MAX_MEMORY_ITEMS,
-      filters: payload.repoId ? { repo: payload.repoId } : undefined,
-    });
-    const items = recalled.ok ? (recalled.items ?? []).slice(0, MAX_MEMORY_ITEMS) : [];
-    if (items.length === 0) {
-      return null;
-    }
+  const recalled = await cogneeRepositoryMemory.recall({
+    source: "impact analysis",
+    repoId: payload.repoId,
+    repoName: repo,
+    branch,
+    paths: changedPaths,
+    tags: ["impact", "analysis"],
+    limit: MAX_MEMORY_ITEMS,
+  }, { maxContextChars: MAX_MEMORY_CONTEXT_CHARS });
+  if (!recalled) return null;
 
-    const context = truncateMemoryText(
-      items
-        .map((item) => {
-          const refs = extractMemoryReferences(item);
-          return [
-            `Memory ${item.id}: ${item.title}`,
-            item.summary,
-            refs.length > 0 ? `References: ${refs.join(", ")}` : "",
-          ].filter(Boolean).join("\n");
-        })
-        .join("\n\n"),
-      MAX_MEMORY_CONTEXT_CHARS,
-    );
-
-    return {
-      context,
-      used: {
-        summary: `${items.length} recalled memory item${items.length === 1 ? "" : "s"}`,
-        graphPath: items.map((item) => `${repo} -> memory:${item.id}`),
-        references: uniqueStrings(items.flatMap(extractMemoryReferences)).slice(
-          0,
-          MAX_MEMORY_PATHS,
-        ),
-      },
-    };
-  } catch (error) {
-    console.warn("[impact-memory-recall-failed]", error);
-    return null;
-  }
+  return {
+    context: recalled.context,
+    used: {
+      summary: recalled.summary,
+      graphPath: recalled.items.map((item) => `${repo} -> memory:${item.id}`),
+      references: recalled.references.slice(0, MAX_MEMORY_PATHS),
+    },
+  };
 }
 
 async function rememberImpactResult(
@@ -188,50 +121,32 @@ async function rememberImpactResult(
     return;
   }
 
-  const memoryIpc = ipc as unknown as OptionalMemoryIPC;
-  if (typeof memoryIpc.rememberMemory !== "function") {
-    return;
-  }
-
   const changedPaths = boundedPaths(payload.fileTree).slice(0, MAX_REMEMBER_PATHS);
   const risks = result.data.risks.slice(0, 4);
   const riskSummary = risks
     .map((risk) => `${risk.severity}: ${risk.area} - ${risk.reason}`)
     .join(" | ");
   const repo = payload.repoName?.trim() || payload.repoId?.trim() || "current repository";
-  const id = `impact:${hashMemoryId(
-    `${repo}:${payload.branch ?? ""}:${changedPaths.join(",")}:${result.summary}`,
-  )}`;
-
-  try {
-    await memoryIpc.rememberMemory({
-      datasetName: COGNEE_WORKSPACE_DATASET,
-      documents: [
-        {
-          id,
-          kind: "summary",
-          title: `Impact analysis for ${repo}`,
-          summary: [
-            result.summary,
-            result.data.intent ? `Intent: ${result.data.intent}` : "",
-            riskSummary ? `Risks: ${riskSummary}` : "",
-            result.data.recommendation ? `Recommendation: ${result.data.recommendation}` : "",
-          ].filter(Boolean).join(" "),
-          tags: ["impact", "ai-output", ...changedPaths],
-          metadata: {
-            source: "impact analysis",
-            repo: payload.repoId ?? payload.repoName ?? null,
-            branch: payload.branch ?? null,
-            changed_paths: changedPaths.join(","),
-            risk_count: result.data.risks.length,
-            confidence: result.confidence,
-          },
-        },
-      ],
-    });
-  } catch (error) {
-    console.warn("[impact-memory-remember-failed]", error);
-  }
+  await cogneeRepositoryMemory.remember({
+    source: "impact analysis",
+    repoId: payload.repoId,
+    repoName: payload.repoName,
+    branch: payload.branch,
+    paths: changedPaths,
+    subject: result.data.intent || repo,
+    title: `Impact analysis for ${repo}`,
+    summary: [
+      result.summary,
+      result.data.intent ? `Intent: ${result.data.intent}` : "",
+      riskSummary ? `Risks: ${riskSummary}` : "",
+      result.data.recommendation ? `Recommendation: ${result.data.recommendation}` : "",
+    ].filter(Boolean).join(" "),
+    tags: ["impact", "ai-output"],
+    data: {
+      risk_count: result.data.risks.length,
+      confidence: result.confidence,
+    },
+  });
 }
 
 async function rememberImpactTestingMemory(
@@ -244,7 +159,7 @@ async function rememberImpactTestingMemory(
 
   const changedPaths = boundedPaths(payload.fileTree).slice(0, MAX_REMEMBER_PATHS);
   const repo = payload.repoName?.trim() || payload.repoId?.trim() || "current repository";
-  await rememberCogneeWorkflowSummary({
+  await cogneeRepositoryMemory.remember({
     source: "testing memory",
     repoId: payload.repoId,
     repoName: payload.repoName,
@@ -277,35 +192,6 @@ function boundedPaths(paths?: string[]): string[] {
   );
 }
 
-function extractMemoryReferences(item: MemoryRecallItem): string[] {
-  const metadata = item.metadata ?? {};
-  const refs = [
-    metadata.file,
-    metadata.path,
-    metadata.ref,
-    metadata.url,
-    metadata.changed_paths,
-  ];
-  return uniqueStrings(
-    refs
-      .flatMap((value) => (typeof value === "string" ? value.split(",") : []))
-      .map((value) => value.trim())
-      .filter(Boolean),
-  ).slice(0, MAX_MEMORY_PATHS);
-}
-
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values));
-}
-
-function truncateMemoryText(value: string, maxChars: number): string {
-  return value.length <= maxChars ? value : `${value.slice(0, maxChars - 3)}...`;
-}
-
-function hashMemoryId(value: string): string {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-  return hash.toString(36);
 }

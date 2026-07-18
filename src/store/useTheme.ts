@@ -71,22 +71,17 @@ export const useTheme = create<ThemeState>((set, get) => ({
       set({ theme });
     };
 
-    // Set the origin coordinates on :root so view-transitions.css can
-    // animate clip-path: circle(... at <x> <y>). Defaults to center
-    // when no origin is provided (e.g. keyboard toggle).
-    if (typeof document !== "undefined") {
+    // Only direct pointer activation supplies an origin. Keyboard and other
+    // origin-less changes apply immediately and never start a circular reveal.
+    if (typeof document !== "undefined" && origin) {
       const root = document.documentElement;
-      if (origin) {
-        root.style.setProperty("--vt-origin-x", `${origin.x}px`);
-        root.style.setProperty("--vt-origin-y", `${origin.y}px`);
-      } else {
-        root.style.setProperty("--vt-origin-x", "50%");
-        root.style.setProperty("--vt-origin-y", "50%");
-      }
+      root.style.setProperty("--vt-origin-x", `${origin.x}px`);
+      root.style.setProperty("--vt-origin-y", `${origin.y}px`);
     }
 
     const start = getStartViewTransition();
-    if (start && !prefersReducedMotion()) {
+    const reduceMotion = prefersReducedMotion();
+    if (origin && start && !reduceMotion) {
       start(() => {
         applyThemeAttribute(theme);
       });
@@ -94,8 +89,9 @@ export const useTheme = create<ThemeState>((set, get) => ({
       return;
     }
 
-    // Fallback path (no View Transitions API or reduced motion).
-    if (prefersReducedMotion()) {
+    // Origin-less and reduced-motion changes snap. Pointer activation keeps a
+    // restrained fallback only when the View Transitions API is unavailable.
+    if (!origin || reduceMotion) {
       applyThemeAttribute(theme);
     } else {
       applyThemeFallback(theme);

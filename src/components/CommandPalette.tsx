@@ -204,7 +204,7 @@ export function CommandPalette() {
   return (
     <div className="cmdk-overlay" onClick={close} role="presentation">
       <div
-        className="cmdk-panel motion-rise"
+        className="cmdk-panel"
         role="dialog"
         aria-label="Command palette"
         onClick={(e) => e.stopPropagation()}

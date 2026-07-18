@@ -1,14 +1,13 @@
 import type { WorktreeComparePayload } from "../../lib/ai-features";
 import type { AIEnvelope, WorktreeCompareData } from "../../lib/ai-structured";
-import type { MemoryRememberInput } from "../../lib/ipc";
-import { buildCogneeSummaryMemoryInput } from "../../lib/cognee-workflow-memory";
+import type { CogneeSummaryMemoryInput } from "../../lib/cognee-workflow-memory";
 
 const MAX_TAG_PATHS = 8;
 
-export function buildWorktreeCompareMemoryInput(
+export function buildWorktreeCompareMemorySummary(
   payload: WorktreeComparePayload,
   result: AIEnvelope<WorktreeCompareData>,
-): MemoryRememberInput {
+): CogneeSummaryMemoryInput {
   const repo = payload.repoName?.trim() || payload.repoId.trim();
   const changedPaths = uniqueStrings(payload.changedFiles ?? []).slice(0, MAX_TAG_PATHS);
   const moduleSummary = result.data.moduleMap
@@ -25,27 +24,25 @@ export function buildWorktreeCompareMemoryInput(
   ].filter(Boolean).join(" ");
 
   return {
-    ...buildCogneeSummaryMemoryInput({
-      source: "worktree compare",
-      repoId: payload.repoId,
-      repoName: payload.repoName,
-      branch: payload.branch ?? payload.target,
-      paths: changedPaths,
-      subject: `${payload.base} -> ${payload.target}`,
-      title: `Cognee worktree memory for ${repo}`,
-      summary,
-      tags: ["worktree"],
-      data: {
-        base: payload.base,
-        target: payload.target,
-        readiness: result.data.readiness,
-        confidence: result.confidence,
-        module_count: result.data.moduleMap.length,
-        ahead: payload.ahead,
-        behind: payload.behind,
-        dirty_files: payload.dirtyFiles,
-      },
-    }),
+    source: "worktree compare",
+    repoId: payload.repoId,
+    repoName: payload.repoName,
+    branch: payload.branch ?? payload.target,
+    paths: changedPaths,
+    subject: `${payload.base} -> ${payload.target}`,
+    title: `Cognee worktree memory for ${repo}`,
+    summary,
+    tags: ["worktree"],
+    data: {
+      base: payload.base,
+      target: payload.target,
+      readiness: result.data.readiness,
+      confidence: result.confidence,
+      module_count: result.data.moduleMap.length,
+      ahead: payload.ahead,
+      behind: payload.behind,
+      dirty_files: payload.dirtyFiles,
+    },
     nodeSet: [`repo:${boundText(repo, 70)}`],
   };
 }

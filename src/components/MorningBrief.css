@@ -123,6 +123,13 @@
   color: var(--color-text-secondary);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .morning-brief-update-memory {
+    animation: overcode-reduced-fade 80ms linear both;
+    transform: none;
+  }
+}
+
 .morning-brief-update-memory .ai-provider-logo {
   width: 14px;
   height: 14px;

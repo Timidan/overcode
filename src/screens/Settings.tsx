@@ -14,9 +14,9 @@ import {
 } from "../lib/ipc";
 import {
   COGNEE_MEMORY_LEDGER_CHANGED_EVENT,
-  loadCogneeMemoryLedger,
   type CogneeMemoryLedgerSnapshot,
 } from "../lib/cognee-memory-ledger";
+import { cogneeRepositoryMemory } from "../lib/cognee-repository-memory";
 import "./Settings.css";
 
 interface SettingsShape {
@@ -87,16 +87,16 @@ export function SettingsScreen() {
   const [memoryAction, setMemoryAction] = useState<"improve" | "forget" | null>(null);
   const [confirmingForget, setConfirmingForget] = useState(false);
   const [ledger, setLedger] = useState<CogneeMemoryLedgerSnapshot>(() =>
-    loadCogneeMemoryLedger(),
+    cogneeRepositoryMemory.loadLedger(),
   );
   const memoryDigest = buildMemoryDigest(ledger);
 
   useEffect(() => {
     function refreshLedger() {
-      setLedger(loadCogneeMemoryLedger());
+      setLedger(cogneeRepositoryMemory.loadLedger());
     }
-    void ipc
-      .hydrateMemoryLedger()
+    void cogneeRepositoryMemory
+      .hydrateLedger()
       .then(setLedger)
       .catch(refreshLedger);
     window.addEventListener(COGNEE_MEMORY_LEDGER_CHANGED_EVENT, refreshLedger);
@@ -235,7 +235,9 @@ export function SettingsScreen() {
     setMemoryAction("forget");
     setMemoryError(null);
     try {
-      const result = await ipc.forgetMemory({ datasetName: MEMORY_DATASET_NAME });
+      const result = await cogneeRepositoryMemory.forget({
+        datasetName: MEMORY_DATASET_NAME,
+      });
       if (!result.ok || result.skipped || !result.forgotten) {
         const detail = result.error ?? result.reason ?? "Memory forget was skipped.";
         setMemoryError(`Repo memory not cleared: ${detail}`);

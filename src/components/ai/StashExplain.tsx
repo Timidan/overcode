@@ -5,10 +5,7 @@ import {
   type StashExplainPayload,
 } from "../../lib/ai-features";
 import type { AIEnvelope, StashExplainData } from "../../lib/ai-structured";
-import {
-  recallCogneeWorkflowMemory,
-  rememberCogneeWorkflowSummary,
-} from "../../lib/cognee-workflow-runtime";
+import { cogneeRepositoryMemory } from "../../lib/cognee-repository-memory";
 import { StashExplainResult } from "./AIResultViews";
 import "./ImpactAnalysis.css";
 
@@ -34,7 +31,7 @@ export function StashExplain({ payload: explicitPayload }: Props) {
       setResponse(null);
 
       try {
-        const memory = await recallCogneeWorkflowMemory({
+        const memory = await cogneeRepositoryMemory.recall({
           source: "stash explanation",
           repoId: data.repoId,
           repoName: data.repoName ?? data.repoPath,
@@ -48,7 +45,7 @@ export function StashExplain({ payload: explicitPayload }: Props) {
           memory?.context ? { ...data, memoryContext: memory.context } : data,
         );
         setResponse(result);
-        void rememberCogneeWorkflowSummary({
+        void cogneeRepositoryMemory.remember({
           source: "stash explanation",
           repoId: data.repoId,
           repoName: data.repoName ?? data.repoPath,

@@ -1,8 +1,6 @@
-/* RouteFrame — keyed wrapper that replays an enter animation on
-   every screen change. The actual keyframes + selector live in
-   `src/styles/animations.css` (`.route-frame[data-enter]`).
-
-   The wrapper must be a real flex container so the screens inside
+/* RouteFrame is a stable flex wrapper. The wrapper stays motionless so route
+   changes are immediate for both sidebar clicks and keyboard shortcuts.
+   It must be a real flex container so the screens inside
    (which use `height: 100%` + `display: flex`) still get the sizing
    they previously got from being direct children of `.app-shell`. */
 
@@ -15,8 +13,6 @@
   min-height: 0;
   width: 100%;
   height: 100%;
-  /* Ensure animations apply cleanly during enter. */
-  will-change: transform, opacity;
 }
 
 .route-frame > * {

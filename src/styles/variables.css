@@ -208,7 +208,7 @@
 .theme-transitioning *::before,
 .theme-transitioning *::after {
   transition: none !important;
-  animation-duration: 0.01ms !important;
+  animation: none !important;
 }
 
 /* ============================================================

@@ -5,10 +5,7 @@ import {
   type BriefPayload,
 } from "../../lib/ai-features";
 import type { AIEnvelope, RepoBriefData } from "../../lib/ai-structured";
-import {
-  recallCogneeWorkflowMemory,
-  rememberCogneeWorkflowSummary,
-} from "../../lib/cognee-workflow-runtime";
+import { cogneeRepositoryMemory } from "../../lib/cognee-repository-memory";
 import { RepoBriefResult } from "./AIResultViews";
 import "./RepoBrief.css";
 
@@ -34,7 +31,7 @@ export function RepoBrief({ payload: explicitPayload }: Props) {
       setContent(null);
 
       try {
-        const memory = await recallCogneeWorkflowMemory({
+        const memory = await cogneeRepositoryMemory.recall({
           source: "repo brief",
           repoId: data.repoId,
           repoName: data.repoName,
@@ -46,7 +43,7 @@ export function RepoBrief({ payload: explicitPayload }: Props) {
           memory?.context ? { ...data, memoryContext: memory.context } : data,
         );
         setContent(result);
-        void rememberCogneeWorkflowSummary({
+        void cogneeRepositoryMemory.remember({
           source: "repo brief",
           repoId: data.repoId,
           repoName: data.repoName,

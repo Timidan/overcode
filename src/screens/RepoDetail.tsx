@@ -23,10 +23,10 @@ import { useAIPanel } from "../store/useAIPanel";
 import { ipc } from "../lib/ipc";
 import { extractCogneeMemoryHighlights } from "../lib/cognee-workflow-memory";
 import {
-  COGNEE_WORKFLOW_MEMORY_UPDATED_EVENT,
-  recallCogneeWorkflowMemory,
-  type RecalledCogneeWorkflowMemory,
-} from "../lib/cognee-workflow-runtime";
+  COGNEE_REPOSITORY_MEMORY_UPDATED_EVENT,
+  cogneeRepositoryMemory,
+  type RecalledCogneeRepositoryMemory,
+} from "../lib/cognee-repository-memory";
 import {
   loadRepositoryById,
   type WorkspaceRepository,
@@ -38,7 +38,7 @@ type SidecarSizes = [number, number, number, number];
 
 interface RepoMemoryState {
   line: string;
-  recalled: RecalledCogneeWorkflowMemory;
+  recalled: RecalledCogneeRepositoryMemory;
 }
 
 const DEFAULT_COLUMN_SIZES: ColumnSizes = [41, 29, 30];
@@ -121,7 +121,7 @@ export function RepoDetail() {
     function recallRepoMemory() {
       // Branch is deliberately omitted: this is a repo-level recall and a
       // stale branch filter would hide valid memory.
-      recallCogneeWorkflowMemory(
+      cogneeRepositoryMemory.recall(
         {
           source: "repo detail",
           repoId: currentRepo.id,
@@ -129,8 +129,7 @@ export function RepoDetail() {
           subject: "recent analysis, risks, and decisions",
           limit: 3,
         },
-        undefined,
-        { retryOnEmpty: true, requireRepoMatch: true },
+        { coldStartRetry: true },
       ).then((memory) => {
         if (cancelled || !memory) return;
         const line = extractRepoMemoryLine(memory);
@@ -146,10 +145,10 @@ export function RepoDetail() {
     // Branch is deliberately omitted: this is repo-level memory and a stale
     // branch filter would hide valid memories across normal branch switches.
     recallRepoMemory();
-    window.addEventListener(COGNEE_WORKFLOW_MEMORY_UPDATED_EVENT, handleMemoryUpdated);
+    window.addEventListener(COGNEE_REPOSITORY_MEMORY_UPDATED_EVENT, handleMemoryUpdated);
     return () => {
       cancelled = true;
-      window.removeEventListener(COGNEE_WORKFLOW_MEMORY_UPDATED_EVENT, handleMemoryUpdated);
+      window.removeEventListener(COGNEE_REPOSITORY_MEMORY_UPDATED_EVENT, handleMemoryUpdated);
     };
     // Recall once per repo open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -508,7 +507,7 @@ export function RepoDetail() {
   );
 }
 
-function extractRepoMemoryLine(memory: RecalledCogneeWorkflowMemory): string | null {
+function extractRepoMemoryLine(memory: RecalledCogneeRepositoryMemory): string | null {
   const highlights = extractCogneeMemoryHighlights(memory.context);
   const line = highlights[0] ?? memory.items[0]?.summary ?? memory.summary;
   if (!line.trim()) return null;
@@ -518,6 +517,7 @@ function extractRepoMemoryLine(memory: RecalledCogneeWorkflowMemory): string | n
 function isMemoryUpdateForRepo(event: Event, repo: WorkspaceRepository): boolean {
   if (!(event instanceof CustomEvent) || !event.detail) return true;
   const detail = event.detail as { repoId?: unknown; repoName?: unknown };
+  if (!detail.repoId && !detail.repoName) return true;
   return detail.repoId === repo.id || detail.repoName === repo.name;
 }
 

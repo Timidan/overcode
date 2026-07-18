@@ -18,10 +18,7 @@ import type {
   IssueTriageData,
   Severity,
 } from "../../lib/ai-structured";
-import {
-  recallCogneeWorkflowMemory,
-  rememberCogneeWorkflowSummary,
-} from "../../lib/cognee-workflow-runtime";
+import { cogneeRepositoryMemory } from "../../lib/cognee-repository-memory";
 import { AISummaryCard } from "./AIResultViews";
 import "./IssueTriage.css";
 
@@ -53,7 +50,7 @@ export function IssueTriage({ payload: explicitPayload }: Props) {
       setApplied(false);
       setCopyState("idle");
       try {
-        const memory = await recallCogneeWorkflowMemory({
+        const memory = await cogneeRepositoryMemory.recall({
           source: "issue triage",
           repoName: incoming.repoName,
           paths: incoming.localChangedFiles,
@@ -68,7 +65,7 @@ export function IssueTriage({ payload: explicitPayload }: Props) {
         setContent(result);
         setView("result");
         const likelyModulePaths = result.data.likelyModules.flatMap((module) => module.paths);
-        void rememberCogneeWorkflowSummary({
+        void cogneeRepositoryMemory.remember({
           source: "issue triage",
           repoName: incoming.repoName,
           issueNumber: incoming.issue.number,
@@ -89,7 +86,7 @@ export function IssueTriage({ payload: explicitPayload }: Props) {
           },
         });
         if (result.data.acceptanceChecks.length > 0) {
-          void rememberCogneeWorkflowSummary({
+          void cogneeRepositoryMemory.remember({
             source: "testing memory",
             repoName: incoming.repoName,
             issueNumber: incoming.issue.number,

@@ -527,8 +527,8 @@
 /* ---------------------------------------------------------------------------
    Curation polish — bulk bar, per-row checkbox, hover-reveal actions,
    scan skeletons, empty states, toast, and the quick-look right-slide panel.
-   All animations animate only transform/opacity; the prefers-reduced-motion
-   guard in motion.css will short-circuit durations to ~0ms.
+   All animations animate only transform/opacity; reduced motion replaces
+   transform entrances with a short opacity-only acknowledgement.
    --------------------------------------------------------------------------- */
 
 /* Empty state — plain variant for the "no watch dirs / no remotes" big
@@ -797,6 +797,14 @@
 @keyframes overcode-toast-rise {
   from { opacity: 0; transform: translate(-50%, 6px); }
   to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .repos-bulkbar,
+  .repos-toast {
+    animation: overcode-reduced-fade 80ms linear both;
+    transform: none;
+  }
 }
 
 .repos-main { position: relative; }

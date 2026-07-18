@@ -9,6 +9,12 @@ export function ThemeToggle() {
   const isDark = theme === "dark";
 
   function handleClick(event: MouseEvent<HTMLButtonElement>) {
+    // Keyboard activation dispatches click with detail=0. Keep that path
+    // immediate; only a real pointer click gets the circular reveal origin.
+    if (event.detail === 0) {
+      toggle();
+      return;
+    }
     // Compute the click origin from the button's screen rect so the
     // View Transitions circular reveal can grow from the toggle itself.
     // Falls back to the event coords when available.

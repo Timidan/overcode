@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.1.0-1e40af?style=flat-square" alt="Version 0.1.0">
+  <img src="https://img.shields.io/badge/version-0.1.2-1e40af?style=flat-square" alt="Version 0.1.2">
   <img src="https://img.shields.io/badge/Memory-Cognee%20repository%20memory-0f766e?style=flat-square" alt="Cognee repository memory layer">
   <img src="https://img.shields.io/badge/AI-BYOK%20providers-1f70c1?style=flat-square" alt="BYOK AI providers runtime">
   <img src="https://img.shields.io/badge/Runtime-Electron%2030-47848f?style=flat-square" alt="Electron 30">
@@ -34,6 +34,36 @@ Overcode is a native desktop application that consolidates local Git state, GitH
 The data plane is local. Repositories are read directly from disk through `simple-git` in an isolated worker process. Remote provider data is pulled per-account through user-scoped OAuth and cached locally. AI calls are explicit, routed through the selected provider, and recorded in a local audit log. Cognee is used as an optional repository memory layer for approved summaries and structured facts.
 
 There is no Overcode backend.
+
+---
+
+## OpenAI Build Week
+
+Overcode is entered in the **Developer Tools** category. The application existed before the July 13, 2026 submission window; the judged Build Week contribution is a focused GPT-5.6-assisted extension rather than a claim that the entire product was built during the event.
+
+### What Changed During Build Week
+
+- Replaced a shallow, duplicated memory workflow with one tested repository-memory lifecycle for recall, fact collection, stable deduplication, remember, improve, and forget behavior.
+- Migrated repository briefing, impact analysis, commit assistance, issue triage, standup, worktree comparison, pull-request, repository, dashboard, and settings surfaces to that shared boundary.
+- Added repository-memory and theme-input tests.
+- Removed mandatory route, keyboard-command, AI-panel, and list entrance delays; preserved causal pointer feedback; and made reduced-motion behavior informative without decorative loops.
+- Narrowed the worktree-comparison ARIA live region during independent acceptance review so it does not contain an interactive control.
+
+### How Codex And GPT-5.6 Contributed
+
+The implementation was completed in Codex with `gpt-5.6-sol` at `xhigh` reasoning in session `019f7679-b2ee-7961-bdac-6ec8a426ca31`. GPT-5.6 analyzed the existing architecture, implemented the consolidated module and caller migration, refined the interaction motion, and added tests. The human selected the architectural boundary, constrained memory to approved repository summaries and structured facts, chose immediate keyboard behavior with spatial feedback only for pointer input, and made the final accessibility correction. The same GPT-5.6 session reviewed that correction, and `/feedback` was submitted successfully.
+
+Acceptance verification for this contribution:
+
+| Check | Result |
+| --- | --- |
+| Unit tests | 20 files and 145 tests passed |
+| TypeScript | `npx tsc --noEmit` passed |
+| Lint | Passed with zero warnings |
+| Production package | `npm run build` produced the Linux AppImage |
+| Patch hygiene | `git diff --check` passed |
+
+The [Overcode website](https://overcode.timidan.xyz) distributes the prebuilt Linux AppImage from the public GitHub releases. The Build Week contribution is packaged as `v0.1.2`, preserving the historical `v0.1.1` artifact from before the event. Local repository and worktree views need no account, while AI providers, Cognee, GitHub, and GitLab are optional integrations.
 
 ---
 
@@ -203,7 +233,7 @@ npx electron-builder --win nsis
 npx electron-builder --mac dmg
 ```
 
-Output is written to `release/0.1.0/`.
+Output is written to `release/0.1.2/`.
 
 ---
 
@@ -222,15 +252,22 @@ Output is written to `release/0.1.0/`.
 
 ## Release Notes
 
-### 0.1.0
+### 0.1.2 — OpenAI Build Week
+
+- Consolidated the repository-memory lifecycle and migrated every AI and repository caller to the shared boundary.
+- Added repository-memory and theme-input coverage; 145 tests pass in the release candidate.
+- Removed mandatory entrance delays from keyboard, route, AI-panel, and list interactions.
+- Refined reduced-motion feedback and corrected the worktree-comparison ARIA live region.
+
+### 0.1.1
 
 - Desktop Git workspace hub with GitHub and GitLab OAuth.
 - BYOK-provider-backed AI panel and inline PR analysis workflows.
-- Cognee-backed repository memory surfaces for remember, recall, improve, and forget flows.
+- Cognee-backed repository memory for remember, recall, improve, and forget flows.
 - Linux AppImage, Windows NSIS, and macOS DMG build targets.
 
 ---
 
 ## License
 
-Provided as-is for evaluation; a formal license will be assigned subsequently.
+Overcode is available under the [MIT License](LICENSE).

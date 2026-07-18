@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X } from "@phosphor-icons/react";
-import type { RecalledCogneeWorkflowMemory } from "../lib/cognee-workflow-runtime";
+import type { RecalledCogneeRepositoryMemory } from "../lib/cognee-repository-memory";
 import {
   extractCogneeMemoryHighlights,
   extractCogneeMemoryReferences,
@@ -10,7 +10,7 @@ import "./MemoryRecallModal.css";
 
 interface Props {
   repoName: string;
-  memory: RecalledCogneeWorkflowMemory;
+  memory: RecalledCogneeRepositoryMemory;
   onClose: () => void;
 }
 

@@ -6,17 +6,6 @@
 
 /* ---------- KEYFRAMES ---------- */
 
-@keyframes overcode-route-enter {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @keyframes overcode-scale-in {
   from {
     opacity: 0;
@@ -49,11 +38,6 @@
   }
 }
 
-/* ---------- ROUTE / PAGE ENTER ---------- */
-.route-frame[data-enter="true"] {
-  animation: overcode-route-enter 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
 /* ---------- BUTTON :active SNAP FEEDBACK ----------
    Mechanical sharp press: instant down, eased release.
    Excludes form inputs intentionally. */
@@ -74,60 +58,11 @@ button.is-busy svg:first-of-type {
   transform-origin: center;
 }
 
-/* ---------- STAGGER ENTRANCES (target existing class names) ---------- */
-
-/* Dashboard stat cards */
-.stat-cards > * {
-  animation: overcode-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-.stat-cards > *:nth-child(1) { animation-delay: 0ms; }
-.stat-cards > *:nth-child(2) { animation-delay: 40ms; }
-.stat-cards > *:nth-child(3) { animation-delay: 80ms; }
-.stat-cards > *:nth-child(4) { animation-delay: 120ms; }
-.stat-cards > *:nth-child(5) { animation-delay: 160ms; }
-.stat-cards > *:nth-child(6) { animation-delay: 200ms; }
-
-/* Pull-requests grid */
-.pr-screen-list > * {
-  animation: overcode-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-.pr-screen-list > *:nth-child(1) { animation-delay: 0ms; }
-.pr-screen-list > *:nth-child(2) { animation-delay: 40ms; }
-.pr-screen-list > *:nth-child(3) { animation-delay: 80ms; }
-.pr-screen-list > *:nth-child(4) { animation-delay: 120ms; }
-.pr-screen-list > *:nth-child(5) { animation-delay: 160ms; }
-.pr-screen-list > *:nth-child(6) { animation-delay: 200ms; }
-.pr-screen-list > *:nth-child(7) { animation-delay: 240ms; }
-.pr-screen-list > *:nth-child(8) { animation-delay: 280ms; }
-
-/* Repositories list rows */
-.repos-list .repo-row {
-  animation: overcode-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-.repos-list .repo-row:nth-child(1) { animation-delay: 0ms; }
-.repos-list .repo-row:nth-child(2) { animation-delay: 40ms; }
-.repos-list .repo-row:nth-child(3) { animation-delay: 80ms; }
-.repos-list .repo-row:nth-child(4) { animation-delay: 120ms; }
-.repos-list .repo-row:nth-child(5) { animation-delay: 160ms; }
-.repos-list .repo-row:nth-child(6) { animation-delay: 200ms; }
-.repos-list .repo-row:nth-child(7) { animation-delay: 240ms; }
-.repos-list .repo-row:nth-child(8) { animation-delay: 280ms; }
-
-/* Activity feed — virtualized via react-window so per-row stagger isn't
-   possible without disturbing the list. Animate the container instead so
-   the whole feed rises in once when it mounts. */
-.activity-list-container {
-  animation: overcode-rise 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: 80ms;
-}
-
 /* ---------- MODAL / PALETTE / PANEL UTILITIES ---------- */
 
-/* Scale-in for centered overlays — opt-in via class.
-   .cmdk-panel already uses motion-rise; add a stronger scale-in for
-   modals like .ai-modal if it returns. */
+/* Scale-in for explicitly animated centered overlays. Keyboard-first
+   overlays stay immediate and do not use these selectors. */
 .anim-scale-in,
-.cmdk-panel,
 .ai-modal {
   animation: overcode-scale-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -199,22 +134,14 @@ body.with-pattern {
   background-attachment: fixed;
 }
 
-/* ---------- REDUCED MOTION GUARD ----------
-   The global guard in motion.css already clamps animation-duration to
-   0.01ms; here we additionally cancel transforms so nothing snaps. */
+/* ---------- REDUCED MOTION GUARD ---------- */
 @media (prefers-reduced-motion: reduce) {
   button:active:not(:disabled),
   [role="button"]:active:not([aria-disabled="true"]) {
     transform: none;
   }
-  .route-frame[data-enter="true"],
-  .stat-cards > *,
-  .pr-screen-list > *,
-  .repos-list .repo-row,
-  .activity-list-container,
   .anim-scale-in,
   .anim-slide-in-right,
-  .cmdk-panel,
   .ai-modal,
   .ai-panel-slide-in,
   .code-inspector.panel,
@@ -222,5 +149,16 @@ body.with-pattern {
     animation: none !important;
     transform: none !important;
     opacity: 1 !important;
+  }
+
+  button.is-busy svg:first-of-type,
+  .ai-dot,
+  .commit-dot,
+  .impact-dot,
+  .brief-dot,
+  .skel-row,
+  .skel-line {
+    animation: none !important;
+    transform: none !important;
   }
 }

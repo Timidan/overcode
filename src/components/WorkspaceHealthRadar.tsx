@@ -9,14 +9,13 @@ import {
 } from "@phosphor-icons/react";
 import {
   COGNEE_MEMORY_LEDGER_CHANGED_EVENT,
-  loadCogneeMemoryLedger,
   type CogneeMemoryLedgerSnapshot,
 } from "../lib/cognee-memory-ledger";
+import { cogneeRepositoryMemory } from "../lib/cognee-repository-memory";
 import {
   loadWorkspaceHealthRadar,
   type WorkspaceHealthRadar as WorkspaceHealthRadarData,
 } from "../lib/workspace-health";
-import { ipc } from "../lib/ipc";
 import { useNav } from "../store/useNav";
 import "./WorkspaceHealthRadar.css";
 
@@ -24,7 +23,7 @@ export function WorkspaceHealthRadar({ refreshKey }: { refreshKey: number }) {
   const navigate = useNav((state) => state.navigate);
   const [radar, setRadar] = useState<WorkspaceHealthRadarData | null>(null);
   const [memory, setMemory] = useState<CogneeMemoryLedgerSnapshot>(() =>
-    loadCogneeMemoryLedger(),
+    cogneeRepositoryMemory.loadLedger(),
   );
   const [loading, setLoading] = useState(true);
 
@@ -48,11 +47,11 @@ export function WorkspaceHealthRadar({ refreshKey }: { refreshKey: number }) {
 
   useEffect(() => {
     function refreshMemory() {
-      setMemory(loadCogneeMemoryLedger());
+      setMemory(cogneeRepositoryMemory.loadLedger());
     }
 
-    void ipc
-      .hydrateMemoryLedger()
+    void cogneeRepositoryMemory
+      .hydrateLedger()
       .then(setMemory)
       .catch(refreshMemory);
     window.addEventListener(COGNEE_MEMORY_LEDGER_CHANGED_EVENT, refreshMemory);
